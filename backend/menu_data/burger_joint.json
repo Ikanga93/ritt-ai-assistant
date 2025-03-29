@@ -1,0 +1,119 @@
+{
+  "restaurant": "Burger Joint",
+  "description": "Classic American burgers and sides",
+  "location": {
+    "address": "123 Main Street, Anytown USA",
+    "phone": "555-123-4567",
+    "hours": "10am-10pm Daily"
+  },
+  "restaurant_id": "burger_joint",
+  "restaurant_name": "Burger Joint",
+  "email": "orders@burgerjoint.example.com",
+  "menu_categories": [
+    {
+      "category": "Signature Burgers",
+      "items": [
+        {
+          "name": "Classic Burger",
+          "description": "Beef patty with lettuce, tomato, onion, and special sauce on a brioche bun",
+          "price": 8.99,
+          "calories": 650,
+          "id": "burger_joint_classic_burger_0"
+        },
+        {
+          "name": "Cheeseburger",
+          "description": "Classic burger with American cheese",
+          "price": 9.99,
+          "calories": 750,
+          "id": "burger_joint_cheeseburger_1"
+        },
+        {
+          "name": "Bacon Deluxe",
+          "description": "Classic burger with crispy bacon, cheddar cheese, and BBQ sauce",
+          "price": 11.99,
+          "calories": 950,
+          "id": "burger_joint_bacon_deluxe_2"
+        },
+        {
+          "name": "Mushroom Swiss",
+          "description": "Beef patty with sautéed mushrooms and Swiss cheese",
+          "price": 10.99,
+          "calories": 780,
+          "id": "burger_joint_mushroom_swiss_3"
+        }
+      ]
+    },
+    {
+      "category": "Sides",
+      "items": [
+        {
+          "name": "French Fries",
+          "description": "Crispy golden fries with sea salt",
+          "price": 3.99,
+          "calories": 420,
+          "id": "burger_joint_french_fries_0"
+        },
+        {
+          "name": "Onion Rings",
+          "description": "Beer-battered onion rings",
+          "price": 4.99,
+          "calories": 480,
+          "id": "burger_joint_onion_rings_1"
+        },
+        {
+          "name": "Side Salad",
+          "description": "Mixed greens with cherry tomatoes and ranch dressing",
+          "price": 3.99,
+          "calories": 120,
+          "id": "burger_joint_side_salad_2"
+        }
+      ]
+    },
+    {
+      "category": "Beverages",
+      "items": [
+        {
+          "name": "Fountain Soda",
+          "description": "Cola, Diet Cola, Lemon-Lime, or Root Beer",
+          "price": 2.49,
+          "calories": 150,
+          "id": "burger_joint_fountain_soda_0"
+        },
+        {
+          "name": "Milkshake",
+          "description": "Chocolate, Vanilla, or Strawberry",
+          "price": 5.99,
+          "calories": 650,
+          "id": "burger_joint_milkshake_1"
+        },
+        {
+          "name": "Iced Tea",
+          "description": "Sweetened or unsweetened",
+          "price": 2.49,
+          "calories": 90,
+          "id": "burger_joint_iced_tea_2"
+        }
+      ]
+    },
+    {
+      "category": "Desserts",
+      "items": [
+        {
+          "name": "Chocolate Brownie",
+          "description": "Warm chocolate brownie with vanilla ice cream",
+          "price": 6.99,
+          "calories": 550,
+          "id": "burger_joint_chocolate_brownie_0"
+        },
+        {
+          "name": "Apple Pie",
+          "description": "Homemade apple pie with caramel drizzle",
+          "price": 5.99,
+          "calories": 450,
+          "id": "burger_joint_apple_pie_1"
+        }
+      ]
+    }
+  ],
+  "notes": "All burgers can be made with a gluten-free bun for an additional $1.50"
+}

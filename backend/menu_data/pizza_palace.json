@@ -1,0 +1,152 @@
+{
+  "restaurant": "Pizza Palace",
+  "description": "Authentic Italian pizzas and pasta dishes",
+  "location": {
+    "address": "456 Oak Avenue, Anytown USA",
+    "phone": "555-987-6543",
+    "hours": "11am-11pm Daily"
+  },
+  "restaurant_id": "pizza_palace",
+  "restaurant_name": "Pizza Palace",
+  "email": "orders@pizzapalace.example.com",
+  "menu_categories": [
+    {
+      "category": "Classic Pizzas",
+      "items": [
+        {
+          "name": "Margherita",
+          "description": "Fresh mozzarella, tomato sauce, and basil",
+          "price": 12.99,
+          "calories": 850,
+          "id": "pizza_palace_margherita_0"
+        },
+        {
+          "name": "Pepperoni",
+          "description": "Tomato sauce, mozzarella, and pepperoni",
+          "price": 14.99,
+          "calories": 950,
+          "id": "pizza_palace_pepperoni_1"
+        },
+        {
+          "name": "Vegetarian",
+          "description": "Tomato sauce, mozzarella, bell peppers, onions, mushrooms, and olives",
+          "price": 15.99,
+          "calories": 900,
+          "id": "pizza_palace_vegetarian_2"
+        },
+        {
+          "name": "Hawaiian",
+          "description": "Tomato sauce, mozzarella, ham, and pineapple",
+          "price": 15.99,
+          "calories": 920,
+          "id": "pizza_palace_hawaiian_3"
+        }
+      ]
+    },
+    {
+      "category": "Specialty Pizzas",
+      "items": [
+        {
+          "name": "Meat Lover's",
+          "description": "Tomato sauce, mozzarella, pepperoni, sausage, bacon, and ham",
+          "price": 18.99,
+          "calories": 1200,
+          "id": "pizza_palace_meat_lovers_0"
+        },
+        {
+          "name": "BBQ Chicken",
+          "description": "BBQ sauce, mozzarella, grilled chicken, red onions, and cilantro",
+          "price": 17.99,
+          "calories": 1050,
+          "id": "pizza_palace_bbq_chicken_1"
+        },
+        {
+          "name": "Supreme",
+          "description": "Tomato sauce, mozzarella, pepperoni, sausage, bell peppers, onions, mushrooms, and olives",
+          "price": 19.99,
+          "calories": 1150,
+          "id": "pizza_palace_supreme_2"
+        }
+      ]
+    },
+    {
+      "category": "Pasta",
+      "items": [
+        {
+          "name": "Spaghetti Marinara",
+          "description": "Spaghetti with homemade marinara sauce",
+          "price": 11.99,
+          "calories": 750,
+          "id": "pizza_palace_spaghetti_marinara_0"
+        },
+        {
+          "name": "Fettuccine Alfredo",
+          "description": "Fettuccine pasta in a creamy Alfredo sauce",
+          "price": 13.99,
+          "calories": 950,
+          "id": "pizza_palace_fettuccine_alfredo_1"
+        },
+        {
+          "name": "Lasagna",
+          "description": "Layers of pasta, ricotta, mozzarella, and meat sauce",
+          "price": 14.99,
+          "calories": 850,
+          "id": "pizza_palace_lasagna_2"
+        }
+      ]
+    },
+    {
+      "category": "Sides",
+      "items": [
+        {
+          "name": "Garlic Bread",
+          "description": "Toasted bread with garlic butter and herbs",
+          "price": 4.99,
+          "calories": 350,
+          "id": "pizza_palace_garlic_bread_0"
+        },
+        {
+          "name": "Caesar Salad",
+          "description": "Romaine lettuce, croutons, parmesan cheese, and Caesar dressing",
+          "price": 6.99,
+          "calories": 320,
+          "id": "pizza_palace_caesar_salad_1"
+        },
+        {
+          "name": "Mozzarella Sticks",
+          "description": "Breaded and fried mozzarella with marinara dipping sauce",
+          "price": 7.99,
+          "calories": 580,
+          "id": "pizza_palace_mozzarella_sticks_2"
+        }
+      ]
+    },
+    {
+      "category": "Beverages",
+      "items": [
+        {
+          "name": "Soft Drinks",
+          "description": "Cola, Diet Cola, Lemon-Lime, or Root Beer",
+          "price": 2.49,
+          "calories": 150,
+          "id": "pizza_palace_soft_drinks_0"
+        },
+        {
+          "name": "Italian Soda",
+          "description": "Sparkling water with your choice of flavored syrup",
+          "price": 3.49,
+          "calories": 120,
+          "id": "pizza_palace_italian_soda_1"
+        },
+        {
+          "name": "Bottled Water",
+          "description": "16oz bottled water",
+          "price": 1.99,
+          "calories": 0,
+          "id": "pizza_palace_bottled_water_2"
+        }
+      ]
+    }
+  ],
+  "notes": "Gluten-free pizza crust available for an additional $3. Vegan cheese available for an additional $2."
+}
