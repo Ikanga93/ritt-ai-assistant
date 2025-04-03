@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install-deps": "npm install --prefix frontend && npm install --prefix backend",
-    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "install-deps": "cd frontend && npm install --include=dev && cd ../backend && npm install --include=dev",
+    "build": "cd frontend && npm install tailwindcss postcss autoprefixer && npm run build && cd ../backend && npm run build",
     "start": "cd backend && node dist/agent.js"
   },
   "engines": {
