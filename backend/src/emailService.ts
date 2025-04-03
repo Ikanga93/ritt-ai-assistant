@@ -12,25 +12,32 @@ const envPath = path.join(__dirname, '../.env.local');
 dotenv.config({ path: envPath });
 
 // Initialize SendGrid with API key
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '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';
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 
-// Use the provided verified sender email
-const FROM_EMAIL = 'gekuke1@ritt.ai';
+// Use the provided verified sender email from env or fallback
+const FROM_EMAIL = process.env.FROM_EMAIL || 'gekuke1@ritt.ai';
 
 // Default restaurant email for testing
-const DEFAULT_RESTAURANT_EMAIL = 'pofaraorder@gmail.com';
+const DEFAULT_RESTAURANT_EMAIL = process.env.DEFAULT_RESTAURANT_EMAIL || 'pofaraorder@gmail.com';
+
+// Flag to control whether to use actual email sending or just logging
+// Only enable if we have a valid API key
+let USE_ACTUAL_EMAIL_SENDING = false;
 
 // Set the API key if available
 if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  console.log('SendGrid API key configured');
+  try {
+    sgMail.setApiKey(SENDGRID_API_KEY);
+    USE_ACTUAL_EMAIL_SENDING = true;
+    console.log('SendGrid API key configured. Email sending is ENABLED.');
+  } catch (error) {
+    console.error('Error configuring SendGrid API key:', error);
+    console.warn('Email notifications will be logged but not sent.');
+  }
 } else {
-  console.warn('SendGrid API key not found. Email notifications will be logged but not sent.');
+  console.warn('SendGrid API key not found in .env.local file. Email notifications will be logged but not sent.');
+  console.log('To enable email sending, add SENDGRID_API_KEY to your .env.local file.');
 }
-
-// Flag to control whether to use actual email sending or just logging
-// Set to true to enable actual email sending
-const USE_ACTUAL_EMAIL_SENDING = true;
 
 /**
  * Interface for order items

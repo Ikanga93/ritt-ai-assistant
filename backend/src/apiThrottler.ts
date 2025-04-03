@@ -22,7 +22,7 @@ const DEFAULT_CONFIG: ThrottlerConfig = {
   maxTokensPerMinute: 9000, // Set below the 10,000 TPM limit to provide a buffer
   maxConcurrentRequests: 3,
   requestDelay: 500, // 500ms delay between requests
-  debug: true
+  debug: false // Disable debug logging to keep terminal output clean
 };
 
 /**
@@ -85,9 +85,11 @@ export class ApiThrottler {
         console.log(`[THROTTLER] Processing queued request. Active: ${this.activeRequests}, Queued: ${this.requestQueue.length}`);
       }
       
+      // Ensure delay is always positive
+      const delay = Math.max(1, this.config.requestDelay);
       setTimeout(() => {
         nextRequest();
-      }, this.config.requestDelay);
+      }, delay);
     }
   }
 
@@ -127,10 +129,11 @@ export class ApiThrottler {
             }
             
             // Wait for token refill and try again
+            // Ensure delay is always positive
             setTimeout(() => {
               this.requestQueue.unshift(executeRequest);
               this.processQueue();
-            }, 1000);
+            }, Math.max(1, 1000));
             return;
           }
           
@@ -145,11 +148,13 @@ export class ApiThrottler {
           this.activeRequests--;
           
           // Process next request in queue
-          setTimeout(() => this.processQueue(), this.config.requestDelay);
+          // Ensure delay is always positive
+          setTimeout(() => this.processQueue(), Math.max(1, this.config.requestDelay));
         } catch (error) {
           reject(error);
           this.activeRequests--;
-          setTimeout(() => this.processQueue(), this.config.requestDelay);
+          // Ensure delay is always positive
+          setTimeout(() => this.processQueue(), Math.max(1, this.config.requestDelay));
         }
       };
       

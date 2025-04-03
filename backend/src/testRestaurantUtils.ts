@@ -10,33 +10,33 @@ import {
 } from './restaurantUtils.js';
 
 async function testRestaurantUtils() {
-  console.log('===== Testing Restaurant Utilities =====');
+  console.log('===== Testing Coffee Shop Utilities =====');
   
-  // Test 1: Get all restaurants
-  console.log('\n1. Getting all restaurants:');
-  const restaurants = await getRestaurants();
-  console.log(JSON.stringify(restaurants, null, 2));
+  // Test 1: Get all coffee shops
+  console.log('\n1. Getting all coffee shops:');
+  const coffeeShops = await getRestaurants();
+  console.log(JSON.stringify(coffeeShops, null, 2));
   
-  if (restaurants.length === 0) {
-    console.error('No restaurants found! Check the menu_data directory.');
+  if (coffeeShops.length === 0) {
+    console.error('No coffee shops found! Check the menu_data directory.');
     return;
   }
   
-  // Use the first restaurant for further tests
-  const testRestaurantId = restaurants[0].id;
-  console.log(`\nUsing restaurant "${restaurants[0].name}" (${testRestaurantId}) for further tests.`);
+  // Use the first coffee shop for further tests
+  const testCoffeeShopId = coffeeShops[0].id;
+  console.log(`\nUsing coffee shop "${coffeeShops[0].name}" (${testCoffeeShopId}) for further tests.`);
   
-  // Test 2: Get restaurant by ID
-  console.log('\n2. Getting restaurant details:');
-  const restaurant = await getRestaurantById(testRestaurantId);
-  console.log(`Name: ${restaurant?.restaurant_name}`);
-  console.log(`Description: ${restaurant?.description}`);
-  console.log(`Address: ${restaurant?.location.address}`);
-  console.log(`Email: ${restaurant?.email || 'Not specified'}`);
+  // Test 2: Get coffee shop by ID
+  console.log('\n2. Getting coffee shop details:');
+  const coffeeShop = await getRestaurantById(testCoffeeShopId);
+  console.log(`Name: ${coffeeShop?.coffee_shop_name}`);
+  console.log(`Description: ${coffeeShop?.description}`);
+  console.log(`Address: ${coffeeShop?.location.address}`);
+  console.log(`Email: ${coffeeShop?.email || 'Not specified'}`);
   
   // Test 3: Get menu categories
   console.log('\n3. Getting menu categories:');
-  const categories = await getMenuCategories(testRestaurantId);
+  const categories = await getMenuCategories(testCoffeeShopId);
   console.log(categories);
   
   if (categories.length === 0) {
@@ -47,7 +47,7 @@ async function testRestaurantUtils() {
   // Test 4: Get menu items for a specific category
   const testCategory = categories[0];
   console.log(`\n4. Getting menu items for category "${testCategory}":`);
-  const menuItems = await getMenuItemsByCategory(testRestaurantId, testCategory);
+  const menuItems = await getMenuItemsByCategory(testCoffeeShopId, testCategory);
   console.log(`Found ${menuItems.length} items:`);
   menuItems.forEach(item => {
     console.log(`- ${item.name}: $${item.price} - ${item.description.substring(0, 50)}${item.description.length > 50 ? '...' : ''}`);
@@ -55,7 +55,7 @@ async function testRestaurantUtils() {
   
   // Test 5: Get all menu items
   console.log('\n5. Getting all menu items:');
-  const allItems = await getAllMenuItems(testRestaurantId);
+  const allItems = await getAllMenuItems(testCoffeeShopId);
   console.log(`Found ${Object.keys(allItems).length} categories with items.`);
   
   console.log('\n===== Tests Completed =====');

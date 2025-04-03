@@ -47,6 +47,12 @@ import {
   type MenuItem
 } from './restaurantUtils.js';
 
+// Import order service
+import { placeOrder } from './orderService.js';
+
+// Import fuzzy matching utilities
+import { findBestMatch, findAllMatches } from './utils/fuzzyMatch.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, '../.env.local');
 dotenv.config({ path: envPath });
@@ -68,23 +74,23 @@ export default defineAgent({
       maxTokens: 512, // Further limit response length to reduce token usage
       temperature: 0.7, // Add temperature setting for more predictable responses
       timeout: 60000, // Add 60 second timeout for API calls
-      instructions: `You are a friendly drive-thru assistant for a multi-restaurant ordering system. Your primary goal is to help customers place orders through voice interaction only.
+      instructions: `You are Julie, a friendly coffee drive-thru assistant. Your primary goal is to help customers place coffee and food orders from multiple coffee shops through voice interaction only.
 
-IMPORTANT GUIDELINES FOR MULTI-RESTAURANT ORDERING:
+IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
 
-1. Always speak naturally and conversationally, as if you're talking to someone through a drive-thru speaker.
+1. Always speak naturally and conversationally, but KEEP ALL RESPONSES CONCISE.
 
-2. RESTAURANT SELECTION (First Step):
-   - Begin by helping customers choose a restaurant from our available options
-   - Use the listRestaurants function to provide options
-   - Confirm their restaurant selection before proceeding
-   - Remember their selection throughout the conversation
+2. GREETING (First Step):
+   - Begin with a brief, friendly greeting like "Hi, I'm Julie, your drive-thru assistant"
+   - Simply ask "Where would you like to order from today?" without listing options unless asked
+   - DO NOT proactively suggest or list coffee shops
+   - If the customer doesn't specify a preference, ask them to choose a coffee shop
 
-3. MENU NAVIGATION (Second Step):
-   - Once a restaurant is selected, help them browse that restaurant's specific menu
-   - Use getMenuCategories to show available categories for the selected restaurant
-   - Use getMenuItems to show items within a category
-   - Keep track of which restaurant and category they're browsing
+3. ORDER TAKING (Second Step):
+   - Once a coffee shop is selected, immediately ask "What would you like to order today?"
+   - DO NOT list menu categories unless the customer specifically asks
+   - DO NOT force the customer to browse by category first
+   - Let the customer order directly by item name
 
 4. ORDER PLACEMENT (Third Step):
    - Take their order with any special instructions
@@ -93,29 +99,28 @@ IMPORTANT GUIDELINES FOR MULTI-RESTAURANT ORDERING:
    - Keep a running total of their order
 
 5. ORDER CONFIRMATION (Final Step):
-   - Summarize their complete order including restaurant name, all items, and total
-   - Confirm delivery/pickup details
-   - Use placeOrder function with the correct restaurant ID
+   - Briefly summarize their complete order including all items and total
+   - Confirm pickup details
+   - Use placeOrder function with the correct coffee shop ID
 
 6. CONVERSATION FLOW:
-   - Always maintain context of which restaurant they're ordering from
-   - If they want to switch restaurants, confirm and reset their current order
-   - If they seem confused, remind them which restaurant they're currently ordering from
+   - Keep all interactions brief and to the point
+   - Focus on efficiency and accuracy
    - Use a step-by-step approach, but allow flexibility if they want to jump ahead
 
 7. VOICE OPTIMIZATION:
-   - Keep all responses concise and easy to understand through voice
-   - Break up long lists into manageable chunks
-   - Confirm important details verbally
-   - Remember that the customer can only interact with you through voice - there is no visual interface
+   - Keep all responses extremely concise and easy to understand
+   - Avoid unnecessary explanations or verbose descriptions
+   - Confirm important details verbally but briefly
+   - Remember that the customer can only interact with you through voice
 
-The customer can order from any of our partner restaurants through this single voice interface. Be patient, helpful, and make the ordering process as smooth as possible.`,
+You are Julie, a coffee drive-thru assistant who can take orders from multiple coffee shops. Be efficient, helpful, and make the ordering process as smooth as possible without forcing customers to browse by category.`,
     });
 
     // Define the function context with proper type annotation
     const fncCtx: llm.FunctionContext = {
       listRestaurants: {
-        description: 'Get a list of available restaurants',
+        description: 'Get a list of available coffee shops',
         parameters: z.object({
           formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
         }),
@@ -130,15 +135,25 @@ The customer can order from any of our partner restaurants through this single v
             const restaurants = await getRestaurants();
             
             if (formatForVoice) {
-              // Format for voice readout
+              // Format for voice readout - more concise for coffee drive-thru
               if (restaurants.length === 0) {
                 return 'I don\'t have any restaurants available at the moment.';
               }
               
-              const restaurantList = restaurants.map(r => `${r.name}: ${r.description}`).join('. ');
-              const restaurantNames = restaurants.map(r => r.name).join(', ');
+              // Find Micro Dose in the list
+              console.log('Looking for Micro Dose in coffee shops:', restaurants.map(r => `${r.name} (${r.id})`));
+              const microDose = restaurants.find(r => r.id.toLowerCase() === 'micro_dose');
+              console.log('Found Micro Dose?', microDose ? 'Yes' : 'No');
               
-              return `We have ${restaurants.length} restaurants available: ${restaurantNames}. ${restaurantList}. Which restaurant would you like to order from today?`;
+              if (microDose) {
+                // Prioritize Micro Dose
+                console.log('Returning Micro Dose response');
+                return `We have Micro Dose, known for ${microDose.description}. Would you like to order from there today?`;
+              } else {
+                // Fallback to a more concise list if Micro Dose isn't available
+                const coffeeShopNames = restaurants.map(r => r.name).join(', ');
+                return `We have ${coffeeShopNames}. Where would you like to order from today?`;
+              }
             }
             
             // Return JSON for non-voice use
@@ -147,52 +162,52 @@ The customer can order from any of our partner restaurants through this single v
       },
 
       getRestaurantInfo: {
-        description: 'Get detailed information about a specific restaurant',
+        description: 'Get detailed information about a specific coffee shop',
         parameters: z.object({
-          restaurantId: z.string().describe('The ID of the restaurant to get information for'),
+          restaurantId: z.string().describe('The ID of the coffee shop to get information for'),
         }),
         execute: async ({ restaurantId }: { restaurantId: string }) => {
-          console.debug(`retrieving information for restaurant: ${restaurantId}`);
-          const restaurant = await getRestaurantById(restaurantId);
-          if (!restaurant) {
-            return JSON.stringify({ error: 'Restaurant not found' });
+          console.debug(`retrieving information for coffee shop: ${restaurantId}`);
+          const coffeeShop = await getRestaurantById(restaurantId);
+          if (!coffeeShop) {
+            return JSON.stringify({ error: 'Coffee shop not found' });
           }
           return JSON.stringify({
-            id: restaurant.restaurant_id,
-            name: restaurant.restaurant_name,
-            description: restaurant.description,
-            location: restaurant.location,
-            notes: restaurant.notes
+            id: coffeeShop.coffee_shop_id,
+            name: coffeeShop.coffee_shop_name,
+            description: coffeeShop.description,
+            location: coffeeShop.location,
+            notes: coffeeShop.notes
           });
         },
       },
 
       getMenuCategories: {
-        description: 'Get menu categories for a specific restaurant',
+        description: 'Get menu categories for a specific coffee shop',
         parameters: z.object({
-          restaurantId: z.string().describe('The ID of the restaurant to get menu categories for'),
+          restaurantId: z.string().describe('The ID of the coffee shop to get menu categories for'),
           formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
         }),
         execute: async ({ restaurantId, formatForVoice = true }: { restaurantId: string; formatForVoice?: boolean }) => {
-            console.debug(`retrieving menu categories for restaurant: ${restaurantId}`);
+            console.debug(`retrieving menu categories for coffee shop: ${restaurantId}`);
             const categories = await getMenuCategories(restaurantId);
-            const restaurant = await getRestaurantById(restaurantId);
+            const coffeeShop = await getRestaurantById(restaurantId);
             
-            // Update conversation state with selected restaurant
-            if (restaurant) {
-              selectRestaurant(conversationState, restaurantId, restaurant.restaurant_name);
+            // Update conversation state with selected coffee shop
+            if (coffeeShop) {
+              selectRestaurant(conversationState, restaurantId, coffeeShop.coffee_shop_name);
               updateLastFunction(conversationState, 'getMenuCategories');
-              console.log(`Selected restaurant: ${restaurant.restaurant_name} (${restaurantId})`);
+              console.log(`Selected coffee shop: ${coffeeShop.coffee_shop_name} (${restaurantId})`);
             }
             
             if (formatForVoice) {
               // Format for voice readout
               if (categories.length === 0) {
-                return `I don't see any menu categories for ${restaurant?.restaurant_name || 'this restaurant'}.`;
+                return `I don't see any menu categories for ${coffeeShop?.coffee_shop_name || 'this coffee shop'}.`;
               }
               
               const categoryList = categories.join(', ');
-              return `${restaurant?.restaurant_name || 'This restaurant'} offers the following menu categories: ${categoryList}. Which category would you like to hear about?`;
+              return `${coffeeShop?.coffee_shop_name || 'This coffee shop'} offers the following menu categories: ${categoryList}. Which category would you like to hear about?`;
             }
             
             // Return JSON for non-voice use
@@ -201,27 +216,27 @@ The customer can order from any of our partner restaurants through this single v
       },
       
       getMenuItems: {
-        description: 'Get menu items for a specific restaurant and category',
+        description: 'Get menu items for a specific coffee shop and category',
         parameters: z.object({
-          restaurantId: z.string().describe('The ID of the restaurant'),
+          restaurantId: z.string().describe('The ID of the coffee shop'),
           category: z.string().describe('The menu category to retrieve items for'),
           formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
         }),
         execute: async ({ restaurantId, category, formatForVoice = true }: { restaurantId: string; category: string; formatForVoice?: boolean }) => {
-            console.debug(`retrieving menu items for restaurant ${restaurantId}, category: ${category}`);
+            console.debug(`retrieving menu items for coffee shop ${restaurantId}, category: ${category}`);
             
-            const restaurant = await getRestaurantById(restaurantId);
-            const restaurantName = restaurant?.restaurant_name || 'this restaurant';
+            const coffeeShop = await getRestaurantById(restaurantId);
+            const coffeeShopName = coffeeShop?.coffee_shop_name || 'this coffee shop';
             
             // Update conversation state with selected category
             selectCategory(conversationState, category);
             updateLastFunction(conversationState, 'getMenuItems');
             console.log(`Selected category: ${category}`);
             
-            // If restaurant changed, update that as well
-            if (conversationState.selectedRestaurantId !== restaurantId && restaurant) {
-              selectRestaurant(conversationState, restaurantId, restaurant.restaurant_name);
-              console.log(`Updated selected restaurant: ${restaurant.restaurant_name} (${restaurantId})`);
+            // If coffee shop changed, update that as well
+            if (conversationState.selectedRestaurantId !== restaurantId && coffeeShop) {
+              selectRestaurant(conversationState, restaurantId, coffeeShop.coffee_shop_name);
+              console.log(`Updated selected coffee shop: ${coffeeShop.coffee_shop_name} (${restaurantId})`);
             }
           
             if (category.toLowerCase() === 'all') {
@@ -230,10 +245,10 @@ The customer can order from any of our partner restaurants through this single v
             if (formatForVoice) {
               // Format all categories for voice readout
               if (Object.keys(allItems).length === 0) {
-                return `I don't see any menu items for ${restaurantName}.`;
+                return `I don't see any menu items for ${coffeeShopName}.`;
               }
               
-              let response = `Here's the menu for ${restaurantName}:\n`;
+              let response = `Here's the menu for ${coffeeShopName}:\n`;
               
               for (const [categoryName, items] of Object.entries(allItems)) {
                 response += `\n${categoryName}:\n`;
@@ -253,10 +268,10 @@ The customer can order from any of our partner restaurants through this single v
           if (formatForVoice) {
             // Format for voice readout
             if (items.length === 0) {
-              return `I don't see any items in the ${category} category for ${restaurantName}.`;
+              return `I don't see any items in the ${category} category for ${coffeeShopName}.`;
             }
             
-            let response = `Here are the items in the ${category} category at ${restaurantName}:\n`;
+            let response = `Here are the items in the ${category} category at ${coffeeShopName}:\n`;
             
             items.forEach((item: MenuItem) => {
               response += `${item.name}: $${item.price.toFixed(2)} - ${item.description}\n`;
@@ -270,9 +285,9 @@ The customer can order from any of our partner restaurants through this single v
       },
       
       placeOrder: {
-        description: 'Place a customer order with a specific restaurant',
+        description: 'Place a customer order with a specific coffee shop',
         parameters: z.object({
-          restaurantId: z.string().describe('The ID of the restaurant to place the order with'),
+          restaurantId: z.string().describe('The ID of the coffee shop to place the order with'),
           items: z.array(z.object({
             id: z.string().optional().describe('ID of the menu item'),
             name: z.string().describe('Name of the menu item'),
@@ -280,19 +295,119 @@ The customer can order from any of our partner restaurants through this single v
             price: z.number().optional().describe('Price of the item'),
             specialInstructions: z.string().optional().describe('Any special instructions for this item')
           })).describe('List of items in the order'),
-          customerName: z.string().optional().describe('Name of the customer for the order'),
+          customerName: z.string().describe('Name of the customer for the order (required)'),
           customerEmail: z.string().optional().describe('Email of the customer for order confirmation'),
           formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
         }),
-        execute: async ({ restaurantId, items, customerName, customerEmail, formatForVoice = true }: { restaurantId: string; items: Array<{id?: string; name: string; quantity: number; price?: number; specialInstructions?: string}>; customerName?: string; customerEmail?: string; formatForVoice?: boolean }) => {
-            console.debug(`placing order with restaurant ${restaurantId} for ${customerName || 'customer'}:`, items);
+        execute: async ({ restaurantId, items, customerName, customerEmail, formatForVoice = true }: { restaurantId: string; items: Array<{id?: string; name: string; quantity: number; price?: number; specialInstructions?: string}>; customerName: string; customerEmail?: string; formatForVoice?: boolean }) => {
+            console.debug(`placing order with coffee shop ${restaurantId} for customer: ${customerName}:`, items);
+            
+            // Validate restaurant ID first
+            if (!restaurantId) {
+              console.error('Invalid restaurant ID: empty or undefined');
+              return formatForVoice
+                ? `I'm sorry, but I need a valid restaurant ID to place your order. Let's try again.`
+                : JSON.stringify({
+                    success: false,
+                    message: 'Invalid restaurant ID'
+                  });
+            }
+            
+            // Get restaurant data before proceeding
+            const coffeeShop = await getRestaurantById(restaurantId);
+            if (!coffeeShop) {
+              console.error(`Restaurant not found with ID: ${restaurantId}`);
+              return formatForVoice
+                ? `I'm sorry, but I couldn't find the coffee shop you selected. Please try again with a different coffee shop.`
+                : JSON.stringify({
+                    success: false,
+                    message: 'Coffee shop not found'
+                  });
+            }
+            
+            console.log(`Successfully found restaurant: ${coffeeShop.coffee_shop_name} (ID: ${coffeeShop.coffee_shop_id})`);
+            
+            // Validate items against the menu
+            const validatedItems = [];
+            const allMenuItems = [];
+            
+            // Collect all menu items for validation
+            coffeeShop.menu_categories.forEach(category => {
+              category.items.forEach(menuItem => {
+                allMenuItems.push(menuItem);
+              });
+            });
+            
+            // Validate each item in the order
+            for (const item of items) {
+              // Get all menu item names for fuzzy matching
+              const menuItemNames = allMenuItems.map(mi => mi.name);
+              
+              // Try exact match first
+              let exactMatch = allMenuItems.find(mi => 
+                mi.name.toLowerCase() === item.name.toLowerCase()
+              );
+              
+              if (exactMatch) {
+                console.log(`Exact match found for menu item: ${item.name}`);
+                validatedItems.push({
+                  ...item,
+                  name: exactMatch.name,
+                  price: exactMatch.price || item.price
+                });
+                continue;
+              }
+              
+              // Try fuzzy matching if exact match fails
+              const bestMatch = findBestMatch(item.name, menuItemNames);
+              
+              if (bestMatch && bestMatch.similarity >= 0.7) {
+                const matchedMenuItem = allMenuItems.find(mi => mi.name === bestMatch.match);
+                
+                if (matchedMenuItem) {
+                  console.log(`Fuzzy match found for menu item: ${item.name} -> ${matchedMenuItem.name} (similarity: ${bestMatch.similarity.toFixed(2)})`);
+                  validatedItems.push({
+                    ...item,
+                    name: matchedMenuItem.name,
+                    price: matchedMenuItem.price || item.price
+                  });
+                  continue;
+                }
+              }
+              
+              // If we still don't have a match, try to find all potential matches
+              const potentialMatches = findAllMatches(item.name, menuItemNames, 0.5);
+              
+              if (potentialMatches.length > 0) {
+                console.log(`Potential matches for ${item.name}:`, 
+                  potentialMatches.map(m => `${m.match} (${m.similarity.toFixed(2)})`).join(', ')
+                );
+                
+                // Use the best potential match
+                const bestPotentialMatch = allMenuItems.find(mi => mi.name === potentialMatches[0].match);
+                
+                if (bestPotentialMatch) {
+                  console.log(`Using best potential match: ${item.name} -> ${bestPotentialMatch.name}`);
+                  validatedItems.push({
+                    ...item,
+                    name: bestPotentialMatch.name,
+                    price: bestPotentialMatch.price || item.price
+                  });
+                  continue;
+                }
+              }
+              
+              // If we still don't have a match, log a warning and use the original item
+              console.warn(`No menu item match found for: ${item.name}`);
+              validatedItems.push(item);
+            }
             
             // Update customer info in conversation state
-            updateCustomerInfo(conversationState, customerName || 'Anonymous Customer', customerEmail);
+            updateCustomerInfo(conversationState, customerName, customerEmail);
             updateLastFunction(conversationState, 'placeOrder');
           
-            // Add items to cart if not already there
-            items.forEach((item: { name: string; quantity: number; price?: number; specialInstructions?: string }) => {
+            // Add validated items to cart
+            validatedItems.forEach((item) => {
               addToCart(conversationState, {
                 name: item.name,
                 quantity: item.quantity,
@@ -304,15 +419,6 @@ The customer can order from any of our partner restaurants through this single v
             console.log('Updated conversation state with order details');
             console.log('Cart items:', conversationState.cartItems);
           
-            const restaurant = await getRestaurantById(restaurantId);
-            if (!restaurant) {
-              return formatForVoice
-                ? `I'm sorry, but I couldn't find the restaurant you selected. Please try again with a different restaurant.`
-                : JSON.stringify({
-                    success: false,
-                    message: 'Restaurant not found'
-                  });
-          }
           
             // Generate order details
             const orderNumber = Math.floor(Math.random() * 1000) + 1;
@@ -323,7 +429,10 @@ The customer can order from any of our partner restaurants through this single v
             const itemsWithDetails = await Promise.all(items.map(async (item: any) => {
               // If price is not provided, try to find the item in the menu
               if (item.price === undefined) {
-                const allCategories = restaurant.menu_categories;
+                const allCategories = coffeeShop.menu_categories;
+                let foundItem = false;
+                
+                // First try exact match
                 for (const category of allCategories) {
                   const menuItem = category.items.find(mi => 
                     mi.name.toLowerCase() === item.name.toLowerCase() || 
@@ -332,8 +441,31 @@ The customer can order from any of our partner restaurants through this single v
                   if (menuItem) {
                     item.price = menuItem.price;
                     item.id = item.id || menuItem.id;
+                    foundItem = true;
+                    console.log(`Found exact match for ${item.name}: $${item.price}`);
                     break;
                   }
+                }
+                
+                // If no exact match, try partial match
+                if (!foundItem) {
+                  for (const category of allCategories) {
+                    for (const menuItem of category.items) {
+                      if (menuItem.name.toLowerCase().includes(item.name.toLowerCase()) || 
+                          item.name.toLowerCase().includes(menuItem.name.toLowerCase())) {
+                        item.price = menuItem.price;
+                        item.id = item.id || menuItem.id;
+                        console.log(`Found partial match for ${item.name}: ${menuItem.name} at $${item.price}`);
+                        foundItem = true;
+                        break;
+                      }
+                    }
+                    if (foundItem) break;
+                  }
+                }
+                
+                if (!foundItem) {
+                  console.log(`Could not find price for ${item.name}`);
                 }
               }
             
@@ -348,8 +480,8 @@ The customer can order from any of our partner restaurants through this single v
             const order = {
               orderNumber,
               restaurantId,
-              restaurantName: restaurant.restaurant_name,
-              customerName: customerName || 'Anonymous Customer',
+              restaurantName: coffeeShop.coffee_shop_name,
+              customerName: customerName, // customerName is now required
               customerEmail: customerEmail,
               items: itemsWithDetails,
               orderTotal: parseFloat(orderTotal.toFixed(2)),
@@ -358,7 +490,7 @@ The customer can order from any of our partner restaurants through this single v
               status: 'confirmed'
             };
           
-            // Send notification email to restaurant
+            // Send notification email to coffee shop
             await sendOrderNotification(restaurantId, order);
           
             // Mark order as completed in conversation state
@@ -369,7 +501,7 @@ The customer can order from any of our partner restaurants through this single v
             
             if (formatForVoice) {
               // Format order summary for voice readout
-              let orderSummary = `Thank you for your order with ${restaurant.restaurant_name}. `;
+              let orderSummary = `Thank you for your order with ${coffeeShop.coffee_shop_name}. `;
               orderSummary += `Your order number is ${orderNumber}. Here's a summary of your order:\n\n`;
             
               items.forEach((item: any) => {
@@ -379,8 +511,8 @@ The customer can order from any of our partner restaurants through this single v
               orderSummary += `\nYour order total is $${orderTotal.toFixed(2)}. `;
               orderSummary += `Your estimated wait time is ${estimatedTime} minutes. `;
             
-              if (restaurant.location && restaurant.location.address) {
-                orderSummary += `Please pick up your order at ${restaurant.location.address}. `;
+              if (coffeeShop.location && coffeeShop.location.address) {
+                orderSummary += `Please pick up your order at ${coffeeShop.location.address}. `;
               }
             
               orderSummary += `Thank you for using our voice ordering service!`;
@@ -482,6 +614,17 @@ The customer can order from any of our partner restaurants through this single v
       );
       
       console.log('Conversation session started successfully with throttling');
+      
+      // Add event listener for session errors to handle TextAudioSynchronizer issues
+      session.on('error', (err) => {
+        // Check if it's a TextAudioSynchronizer error
+        if (err.message && err.message.includes('TextAudioSynchronizer')) {
+          console.warn('TextAudioSynchronizer error caught:', err.message);
+          // Don't crash the application, just log the error
+        } else {
+          console.error('Session error:', err);
+        }
+      });
     } catch (error) {
       console.error('Error in conversation session:', error);
       
