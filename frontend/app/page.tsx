@@ -1,5 +1,6 @@
 "use client";
 
+import { AuthGuard } from "@/components/AuthGuard";
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
 import {
@@ -18,6 +19,14 @@ import { useCallback, useEffect, useState } from "react";
 import type { ConnectionDetails } from "./api/connection-details/route";
 
 export default function Page() {
+  return (
+    <AuthGuard>
+      <VoiceChatContent />
+    </AuthGuard>
+  );
+}
+
+function VoiceChatContent() {
   const [agentState, setAgentState] = useState<AgentState>("disconnected");
 
   const [room] = useState(new Room());

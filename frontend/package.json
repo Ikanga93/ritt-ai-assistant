@@ -11,6 +11,8 @@
     "format:write": "prettier --write ."
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.3.0",
+    "@auth0/nextjs-auth0": "^4.4.1",
     "@livekit/components-react": "^2.7.0",
     "@livekit/components-styles": "^1.1.4",
     "@livekit/krisp-noise-filter": "^0.2.14",
