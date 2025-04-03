@@ -1,0 +1,13 @@
+{
+  "name": "ritt-drive-thru",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install-deps": "npm install --prefix frontend && npm install --prefix backend",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "start": "cd backend && node dist/agent.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
