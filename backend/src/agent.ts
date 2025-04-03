@@ -74,7 +74,14 @@ export default defineAgent({
       maxTokens: 512, // Further limit response length to reduce token usage
       temperature: 0.7, // Add temperature setting for more predictable responses
       timeout: 60000, // Add 60 second timeout for API calls
+      turn_detection: {
+        type: 'semantic_vad',
+        eagerness: 'medium',
+        create_response: true,
+        interrupt_response: true
+      },
       instructions: `You are Julie, a friendly coffee drive-thru assistant. Your primary goal is to help customers place coffee and food orders from multiple coffee shops through voice interaction only.
+      
 
 IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
 

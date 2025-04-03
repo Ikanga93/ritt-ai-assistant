@@ -1,28 +1,18 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState, ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 interface AuthGuardProps {
   children: ReactNode;
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const [hasEmail, setHasEmail] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    // Check if email exists in localStorage
-    const email = localStorage.getItem('userEmail');
-    setHasEmail(!!email);
+    // No longer checking for email, just setting loading to false
     setIsLoading(false);
-    
-    // If no email is found, redirect to email collection page
-    if (!email) {
-      router.push("/email-collection");
-    }
-  }, [router]);
+  }, []);
 
   if (isLoading) {
     return (
@@ -32,6 +22,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Only render children if user has provided an email
-  return hasEmail ? <>{children}</> : null;
+  // Always render children without email check
+  return <>{children}</>;
 }
