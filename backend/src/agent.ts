@@ -672,4 +672,12 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
   },
 });
 
-cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
+// Use PORT environment variable provided by Render or default to 8081
+const port = process.env.PORT || 8081;
+
+// Configure worker to listen on all interfaces (0.0.0.0) and use the PORT environment variable
+cli.runApp(new WorkerOptions({
+  agent: fileURLToPath(import.meta.url),
+  port: parseInt(port.toString(), 10),
+  host: '0.0.0.0'
+}));
