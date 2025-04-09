@@ -3,7 +3,7 @@ services:
     name: ritt-drive-thru
     env: node
     buildCommand: cd new-frontend && pnpm install && pnpm build && cd ../backend && pnpm install && pnpm build
-    startCommand: cd backend && node dist/agent.js
+    startCommand: cd backend && node dist/agent.js start
     plan: standard
     envVars:
       - key: NODE_VERSION
