@@ -51,7 +51,7 @@ import {
 import { placeOrder } from './orderService.js';
 
 // Import fuzzy matching utilities
-import { findBestMatch, findAllMatches } from './utils/fuzzyMatch.js';
+import { findBestMatch, findAllMatches, verifyOrderItems, normalizeString } from './utils/fuzzyMatch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, '../.env.local');
@@ -80,24 +80,29 @@ export default defineAgent({
         create_response: true,
         interrupt_response: true
       },
-      instructions: `You are Julie, a friendly coffee drive-thru assistant. Your primary goal is to help customers place coffee and food orders from multiple coffee shops through voice interaction only.
+      instructions: `You are Julie, a friendly AI barista assistant. Your primary goal is to help customers place coffee and food orders from multiple coffee shops through voice interaction only.
       
-
 IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
 
 1. Always speak naturally and conversationally, but KEEP ALL RESPONSES CONCISE.
 
 2. GREETING (First Step):
-   - Begin with a brief, friendly greeting like "Hi, I'm Julie, your drive-thru assistant"
+   - Begin with a brief, friendly greeting like "Hi, I'm Julie, your barista assistant"
    - Simply ask "Where would you like to order from today?" without listing options unless asked
    - DO NOT proactively suggest or list coffee shops
    - If the customer doesn't specify a preference, ask them to choose a coffee shop
 
 3. ORDER TAKING (Second Step):
-   - Once a coffee shop is selected, immediately ask "What would you like to order today?"
+   - Once a restaurant is selected, immediately ask "What would you like to order today?"
    - DO NOT list menu categories unless the customer specifically asks
    - DO NOT force the customer to browse by category first
    - Let the customer order directly by item name
+   - Always treat items with names like "The [Name]" as specific menu items, not as categories
+   - If a customer says "I want the [item name]" or any variation, add it to their order as a menu item
+   - EXAMPLE: If customer says "I want the [item name]", respond with "Adding one [item name]. Would you like anything else?"
+   - NEVER say "What would you like to order from The [item name]?" - this is incorrect
+   - Each restaurant has its own unique menu items - always check if the item exists at the selected restaurant
+   - Keep a running total of their order
 
 4. ORDER PLACEMENT (Third Step):
    - Take their order with any special instructions
@@ -108,7 +113,7 @@ IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
 5. ORDER CONFIRMATION (Final Step):
    - Briefly summarize their complete order including all items and total
    - Confirm pickup details
-   - Use placeOrder function with the correct coffee shop ID
+   - Use placeOrder function with the correct restaurant ID
 
 6. CONVERSATION FLOW:
    - Keep all interactions brief and to the point
@@ -121,7 +126,25 @@ IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
    - Confirm important details verbally but briefly
    - Remember that the customer can only interact with you through voice
 
-You are Julie, a coffee drive-thru assistant who can take orders from multiple coffee shops. Be efficient, helpful, and make the ordering process as smooth as possible without forcing customers to browse by category.`,
+8. UPSELLING STRATEGY:
+   - Suggest relevant add-ons based on customer's order (e.g., "Would you like to add a pastry to your coffee?")
+   - Recommend popular pairings when appropriate (e.g., "Our blueberry muffin pairs well with that latte")
+   - Mention limited-time specials if available
+   - Keep upselling suggestions brief and natural, not pushy
+
+9. ORDER ACCURACY:
+   - Always repeat back each item after the customer orders it
+   - Confirm special instructions clearly (e.g., "That's an oat milk latte, no sugar")
+   - Summarize the full order before finalizing
+   - Double-check customer name and any customizations
+
+10. MENU ITEMS AND COMMON CONFUSIONS:
+   - Restaurants may have specialty items with unique names - always treat these as specific menu items
+   - Pay close attention to menu items with names starting with "The" - these are individual items, not categories
+   - When a customer asks for items with names like "The [Name]", always recognize it as a specific menu item, not as a category
+   - Don't ask customers to clarify what items they want in their "The [Name]" order - these are complete menu items
+
+You are Julie, a coffee barista assistant who can take orders from multiple coffee shops. Be efficient, helpful, and make the ordering process as smooth as possible without forcing customers to browse by category.`,
     });
 
     // Define the function context with proper type annotation
@@ -147,20 +170,12 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
                 return 'I don\'t have any restaurants available at the moment.';
               }
               
-              // Find Micro Dose in the list
-              console.log('Looking for Micro Dose in coffee shops:', restaurants.map(r => `${r.name} (${r.id})`));
-              const microDose = restaurants.find(r => r.id.toLowerCase() === 'micro_dose');
-              console.log('Found Micro Dose?', microDose ? 'Yes' : 'No');
+              // Log available restaurants
+              console.log('Available restaurants:', restaurants.map(r => `${r.name} (${r.id})`));
               
-              if (microDose) {
-                // Prioritize Micro Dose
-                console.log('Returning Micro Dose response');
-                return `We have Micro Dose, known for ${microDose.description}. Would you like to order from there today?`;
-              } else {
-                // Fallback to a more concise list if Micro Dose isn't available
-                const coffeeShopNames = restaurants.map(r => r.name).join(', ');
-                return `We have ${coffeeShopNames}. Where would you like to order from today?`;
-              }
+              // Present all available restaurants in a concise format
+              const restaurantNames = restaurants.map(r => r.name).join(', ');
+              return `We have ${restaurantNames}. Where would you like to order from today?`;
             }
             
             // Return JSON for non-voice use
@@ -335,7 +350,6 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             console.log(`Successfully found restaurant: ${coffeeShop.coffee_shop_name} (ID: ${coffeeShop.coffee_shop_id})`);
             
             // Validate items against the menu
-            const validatedItems = [];
             const allMenuItems = [];
             
             // Collect all menu items for validation
@@ -345,68 +359,97 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               });
             });
             
-            // Validate each item in the order
-            for (const item of items) {
-              // Get all menu item names for fuzzy matching
-              const menuItemNames = allMenuItems.map(mi => mi.name);
-              
-              // Try exact match first
-              let exactMatch = allMenuItems.find(mi => 
-                mi.name.toLowerCase() === item.name.toLowerCase()
-              );
-              
-              if (exactMatch) {
-                console.log(`Exact match found for menu item: ${item.name}`);
+            console.log(`Validating ${items.length} order items against ${allMenuItems.length} menu items`);
+            
+            // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
+            const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);
+            
+            // Process verified items
+            const validatedItems = [];
+            const unverifiedItems = [];
+            
+            for (const item of verifiedItems) {
+              if (item.verified) {
+                console.log(`Verified menu item: "${item.name}"`);
                 validatedItems.push({
                   ...item,
-                  name: exactMatch.name,
-                  price: exactMatch.price || item.price
+                  price: item.price
                 });
-                continue;
-              }
-              
-              // Try fuzzy matching if exact match fails
-              const bestMatch = findBestMatch(item.name, menuItemNames);
-              
-              if (bestMatch && bestMatch.similarity >= 0.7) {
-                const matchedMenuItem = allMenuItems.find(mi => mi.name === bestMatch.match);
+              } else {
+                console.warn(`Unverified menu item: "${item.name}"${item.suggestion ? `, did you mean "${item.suggestion}"?` : ''}`);
                 
-                if (matchedMenuItem) {
-                  console.log(`Fuzzy match found for menu item: ${item.name} -> ${matchedMenuItem.name} (similarity: ${bestMatch.similarity.toFixed(2)})`);
-                  validatedItems.push({
-                    ...item,
-                    name: matchedMenuItem.name,
-                    price: matchedMenuItem.price || item.price
-                  });
-                  continue;
+                // If we have a suggestion, use it
+                if (item.suggestion) {
+                  const suggestedItem = allMenuItems.find(mi => mi.name === item.suggestion);
+                  if (suggestedItem) {
+                    console.log(`Using suggested menu item: "${item.name}" -> "${suggestedItem.name}"`);
+                    validatedItems.push({
+                      ...item,
+                      name: suggestedItem.name,
+                      price: suggestedItem.price || item.price,
+                      id: suggestedItem.id || item.id
+                    });
+                    continue;
+                  }
                 }
-              }
-              
-              // If we still don't have a match, try to find all potential matches
-              const potentialMatches = findAllMatches(item.name, menuItemNames, 0.5);
-              
-              if (potentialMatches.length > 0) {
-                console.log(`Potential matches for ${item.name}:`, 
-                  potentialMatches.map(m => `${m.match} (${m.similarity.toFixed(2)})`).join(', ')
+                
+                // If we still don't have a match, try using normalizeString for a more aggressive match
+                const normalizedItemName = normalizeString(item.name);
+                const normalizedMenuItems = allMenuItems.map(mi => ({
+                  ...mi,
+                  normalizedName: normalizeString(mi.name)
+                }));
+                
+                // Try to find a match with normalized names
+                const normalizedMatch = normalizedMenuItems.find(mi => 
+                  mi.normalizedName.includes(normalizedItemName) || 
+                  normalizedItemName.includes(mi.normalizedName)
                 );
                 
-                // Use the best potential match
-                const bestPotentialMatch = allMenuItems.find(mi => mi.name === potentialMatches[0].match);
-                
-                if (bestPotentialMatch) {
-                  console.log(`Using best potential match: ${item.name} -> ${bestPotentialMatch.name}`);
+                if (normalizedMatch) {
+                  console.log(`Found normalized match for "${item.name}": "${normalizedMatch.name}"`);
                   validatedItems.push({
                     ...item,
-                    name: bestPotentialMatch.name,
-                    price: bestPotentialMatch.price || item.price
+                    name: normalizedMatch.name,
+                    price: normalizedMatch.price || item.price,
+                    id: normalizedMatch.id || item.id
                   });
                   continue;
                 }
+                
+                // If we still don't have a match, check if this might be a category name instead of an item name
+                const categoryMatch = coffeeShop.menu_categories.find(cat => 
+                  normalizeString(cat.category).includes(normalizedItemName) || 
+                  normalizedItemName.includes(normalizeString(cat.category))
+                );
+                
+                if (categoryMatch && categoryMatch.items.length > 0) {
+                  // Use the first item from the matched category as a fallback
+                  const categoryItem = categoryMatch.items[0];
+                  console.log(`Item "${item.name}" seems to be a category (${categoryMatch.category}). Using first item: "${categoryItem.name}"`);
+                  validatedItems.push({
+                    ...item,
+                    name: categoryItem.name,
+                    price: categoryItem.price || item.price,
+                    id: categoryItem.id || item.id,
+                    note: `Selected from ${categoryMatch.category} category`
+                  });
+                  continue;
+                }
+                
+                // If we still don't have a match, add to unverified items list
+                unverifiedItems.push(item);
               }
+            }
+            
+            // If we have unverified items, log them for debugging
+            if (unverifiedItems.length > 0) {
+              console.warn(`${unverifiedItems.length} items could not be verified against the menu:`, 
+                unverifiedItems.map(item => item.name).join(', ')
+              );
               
-              // If we still don't have a match, log a warning and use the original item
-              console.warn(`No menu item match found for: ${item.name}`);
-              validatedItems.push(item);
+              // Add unverified items to the order anyway
+              validatedItems.push(...unverifiedItems);
             }
             
             // Update customer info in conversation state

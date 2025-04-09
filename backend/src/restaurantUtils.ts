@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cacheManager } from './cacheManager.js';
+import { normalizeString } from './utils/fuzzyMatch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const menuDataPath = path.join(__dirname, '../menu_data');
@@ -96,6 +97,12 @@ const coffeeShopNameMappings: Record<string, string> = {
   'micro_dose_id': 'micro_dose',
   'microdoseid': 'micro_dose',
   'micro dose id': 'micro_dose',
+  'microdos': 'micro_dose',
+  'microdos coffee': 'micro_dose',
+  'microdoughs': 'micro_dose',
+  'microdoughs coffee': 'micro_dose',
+  'micro doughs': 'micro_dose',
+  'micro doughs coffee': 'micro_dose',
   
   // Drinx variations
   'drinx': 'drinx',
@@ -128,6 +135,7 @@ const coffeeShopNameMappings: Record<string, string> = {
 
 /**
  * Get a specific coffee shop by ID
+ * Enhanced with fuzzy matching for better restaurant name recognition
  */
 export async function getRestaurantById(id: string): Promise<CoffeeShop | null> {
   if (!id) {
@@ -138,7 +146,7 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   console.log(`Looking up restaurant with original ID: "${id}"`);
   
   // First check if this is a known mispronunciation
-  const lowerCaseId = id.toLowerCase();
+  const lowerCaseId = id.toLowerCase().trim();
   const mappedId = coffeeShopNameMappings[lowerCaseId] || lowerCaseId;
   
   // Then normalize: convert to lowercase and replace spaces with underscores
@@ -149,43 +157,85 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   // Validate that we're looking for a known restaurant
   const availableRestaurants = await getRestaurants();
   const validIds = availableRestaurants.map(r => r.id);
+  const restaurantNames = availableRestaurants.map(r => r.name);
   
-  if (!validIds.includes(normalizedId)) {
-    console.warn(`Warning: Restaurant ID "${normalizedId}" is not in the list of known restaurants: ${validIds.join(', ')}`);
-    // Try to find a close match
-    const closestMatch = validIds.find(validId => {
-      return validId.includes(normalizedId) || normalizedId.includes(validId);
-    });
+  // Try exact match first
+  if (validIds.includes(normalizedId)) {
+    return cacheManager.getOrSet(`restaurant_${normalizedId}`, () => loadRestaurantFromDisk(normalizedId));
+  }
+  
+  // If no exact match, try fuzzy matching
+  console.warn(`Warning: Restaurant ID "${normalizedId}" is not in the list of known restaurants: ${validIds.join(', ')}`);
+  
+  // Try to find a close match by ID substring
+  const substringMatch = validIds.find(validId => {
+    return validId.includes(normalizedId) || normalizedId.includes(validId);
+  });
+  
+  if (substringMatch) {
+    console.log(`Found substring match by ID: "${substringMatch}" for "${normalizedId}", using it instead`);
+    return cacheManager.getOrSet(`restaurant_${substringMatch}`, () => loadRestaurantFromDisk(substringMatch));
+  }
+  
+  // Try fuzzy matching with restaurant names
+  // Import the fuzzy matching utilities
+  const { findBestMatch, normalizeString } = await import('./utils/fuzzyMatch.js');
+  
+  // Normalize the input for better matching
+  const normalizedInput = normalizeString(id);
+  
+  // Try to find the best match among restaurant names
+  const bestNameMatch = findBestMatch(normalizedInput, restaurantNames);
+  
+  if (bestNameMatch && bestNameMatch.similarity >= 0.5) {
+    // Find the restaurant ID that corresponds to the matched name
+    const matchedRestaurant = availableRestaurants.find(r => r.name === bestNameMatch.match);
     
-    if (closestMatch) {
-      console.log(`Found potential match: "${closestMatch}" for "${normalizedId}", using it instead`);
-      return getRestaurantById(closestMatch);
+    if (matchedRestaurant) {
+      console.log(`Fuzzy match found: "${id}" -> "${matchedRestaurant.name}" (similarity: ${bestNameMatch.similarity.toFixed(2)})`);
+      console.log(`Using restaurant ID: ${matchedRestaurant.id}`);
+      return cacheManager.getOrSet(`restaurant_${matchedRestaurant.id}`, () => loadRestaurantFromDisk(matchedRestaurant.id));
     }
   }
   
-  return cacheManager.getOrSet(`restaurant_${normalizedId}`, async () => {
+  // If still no match, try fuzzy matching with IDs as a last resort
+  const bestIdMatch = findBestMatch(normalizedInput, validIds);
+  
+  if (bestIdMatch && bestIdMatch.similarity >= 0.5) {
+    console.log(`Fuzzy match found by ID: "${id}" -> "${bestIdMatch.match}" (similarity: ${bestIdMatch.similarity.toFixed(2)})`);
+    return cacheManager.getOrSet(`restaurant_${bestIdMatch.match}`, () => loadRestaurantFromDisk(bestIdMatch.match));
+  }
+  
+  // No match found
+  console.error(`No matching restaurant found for: "${id}"`);
+  return null;
+}
+
+/**
+ * Helper function to load restaurant data from disk
+ */
+async function loadRestaurantFromDisk(normalizedId: string): Promise<CoffeeShop | null> {
+  try {
+    console.log(`Cache miss: Loading coffee shop ${normalizedId} from disk`);
+    const filePath = path.join(menuDataPath, `${normalizedId}.json`);
+    console.log(`Looking for file at: ${filePath}`);
+    
+    // Check if file exists before trying to read it
     try {
-      console.log(`Cache miss: Loading coffee shop ${normalizedId} from disk`);
-      const filePath = path.join(menuDataPath, `${normalizedId}.json`);
-      console.log(`Looking for file at: ${filePath}`);
-      
-      // Check if file exists before trying to read it
-      try {
-        await fs.access(filePath);
-      } catch (err) {
-        console.error(`File not found: ${filePath}`);
-        return null;
-      }
-      
-      const content = await fs.readFile(filePath, 'utf-8');
-      const data = JSON.parse(content) as CoffeeShop;
-      console.log(`Successfully loaded restaurant: ${data.coffee_shop_name}`);
-      return data;
-    } catch (error) {
-      console.error(`Error reading coffee shop data for ${normalizedId}:`, error);
+      await fs.access(filePath);
+    } catch (err) {
+      console.error(`File not found: ${filePath}`);
       return null;
     }
-  });
+    
+    const content = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(content) as CoffeeShop;
+    console.log(`Successfully loaded restaurant: ${data.coffee_shop_name}`);
+    return data;
+  } catch (error) {
+    console.error(`Error reading coffee shop data for ${normalizedId}:`, error);
+    return null;
+  }
 }
 
 /**
@@ -203,18 +253,28 @@ export async function getMenuCategories(restaurantId: string): Promise<string[]>
 
 /**
  * Get menu items for a specific category in a coffee shop
+ * Enhanced with fuzzy matching for category names
  */
 export async function getMenuItemsByCategory(
   restaurantId: string, 
   categoryName: string
 ): Promise<MenuItem[]> {
-  return cacheManager.getOrSet(`items_${restaurantId}_${categoryName.toLowerCase()}`, async () => {
-    console.log(`Cache miss: Loading menu items for ${restaurantId}, category ${categoryName}`);
+  // Normalize the category name for better caching
+  const normalizedCategoryName = normalizeString(categoryName);
+  
+  return cacheManager.getOrSet(`items_${restaurantId}_${normalizedCategoryName}`, async () => {
+    console.log(`Cache miss: Loading menu items for ${restaurantId}, category "${categoryName}"`);
     const coffeeShop = await getRestaurantById(restaurantId);
     if (!coffeeShop) return [];
     
-    // Handle special case for generic categories like 'drinks'
-    if (categoryName.toLowerCase() === 'drinks') {
+    // Handle special cases for generic categories
+    const lowerCaseCategoryName = categoryName.toLowerCase().trim();
+    
+    // Handle 'drinks' category (combines all drink-related categories)
+    if (lowerCaseCategoryName === 'drinks' || 
+        lowerCaseCategoryName === 'drink' || 
+        lowerCaseCategoryName === 'beverages' || 
+        lowerCaseCategoryName === 'beverage') {
       // Define drink-related categories (excluding food categories)
       const drinkCategories = ['vibe dealer specials', 'rx lattes', 'level up', 'gateway drinks - basics', 'boujee', 'teas', 'kids'];
       
@@ -226,15 +286,75 @@ export async function getMenuItemsByCategory(
         }
       });
       
+      console.log(`Returning ${allDrinkItems.length} items from combined drink categories`);
       return allDrinkItems;
     }
     
-    // Regular category matching
-    const category = coffeeShop.menu_categories.find(
-      cat => cat.category.toLowerCase() === categoryName.toLowerCase()
+    // Handle 'food' category (combines all food-related categories)
+    if (lowerCaseCategoryName === 'food' || 
+        lowerCaseCategoryName === 'foods' || 
+        lowerCaseCategoryName === 'snacks' || 
+        lowerCaseCategoryName === 'snack') {
+      // Define food-related categories
+      const foodCategories = ['food', 'pastries', 'breakfast', 'lunch', 'bakery', 'sandwiches', 'snacks'];
+      
+      // Get items from all food categories
+      const allFoodItems: MenuItem[] = [];
+      coffeeShop.menu_categories.forEach(cat => {
+        if (foodCategories.some(fc => cat.category.toLowerCase().includes(fc))) {
+          allFoodItems.push(...cat.items);
+        }
+      });
+      
+      console.log(`Returning ${allFoodItems.length} items from combined food categories`);
+      return allFoodItems;
+    }
+    
+    // Try exact match first
+    const exactCategory = coffeeShop.menu_categories.find(
+      cat => cat.category.toLowerCase() === lowerCaseCategoryName
     );
     
-    return category?.items || [];
+    if (exactCategory) {
+      console.log(`Exact category match found: "${exactCategory.category}"`);
+      return exactCategory.items;
+    }
+    
+    // If no exact match, try fuzzy matching
+    // Get all category names
+    const categoryNames = coffeeShop.menu_categories.map(cat => cat.category);
+    
+    // Import the findBestMatch function
+    const { findBestMatch } = await import('./utils/fuzzyMatch.js');
+    
+    // Try to find the best match
+    const bestMatch = findBestMatch(normalizedCategoryName, categoryNames);
+    
+    if (bestMatch && bestMatch.similarity >= 0.6) {
+      const matchedCategory = coffeeShop.menu_categories.find(
+        cat => cat.category === bestMatch.match
+      );
+      
+      if (matchedCategory) {
+        console.log(`Fuzzy category match found: "${categoryName}" -> "${matchedCategory.category}" (similarity: ${bestMatch.similarity.toFixed(2)})`);
+        return matchedCategory.items;
+      }
+    }
+    
+    // If still no match, try substring matching
+    for (const cat of coffeeShop.menu_categories) {
+      const normalizedCatName = normalizeString(cat.category);
+      
+      if (normalizedCatName.includes(normalizedCategoryName) || 
+          normalizedCategoryName.includes(normalizedCatName)) {
+        console.log(`Substring match found: "${categoryName}" -> "${cat.category}"`);
+        return cat.items;
+      }
+    }
+    
+    // If no match found, return empty array
+    console.warn(`No category match found for: "${categoryName}"`);
+    return [];
   });
 }
 
