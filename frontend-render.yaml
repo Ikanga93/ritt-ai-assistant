@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ritt-drive-thru-frontend
+    env: node
+    buildCommand: cd new-frontend && pnpm install && pnpm build
+    staticPublishPath: ./new-frontend/.next
+    plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_CONN_DETAILS_ENDPOINT
+        value: "/api/connection-details"
