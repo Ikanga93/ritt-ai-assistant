@@ -5,7 +5,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cacheManager } from './cacheManager.js';
-import { normalizeString, findBestMatch } from './utils/fuzzyMatch.js';
+// Import the entire module instead of specific functions
+import * as fuzzyMatchUtils from './utils/fuzzyMatch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const menuDataPath = path.join(__dirname, '../menu_data');
@@ -179,10 +180,10 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   
   // Try fuzzy matching with restaurant names
   // Normalize the input for better matching
-  const normalizedInput = normalizeString(id);
+  const normalizedInput = fuzzyMatchUtils.normalizeString(id);
   
   // Try to find the best match among restaurant names
-  const bestNameMatch = findBestMatch(normalizedInput, restaurantNames);
+  const bestNameMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, restaurantNames);
   
   if (bestNameMatch && bestNameMatch.similarity >= 0.5) {
     // Find the restaurant ID that corresponds to the matched name
@@ -196,7 +197,7 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   }
   
   // If still no match, try fuzzy matching with IDs as a last resort
-  const bestIdMatch = findBestMatch(normalizedInput, validIds);
+  const bestIdMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, validIds);
   
   if (bestIdMatch && bestIdMatch.similarity >= 0.5) {
     console.log(`Fuzzy match found by ID: "${id}" -> "${bestIdMatch.match}" (similarity: ${bestIdMatch.similarity.toFixed(2)})`);
@@ -257,7 +258,7 @@ export async function getMenuItemsByCategory(
   categoryName: string
 ): Promise<MenuItem[]> {
   // Normalize the category name for better caching
-  const normalizedCategoryName = normalizeString(categoryName);
+  const normalizedCategoryName = fuzzyMatchUtils.normalizeString(categoryName);
   
   return cacheManager.getOrSet(`items_${restaurantId}_${normalizedCategoryName}`, async () => {
     console.log(`Cache miss: Loading menu items for ${restaurantId}, category "${categoryName}"`);
@@ -325,7 +326,7 @@ export async function getMenuItemsByCategory(
     // Already imported at the top level
     
     // Try to find the best match
-    const bestMatch = findBestMatch(normalizedCategoryName, categoryNames);
+    const bestMatch = fuzzyMatchUtils.findBestMatch(normalizedCategoryName, categoryNames);
     
     if (bestMatch && bestMatch.similarity >= 0.6) {
       const matchedCategory = coffeeShop.menu_categories.find(
@@ -340,7 +341,7 @@ export async function getMenuItemsByCategory(
     
     // If still no match, try substring matching
     for (const cat of coffeeShop.menu_categories) {
-      const normalizedCatName = normalizeString(cat.category);
+      const normalizedCatName = fuzzyMatchUtils.normalizeString(cat.category);
       
       if (normalizedCatName.includes(normalizedCategoryName) || 
           normalizedCategoryName.includes(normalizedCatName)) {
