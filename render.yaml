@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: ritt-drive-thru
+    env: node
+    buildCommand: cd new-frontend && pnpm install && pnpm build && cd ../backend && pnpm install && pnpm build
+    startCommand: cd backend && node dist/agent.js
+    plan: standard
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false
+      - key: DEFAULT_RESTAURANT_EMAIL
+        sync: false
+      - key: PORT
+        value: 8080
