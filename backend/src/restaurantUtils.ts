@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cacheManager } from './cacheManager.js';
-import { normalizeString } from './utils/fuzzyMatch.js';
+import { normalizeString, findBestMatch } from './utils/fuzzyMatch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const menuDataPath = path.join(__dirname, '../menu_data');
@@ -178,9 +178,6 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   }
   
   // Try fuzzy matching with restaurant names
-  // Import the fuzzy matching utilities
-  const { findBestMatch, normalizeString } = await import('./utils/fuzzyMatch.js');
-  
   // Normalize the input for better matching
   const normalizedInput = normalizeString(id);
   
@@ -325,7 +322,7 @@ export async function getMenuItemsByCategory(
     const categoryNames = coffeeShop.menu_categories.map(cat => cat.category);
     
     // Import the findBestMatch function
-    const { findBestMatch } = await import('./utils/fuzzyMatch.js');
+    // Already imported at the top level
     
     // Try to find the best match
     const bestMatch = findBestMatch(normalizedCategoryName, categoryNames);
