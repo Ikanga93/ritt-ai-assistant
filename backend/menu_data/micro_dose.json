@@ -3,12 +3,12 @@
   "description": "A drive thru experience by Coffee Dose",
   "location": {
     "address": "1914 Newport Blvd, Costa Mesa CA",
-    "phone": "",
-    "hours": ""
+    "phone": "(217) 555-7777",
+    "hours": "7am - 7pm"
   },
   "coffee_shop_id": "micro_dose",
   "coffee_shop_name": "Micro Dose",
-  "email": "pofaraorder@gmail.com",
+  "email": "oscar@coffeedose.cafe",
   "menu_categories": [
     {
       "category": "Vibe Dealer Specials",

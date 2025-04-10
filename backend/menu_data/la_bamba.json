@@ -1,0 +1,157 @@
+{
+  "coffee_shop": "La Bamba",
+  "description": "Authentic Mexican cuisine famous for 'Burritos as Big as Your Head' with fresh ingredients and homemade salsas.",
+  "location": {
+    "address": "1905 Glenn Park Dr, Champaign, IL 61821",
+    "phone": "(217) 355-6760",
+    "hours": "11:00 AM - 10:45 PM"
+  },
+  "coffee_shop_id": "la_bamba",
+  "coffee_shop_name": "La Bamba",
+  "email": "pofaraorder@gmail.com",
+  "menu_categories": [
+    {
+      "category": "Burritos",
+      "items": [
+        {
+          "name": "Super Burrito",
+          "description": "Our famous La Bamba Burrito with choice of meat, beans, lettuce, tomatoes, onion, cheese and La Bamba Hot Sauce",
+          "price": 11.99,
+          "calories": 950,
+          "id": "la_bamba_super_burrito_0"
+        },
+        {
+          "name": "Regular Burrito",
+          "description": "Classic burrito with choice of meat, beans, lettuce, tomatoes, onion, cheese and hot sauce",
+          "price": 10.99,
+          "calories": 850,
+          "id": "la_bamba_regular_burrito_1"
+        },
+        {
+          "name": "Mini Burrito",
+          "description": "Smaller version of our famous burrito with same fresh ingredients",
+          "price": 9.99,
+          "calories": 650,
+          "id": "la_bamba_mini_burrito_2"
+        }
+      ]
+    },
+    {
+      "category": "Nachos",
+      "items": [
+        {
+          "name": "Super Nachos",
+          "description": "Includes choice of meat, cheese, beans, lettuce, tomatoes, onions, sour cream, and salsa",
+          "price": 12.75,
+          "calories": 820,
+          "id": "la_bamba_super_nachos_0"
+        }
+      ]
+    },
+    {
+      "category": "Meal Deals",
+      "items": [
+        {
+          "name": "Burrito Combo",
+          "description": "Regular burrito with choice of meat, side of rice and beans, and a fountain drink",
+          "price": 14.99,
+          "calories": 1200,
+          "id": "la_bamba_burrito_combo_0"
+        },
+        {
+          "name": "Taco Combo",
+          "description": "Three tacos with choice of meat, side of rice and beans, and a fountain drink",
+          "price": 13.99,
+          "calories": 1100,
+          "id": "la_bamba_taco_combo_1"
+        }
+      ]
+    },
+    {
+      "category": "Tacos",
+      "items": [
+        {
+          "name": "Steak Taco",
+          "description": "Corn tortilla with marinated steak, cilantro, and onions",
+          "price": 3.99,
+          "calories": 250,
+          "id": "la_bamba_steak_taco_0"
+        },
+        {
+          "name": "Chicken Taco",
+          "description": "Corn tortilla with grilled chicken, cilantro, and onions",
+          "price": 3.99,
+          "calories": 220,
+          "id": "la_bamba_chicken_taco_1"
+        },
+        {
+          "name": "Pork Taco",
+          "description": "Corn tortilla with seasoned pork, cilantro, and onions",
+          "price": 3.99,
+          "calories": 240,
+          "id": "la_bamba_pork_taco_2"
+        }
+      ]
+    },
+    {
+      "category": "Quesadillas",
+      "items": [
+        {
+          "name": "Cheese Quesadilla",
+          "description": "Large flour tortilla filled with melted cheese",
+          "price": 7.99,
+          "calories": 580,
+          "id": "la_bamba_cheese_quesadilla_0"
+        },
+        {
+          "name": "Steak Quesadilla",
+          "description": "Large flour tortilla filled with melted cheese and marinated steak",
+          "price": 9.99,
+          "calories": 680,
+          "id": "la_bamba_steak_quesadilla_1"
+        },
+        {
+          "name": "Chicken Quesadilla",
+          "description": "Large flour tortilla filled with melted cheese and grilled chicken",
+          "price": 9.99,
+          "calories": 650,
+          "id": "la_bamba_chicken_quesadilla_2"
+        }
+      ]
+    },
+    {
+      "category": "Add-ons",
+      "items": [
+        {
+          "name": "Guacamole",
+          "description": "Freshly made guacamole",
+          "price": 1.99,
+          "calories": 90,
+          "id": "la_bamba_guacamole_0"
+        },
+        {
+          "name": "Sour Cream",
+          "description": "Side of sour cream",
+          "price": 0.99,
+          "calories": 60,
+          "id": "la_bamba_sour_cream_1"
+        },
+        {
+          "name": "Extra Cheese",
+          "description": "Additional portion of cheese",
+          "price": 0.99,
+          "calories": 110,
+          "id": "la_bamba_extra_cheese_2"
+        },
+        {
+          "name": "Chips & Salsa",
+          "description": "Tortilla chips with homemade salsa",
+          "price": 3.99,
+          "calories": 320,
+          "id": "la_bamba_chips_salsa_3"
+        }
+      ]
+    }
+  ],
+  "notes": "All burritos available with choice of steak, chicken, pork, or vegetarian. Please specify meat preference when ordering."
+}

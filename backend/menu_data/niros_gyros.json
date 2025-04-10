@@ -1,0 +1,161 @@
+{
+  "coffee_shop": "Niro's Gyros",
+  "description": "Authentic Greek and Mediterranean cuisine",
+  "location": {
+    "address": "2001 W Springfield Ave, Champaign, IL 61821",
+    "phone": "(217) 355-6760",
+    "hours": "7am - 7pm"
+  },
+  "coffee_shop_id": "niros_gyros",
+  "coffee_shop_name": "Niro's Gyros",
+  "email": "pofaraorder@gmail.com",
+  "menu_categories": [
+    {
+      "category": "Salads",
+      "items": [
+        {
+          "name": "Chicken Strips Salad",
+          "description": "Fresh lettuce, cucumber, tomatoes, and onions topped with grilled chicken breast strips.",
+          "price": 7.59,
+          "calories": null,
+          "id": "niros_gyros_chicken_strips_salad_0"
+        },
+        {
+          "name": "Small Greek Salad",
+          "description": "Fresh lettuce, cucumber, tomatoes, and onions.",
+          "price": 6.99,
+          "calories": null,
+          "id": "niros_gyros_small_greek_salad_1"
+        },
+        {
+          "name": "Fabulous Greek Salad",
+          "description": "Fresh lettuce, cucumber, tomatoes, and onions topped with pepperoncinis, Greek olives, feta cheese, and oregano. Comes with homemade dressing.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_fabulous_greek_salad_2"
+        }
+      ]
+    },
+    {
+      "category": "Specials",
+      "items": [
+        {
+          "name": "Gyro, Fries and Drink",
+          "description": "Combo meal with gyro, fries and drink.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_gyro_fries_drink_0"
+        },
+        {
+          "name": "Philly Cheesesteak, Fries and Drink",
+          "description": "Combo meal with Philly cheesesteak, fries and drink.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_philly_cheesesteak_fries_drink_1"
+        },
+        {
+          "name": "2 Hot Dogs, Fries and Drink",
+          "description": "Combo meal with two hot dogs, fries and drink.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_2_hot_dogs_fries_drink_2"
+        },
+        {
+          "name": "Italian Beef, Fries and Drink",
+          "description": "Combo meal with Italian beef, fries and drink.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_italian_beef_fries_drink_3"
+        },
+        {
+          "name": "2 Burgers, Fries and Drink",
+          "description": "Combo meal with two burgers, fries and drink.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_2_burgers_fries_drink_4"
+        },
+        {
+          "name": "3 Gyros Special",
+          "description": "Buy two gyros, get one free.",
+          "price": 16.99,
+          "calories": null,
+          "id": "niros_gyros_3_gyros_special_5"
+        }
+      ]
+    },
+    {
+      "category": "Gyros",
+      "items": [
+        {
+          "name": "Single Gyro",
+          "description": "Served on a toasted pita with gyro sauce, tomatoes, and onions.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_single_gyro_0"
+        },
+        {
+          "name": "Double Gyro Plate",
+          "description": "Two toasted pitas served with a mound of gyro meat, gyro sauce, tomatoes, onions, and fries on the side.",
+          "price": 14.99,
+          "calories": null,
+          "id": "niros_gyros_double_gyro_plate_1"
+        },
+        {
+          "name": "Veggie Pita",
+          "description": "Toasted pita topped with gyro sauce, feta cheese, onions, tomatoes, and banana peppers.",
+          "price": 5.29,
+          "calories": null,
+          "id": "niros_gyros_veggie_pita_2"
+        },
+        {
+          "name": "BBQ Gyro",
+          "description": "Served with BBQ sauce.",
+          "price": 7.29,
+          "calories": null,
+          "id": "niros_gyros_bbq_gyro_3"
+        },
+        {
+          "name": "Triple Gyro Plate",
+          "description": "Three toasted pitas served with a mound of gyro meat, gyro sauce, tomatoes, onions, and fries on the side.",
+          "price": 16.49,
+          "calories": null,
+          "id": "niros_gyros_triple_gyro_plate_4"
+        },
+        {
+          "name": "Hot Veggie Pita",
+          "description": "Toasted pita topped with gyro sauce, feta cheese, onions, tomatoes, and banana peppers.",
+          "price": 5.49,
+          "calories": null,
+          "id": "niros_gyros_hot_veggie_pita_5"
+        }
+      ]
+    },
+    {
+      "category": "Italian Sandwiches",
+      "items": [
+        {
+          "name": "Italian Beef Sandwich",
+          "description": "Thinly-sliced roast beef on French bread with your choice of red sauce or homemade gravy.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_italian_beef_sandwich_0"
+        },
+        {
+          "name": "Italian Combo Sandwich",
+          "description": "A combination of Italian beef and sausage on French bread with your choice of red sauce or homemade gravy.",
+          "price": 8.99,
+          "calories": null,
+          "id": "niros_gyros_italian_combo_sandwich_1"
+        },
+        {
+          "name": "Italian Sausage Sandwich",
+          "description": "Italian sausage link on French bread with your choice of red sauce or homemade gravy.",
+          "price": 6.49,
+          "calories": null,
+          "id": "niros_gyros_italian_sausage_sandwich_2"
+        }
+      ]
+    }
+  ],
+  "notes": "All specials include a medium drink. Upgrade to large for additional cost."
+}

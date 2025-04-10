@@ -1,0 +1,380 @@
+{
+  "coffee_shop": "Hae's Bakery and Coffee",
+  "description": "House Blend coffee, pastries, and specialty drinks",
+  "location": {
+    "address": "917 West Jefferson Street, Springfield, Illinois 62702",
+    "phone": "(217) 555-7777",
+    "hours": "7am - 7pm"
+  },
+  "coffee_shop_id": "haes",
+  "coffee_shop_name": "Hae's Bakery and Coffee",
+  "email": "pofaraorder@gmail.com",
+  "menu_categories": [
+    {
+      "category": "Coffee",
+      "items": [
+        {
+          "name": "PawPaws Cup (Black Coffee)",
+          "description": "Available in 16oz ($3.64) or 20oz ($4.16)",
+          "price": 3.64,
+          "calories": null,
+          "id": "haes_pawpaws_cup_0"
+        },
+        {
+          "name": "Mamaws Cup (Coffee with Cream and Sugar)",
+          "description": "Available in 16oz ($3.64) or 20oz ($4.16)",
+          "price": 3.64,
+          "calories": null,
+          "id": "haes_mamaws_cup_1"
+        },
+        {
+          "name": "Cold Brew",
+          "description": "Available in 16oz ($5.46), 20oz ($6.24), or 32oz ($9.10)",
+          "price": 5.46,
+          "calories": null,
+          "id": "haes_cold_brew_2"
+        }
+      ]
+    },
+    {
+      "category": "Espresso",
+      "items": [
+        {
+          "name": "Double Shot Espresso",
+          "description": "Pure espresso. $2.34",
+          "price": 2.34,
+          "calories": null,
+          "id": "haes_double_shot_espresso_0"
+        },
+        {
+          "name": "Americano",
+          "description": "Available hot or iced. 16oz ($3.64), 20oz ($4.16), 32oz iced only ($5.46)",
+          "price": 3.64,
+          "calories": null,
+          "id": "haes_americano_1"
+        },
+        {
+          "name": "Cappuccino",
+          "description": "No flavor. Available hot or iced. 16oz ($4.94), 20oz ($5.72), 32oz iced only ($7.02)",
+          "price": 4.94,
+          "calories": null,
+          "id": "haes_cappuccino_2"
+        },
+        {
+          "name": "Latte",
+          "description": "No flavor. Available hot or iced. 16oz ($4.94), 20oz ($5.72), 32oz iced only ($7.02)",
+          "price": 4.94,
+          "calories": null,
+          "id": "haes_latte_3"
+        },
+        {
+          "name": "Red Eye",
+          "description": "Available hot or iced. 16oz ($4.16), 20oz ($4.94), 32oz iced only ($7.02)",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_red_eye_4"
+        },
+        {
+          "name": "Specialty Flavored Latte",
+          "description": "Available hot or iced. 16oz ($5.72), 20oz ($6.50), 32oz iced only ($7.80)",
+          "price": 5.72,
+          "calories": null,
+          "id": "haes_specialty_flavored_latte_5"
+        },
+        {
+          "name": "Macchiato",
+          "description": "No flavor. Available hot or iced. 16oz ($4.94), 20oz ($5.72), 32oz iced only ($7.02)",
+          "price": 4.94,
+          "calories": null,
+          "id": "haes_macchiato_6"
+        },
+        {
+          "name": "Traditional Macchiato",
+          "description": "3oz, hot only. $2.60",
+          "price": 2.60,
+          "calories": null,
+          "id": "haes_traditional_macchiato_7"
+        },
+        {
+          "name": "Cortado",
+          "description": "4oz. $2.60",
+          "price": 2.60,
+          "calories": null,
+          "id": "haes_cortado_8"
+        }
+      ]
+    },
+    {
+      "category": "Blended Coffee",
+      "items": [
+        {
+          "name": "Regular Blended Coffee",
+          "description": "Blended espresso with milk & ice. Available in 16oz ($5.20), 20oz ($5.98), 32oz ($6.76)",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_regular_blended_coffee_0"
+        },
+        {
+          "name": "Flavored Blended Coffee",
+          "description": "Blended espresso with milk, ice & your flavor of choice, topped with whip cream. Available in 16oz ($5.72), 20oz ($6.50), 32oz ($7.28)",
+          "price": 5.72,
+          "calories": null,
+          "id": "haes_flavored_blended_coffee_1"
+        }
+      ]
+    },
+    {
+      "category": "Tea",
+      "items": [
+        {
+          "name": "Chai Tea Latte",
+          "description": "Available hot or iced. 16oz ($5.20), 20oz ($5.46), 32oz iced only ($7.02)",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_chai_tea_latte_0"
+        },
+        {
+          "name": "Dirty Chai Latte",
+          "description": "Available hot or iced. 16oz ($6.24), 20oz ($6.50), 32oz iced only ($8.06)",
+          "price": 6.24,
+          "calories": null,
+          "id": "haes_dirty_chai_latte_1"
+        },
+        {
+          "name": "Matcha Tea Latte",
+          "description": "Available hot or iced. 16oz ($4.16), 20oz ($4.68), 32oz iced only ($5.98)",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_matcha_tea_latte_2"
+        },
+        {
+          "name": "London Fog",
+          "description": "Available hot or iced. 16oz ($4.68), 20oz ($5.20), 32oz iced only ($6.24)",
+          "price": 4.68,
+          "calories": null,
+          "id": "haes_london_fog_3"
+        },
+        {
+          "name": "Earl Grey Tea",
+          "description": "Available hot or iced. 16oz ($3.12), 20oz ($3.64)",
+          "price": 3.12,
+          "calories": null,
+          "id": "haes_earl_grey_tea_4"
+        },
+        {
+          "name": "Breakfast Tea",
+          "description": "Only available hot. 16oz ($3.12), 20oz ($3.64)",
+          "price": 3.12,
+          "calories": null,
+          "id": "haes_breakfast_tea_5"
+        }
+      ]
+    },
+    {
+      "category": "Lotus Energy Drinks",
+      "items": [
+        {
+          "name": "Very Berry",
+          "description": "Blue Lotus, Raspberry & Blue Raspberry. Available in 16oz ($5.20), 20oz ($6.24), 32oz ($8.84). Blended +$0.26",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_very_berry_0"
+        },
+        {
+          "name": "Cherry Limeade",
+          "description": "Pink Lotus, Lime & Cherry. Available in 16oz ($5.20), 20oz ($6.24), 32oz ($8.84). Blended +$0.26",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_cherry_limeade_1"
+        },
+        {
+          "name": "The Patriot",
+          "description": "Blue Lotus, Cherry & Lime. Available in 16oz ($5.20), 20oz ($6.24), 32oz ($8.84). Blended +$0.26",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_the_patriot_2"
+        },
+        {
+          "name": "Create Your Own",
+          "description": "Pick a Lotus (Select, Blue, Purple, White, Gold, Pink, or Skinny), add flavors, and top it off. Available in 16oz ($4.16), 20oz ($5.46), 32oz ($8.06)",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_create_your_own_3"
+        }
+      ]
+    },
+    {
+      "category": "Smoothies",
+      "items": [
+        {
+          "name": "Smoothie",
+          "description": "Flavors: Peach, Wild Berry, Mango, Lemonade, Strawberry, Strawberry Banana, Raspberry, Pina Colada. Available in 16oz ($5.72), 20oz ($6.24), 32oz ($7.28)",
+          "price": 5.72,
+          "calories": null,
+          "id": "haes_smoothie_0"
+        }
+      ]
+    },
+    {
+      "category": "Hot Chocolate",
+      "items": [
+        {
+          "name": "Hot Chocolate",
+          "description": "Flavors: Chocolate, White Chocolate, SF Chocolate, SF White Chocolate. Available in 16oz ($4.16), 20oz ($4.94)",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_hot_chocolate_0"
+        }
+      ]
+    },
+    {
+      "category": "Kids Corner",
+      "items": [
+        {
+          "name": "Kids Hot Chocolate",
+          "description": "White Chocolate or Chocolate. 16oz. $4.16",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_kids_hot_chocolate_0"
+        },
+        {
+          "name": "Kids Blended Drink",
+          "description": "Birthday Cake, Cotton Candy, or Oreo. No coffee. 16oz. $4.16",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_kids_blended_drink_1"
+        }
+      ]
+    },
+    {
+      "category": "Bakery",
+      "items": [
+        {
+          "name": "Breakfast Burrito",
+          "description": "Egg, Sausage, Cheese & Potato. $4.68",
+          "price": 4.68,
+          "calories": null,
+          "id": "haes_breakfast_burrito_0"
+        },
+        {
+          "name": "Bag Of Bacon",
+          "description": "$3.90",
+          "price": 3.90,
+          "calories": null,
+          "id": "haes_bag_of_bacon_1"
+        },
+        {
+          "name": "Fruit Parfaits",
+          "description": "$4.16",
+          "price": 4.16,
+          "calories": null,
+          "id": "haes_fruit_parfaits_2"
+        },
+        {
+          "name": "Egg & Cheese Sandwich",
+          "description": "With Bacon/Sausage/Ham/Veggie Sausage +$1.56-$2.08. $3.90",
+          "price": 3.90,
+          "calories": null,
+          "id": "haes_egg_cheese_sandwich_3"
+        },
+        {
+          "name": "Danish",
+          "description": "Cherry, Cream Cheese, & Chocolate. $3.64",
+          "price": 3.64,
+          "calories": null,
+          "id": "haes_danish_4"
+        },
+        {
+          "name": "Muffin",
+          "description": "Blueberry, Chocolate Chocolate Chip, Apple Cinnamon, Banana Nut, Chocolate Chip, GF Blueberry (+$0.26). $3.38",
+          "price": 3.38,
+          "calories": null,
+          "id": "haes_muffin_5"
+        },
+        {
+          "name": "Cake Truffles",
+          "description": "Ask about flavors! $2.86",
+          "price": 2.86,
+          "calories": null,
+          "id": "haes_cake_truffles_6"
+        },
+        {
+          "name": "Cookies",
+          "description": "Ask about flavors! $3.12",
+          "price": 3.12,
+          "calories": null,
+          "id": "haes_cookies_7"
+        },
+        {
+          "name": "Cookie Cake Slice",
+          "description": "Ask about flavors! $3.12",
+          "price": 3.12,
+          "calories": null,
+          "id": "haes_cookie_cake_slice_8"
+        },
+        {
+          "name": "Cinnamon Roll",
+          "description": "$5.00",
+          "price": 5.00,
+          "calories": null,
+          "id": "haes_cinnamon_roll_9"
+        },
+        {
+          "name": "Mini Donuts",
+          "description": "Cinnamon Sugar, Sugar, or Cookies n' Cream. 6ct ($5.20) or 12ct ($8.32). Minimum of six per flavor.",
+          "price": 5.20,
+          "calories": null,
+          "id": "haes_mini_donuts_10"
+        }
+      ]
+    },
+    {
+      "category": "Add-Ons",
+      "items": [
+        {
+          "name": "Alternative Milk",
+          "description": "Whole, Skim, Half n Half, Soy, Coconut, Oat, Heavy, Almond. $0.78",
+          "price": 0.78,
+          "calories": null,
+          "id": "haes_alternative_milk_0"
+        },
+        {
+          "name": "Espresso Shot",
+          "description": "Add an extra shot of espresso. $1.04",
+          "price": 1.04,
+          "calories": null,
+          "id": "haes_espresso_shot_1"
+        },
+        {
+          "name": "Flavor",
+          "description": "Add flavor to any drink. $0.78",
+          "price": 0.78,
+          "calories": null,
+          "id": "haes_flavor_2"
+        },
+        {
+          "name": "Cold Foam",
+          "description": "Add cold foam to any drink. $0.78",
+          "price": 0.78,
+          "calories": null,
+          "id": "haes_cold_foam_3"
+        },
+        {
+          "name": "Flavored Cold Foam",
+          "description": "Add flavored cold foam to any drink. $1.04",
+          "price": 1.04,
+          "calories": null,
+          "id": "haes_flavored_cold_foam_4"
+        },
+        {
+          "name": "Honey",
+          "description": "Add local honey to any drink. $0.78",
+          "price": 0.78,
+          "calories": null,
+          "id": "haes_honey_5"
+        }
+      ]
+    }
+  ],
+  "notes": "Visit us at 917 West Jefferson Street, Springfield, Illinois 62702 or online at www.haesbakeryandcoffee.com"
+}

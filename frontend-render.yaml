@@ -3,8 +3,8 @@ services:
     name: ritt-drive-thru-frontend
     env: node
     buildCommand: cd new-frontend && pnpm install && pnpm build
-    staticPublishPath: ./new-frontend/.next
-    plan: free
+    startCommand: cd new-frontend && pnpm start
+    plan: standard
     envVars:
       - key: NODE_VERSION
         value: 18

@@ -64,6 +64,10 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
   const { state: agentState } = useVoiceAssistant();
   return (
     <>
+      <div className="fixed top-4 left-4 z-10 flex flex-col">
+        <span className="text-3xl font-bold text-white">Ritt</span>
+        <span className="text-sm text-gray-300 -mt-1">Drive-thru</span>
+      </div>
       <AnimatePresence>
         {agentState === "disconnected" && (
           <motion.button
@@ -74,7 +78,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
             className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
             onClick={() => props.onConnectButtonClicked()}
           >
-            Start a conversation
+            Start an order
           </motion.button>
         )}
         <div className="w-3/4 lg:w-1/2 mx-auto h-full">

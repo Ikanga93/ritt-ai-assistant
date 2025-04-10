@@ -1,0 +1,110 @@
+{
+  "coffee_shop": "Drinx",
+  "description": "Specialty coffee shop offering frozen drinks, frappes, and breakfast items",
+  "location": {
+    "address": "123 Main Street, Champaign, IL 61821",
+    "phone": "(217) 555-1234",
+    "hours": "6am - 8pm"
+  },
+  "coffee_shop_id": "drinx",
+  "coffee_shop_name": "Drinx",
+  "email": "pofaraorder@gmail.com",
+  "menu_categories": [
+    {
+      "category": "Food Items",
+      "items": [
+        {
+          "name": "Egg, Cheese, Sausage, Croissant",
+          "description": "Breakfast sandwich with egg, cheese, and sausage on a buttery croissant",
+          "price": 2.75,
+          "calories": null,
+          "id": "drinx_egg_cheese_sausage_croissant_0"
+        },
+        {
+          "name": "Breakfast Special",
+          "description": "Daily breakfast special with chef's selection",
+          "price": 3.50,
+          "calories": null,
+          "id": "drinx_breakfast_special_1"
+        }
+      ]
+    },
+    {
+      "category": "Frozen",
+      "items": [
+        {
+          "name": "Mocha Freeze",
+          "description": "Frozen coffee drink with chocolate. Available in Small ($4.75) or Large ($5.25). Customize with milk options and add-ons.",
+          "price": 4.75,
+          "calories": null,
+          "id": "drinx_mocha_freeze_0"
+        },
+        {
+          "name": "Cappuccino Freeze",
+          "description": "Frozen cappuccino. Available in Small ($4.45) or Large ($4.95). Customize with milk options and add-ons.",
+          "price": 4.45,
+          "calories": null,
+          "id": "drinx_cappuccino_freeze_1"
+        }
+      ]
+    },
+    {
+      "category": "Frappe",
+      "items": [
+        {
+          "name": "Coconut Frappe",
+          "description": "Blended coconut frappe. Available in Small ($4.50) or Large ($5.00). Customize with milk options and add-ons.",
+          "price": 4.50,
+          "calories": null,
+          "id": "drinx_coconut_frappe_0"
+        },
+        {
+          "name": "Vanilla Bean Frappe",
+          "description": "Blended vanilla bean frappe. Available in Small ($4.50) or Large ($5.00). Customize with milk options and add-ons.",
+          "price": 4.50,
+          "calories": null,
+          "id": "drinx_vanilla_bean_frappe_1"
+        }
+      ]
+    },
+    {
+      "category": "Iced Beverages",
+      "items": [
+        {
+          "name": "Iced Latte",
+          "description": "Espresso with cold milk over ice. Available in Small ($3.85) or Large ($4.45). Customize with milk options and add-ons.",
+          "price": 3.85,
+          "calories": null,
+          "id": "drinx_iced_latte_0"
+        },
+        {
+          "name": "Iced Vanilla Latte",
+          "description": "Espresso with vanilla syrup and cold milk over ice. Available in Small ($4.40) or Large ($4.95). Customize with milk options and add-ons.",
+          "price": 4.40,
+          "calories": null,
+          "id": "drinx_iced_vanilla_latte_1"
+        }
+      ]
+    },
+    {
+      "category": "Hot Beverages",
+      "items": [
+        {
+          "name": "Cafe Latte",
+          "description": "Espresso with steamed milk. Available in Small ($3.25), Medium ($3.95), or Large ($4.25). Customize with milk options and add-ons.",
+          "price": 3.25,
+          "calories": null,
+          "id": "drinx_cafe_latte_0"
+        },
+        {
+          "name": "Vanilla Latte",
+          "description": "Espresso with vanilla syrup and steamed milk. Available in Small ($3.75), Medium ($4.45), or Large ($4.75). Customize with milk options and add-ons.",
+          "price": 3.75,
+          "calories": null,
+          "id": "drinx_vanilla_latte_1"
+        }
+      ]
+    }
+  ],
+  "notes": "Add-ons available: Almond Milk ($0.60), Soy Milk ($0.60), Breve ($0.60), Espresso Extra Shot ($0.80), Flavored Syrup ($0.50). Prices shown are for smallest size unless noted."
+}

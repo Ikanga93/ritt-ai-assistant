@@ -1,0 +1,53 @@
+{
+  "coffee_shop": "Starbucks",
+  "description": "Premium coffee and espresso beverages",
+  "location": {
+    "address": "123 Main St, Champaign, IL 61821",
+    "phone": "(217) 555-0123",
+    "hours": "7am - 7pm"
+  },
+  "coffee_shop_id": "starbucks",
+  "coffee_shop_name": "Starbucks",
+  "email": "pofaraorder@gmail.com",
+  "menu_categories": [
+    {
+      "category": "Hot Coffee",
+      "items": [
+        {
+          "name": "Caffè Americano",
+          "description": "Espresso shots topped with hot water. Available in Tall, Grande, and Venti sizes.",
+          "price": 3.25,
+          "calories": null,
+          "id": "starbucks_caffe_americano_0"
+        },
+        {
+          "name": "Pike Place® Roast",
+          "description": "Our signature medium-roasted coffee with a smooth, balanced taste. Available in Tall, Grande, and Venti sizes.",
+          "price": 2.95,
+          "calories": null,
+          "id": "starbucks_pike_place_roast_1"
+        }
+      ]
+    },
+    {
+      "category": "Frappuccino",
+      "items": [
+        {
+          "name": "Caramel Frappuccino",
+          "description": "Caramel syrup, coffee, milk and ice, topped with whipped cream and caramel sauce. Available in Tall, Grande, and Venti sizes.",
+          "price": 4.95,
+          "calories": null,
+          "id": "starbucks_caramel_frappuccino_0"
+        },
+        {
+          "name": "Mocha Frappuccino",
+          "description": "Mocha sauce, coffee, milk and ice, topped with whipped cream. Available in Tall, Grande, and Venti sizes.",
+          "price": 4.95,
+          "calories": null,
+          "id": "starbucks_mocha_frappuccino_1"
+        }
+      ]
+    }
+  ],
+  "notes": "Prices are for Tall size. Grande and Venti sizes available at additional cost."
+}

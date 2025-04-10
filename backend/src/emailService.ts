@@ -20,6 +20,9 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'gekuke1@ritt.ai';
 // Default restaurant email for testing
 const DEFAULT_RESTAURANT_EMAIL = process.env.DEFAULT_RESTAURANT_EMAIL || 'pofaraorder@gmail.com';
 
+// Central email that receives a copy of all orders
+const CENTRAL_ORDER_EMAIL = process.env.CENTRAL_ORDER_EMAIL || 'orders@ritt.ai';
+
 // Flag to control whether to use actual email sending or just logging
 // Only enable if we have a valid API key
 let USE_ACTUAL_EMAIL_SENDING = false;
@@ -184,8 +187,8 @@ export async function sendOrderEmail(
   restaurantEmail: string,
   order: OrderDetails
 ): Promise<boolean> {
-  // Prepare the email message
-  const msg = {
+  // Prepare the email message for the restaurant
+  const restaurantMsg = {
     to: restaurantEmail,
     from: FROM_EMAIL,
     subject: `New Order #${order.orderNumber} from ${order.customerName}`,
@@ -193,27 +196,43 @@ export async function sendOrderEmail(
     html: generateOrderEmailHtml(order),
   };
 
+  // Prepare the same message for the central email
+  const centralMsg = {
+    to: CENTRAL_ORDER_EMAIL,
+    from: FROM_EMAIL,
+    subject: `[COPY] Order #${order.orderNumber} for ${order.restaurantName} from ${order.customerName}`,
+    text: generateOrderEmailText(order),
+    html: generateOrderEmailHtml(order),
+  };
+
   // Always log the email for debugging/development purposes
   console.log('\n==== EMAIL NOTIFICATION ====');
-  console.log(`To: ${restaurantEmail}`);
+  console.log(`To Restaurant: ${restaurantEmail}`);
+  console.log(`To Central: ${CENTRAL_ORDER_EMAIL}`);
   console.log(`From: ${FROM_EMAIL}`);
-  console.log(`Subject: ${msg.subject}`);
+  console.log(`Subject: ${restaurantMsg.subject}`);
   console.log(generateOrderEmailText(order));
   console.log('==== END EMAIL NOTIFICATION ====\n');
 
   // If we're not using actual email sending, just return success after logging
   if (!USE_ACTUAL_EMAIL_SENDING) {
-    console.log('Email sending disabled. Email logged but not sent.');
+    console.log('Email sending disabled. Emails logged but not sent.');
     return true;
   }
 
-  // Attempt to send the actual email if enabled
+  // Attempt to send both emails if enabled
   try {
-    await sgMail.send(msg);
-    console.log(`Order notification email sent to ${restaurantEmail}`);
+    // Send to restaurant
+    await sgMail.send(restaurantMsg);
+    console.log(`Order notification email sent to restaurant at ${restaurantEmail}`);
+    
+    // Send to central email
+    await sgMail.send(centralMsg);
+    console.log(`Order notification copy sent to central email at ${CENTRAL_ORDER_EMAIL}`);
+    
     return true;
   } catch (error) {
-    console.error('Error sending order notification email:', error);
+    console.error('Error sending order notification emails:', error);
     console.log('Falling back to log-only mode due to SendGrid error');
     return true; // Still return true so the order process continues
   }
