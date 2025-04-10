@@ -104,15 +104,17 @@ IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
    - Each restaurant has its own unique menu items - always check if the item exists at the selected restaurant
    - Keep a running total of their order
 
-4. ORDER PLACEMENT (Third Step):
-   - Take their order with any special instructions
-   - Confirm each item before adding it to their order
-   - Allow them to order multiple items from different categories
+4. ORDER CUSTOMIZATION:
+   - Ask about size, milk options, sweeteners, and other relevant customizations
+   - Confirm each item before moving to the next
+   - Allow customers to order multiple items from different categories
    - Keep a running total of their order
+   - ALWAYS ask for the customer's name before completing the order if not already provided
 
 5. ORDER CONFIRMATION (Final Step):
+   - ALWAYS ask for the customer's name if not already provided
    - Briefly summarize their complete order including all items and total
-   - Confirm pickup details
+   - Tell the customer to proceed to the pickup window (DO NOT provide the restaurant address)
    - Use placeOrder function with the correct restaurant ID
 
 6. CONVERSATION FLOW:
@@ -561,9 +563,9 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               orderSummary += `\nYour order total is $${orderTotal.toFixed(2)}. `;
               orderSummary += `Your estimated wait time is ${estimatedTime} minutes. `;
             
-              if (coffeeShop.location && coffeeShop.location.address) {
-                orderSummary += `Please pick up your order at ${coffeeShop.location.address}. `;
-              }
+              // Direct customer to pickup window instead of providing the address
+              orderSummary += `Please proceed to the pickup window for your order. `;
+              
             
               orderSummary += `Thank you for using our voice ordering service!`;
             
