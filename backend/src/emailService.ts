@@ -140,6 +140,7 @@ function generateOrderEmailHtml(order: OrderDetails): string {
         <div class="footer">
           <p>This is an automated email order notification from Ritt Drive-Thru, an AI-powered voice ordering system.</p>
           <p>To learn more about Ritt Drive-Thru or to implement this system at your business, visit <a href="https://ritt.ai">ritt.ai</a> or contact us at <a href="mailto:gekuke1@ritt.ai">gekuke1@ritt.ai</a>.</p>
+          <p><strong>Gilchrist Ekuke, CEO Ritt</strong></p>
         </div>
       </div>
     </body>
