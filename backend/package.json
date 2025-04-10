@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r menu_data dist/",
     "lint": "eslint -f unix \"**/*.ts\""
   },
   "packageManager": "pnpm@9.15.9",
