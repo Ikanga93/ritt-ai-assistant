@@ -138,8 +138,8 @@ function generateOrderEmailHtml(order: OrderDetails): string {
         </div>
         
         <div class="footer">
-          <p>This is an automated message. Please do not reply to this email.</p>
-          <p>For any issues with this order, please contact the customer directly.</p>
+          <p>This is an automated email order notification from Ritt Drive-Thru, an AI-powered voice ordering system.</p>
+          <p>To learn more about Ritt Drive-Thru or to implement this system at your business, visit <a href="https://ritt.ai">ritt.ai</a> or contact us at <a href="mailto:gekuke1@ritt.ai">gekuke1@ritt.ai</a>.</p>
         </div>
       </div>
     </body>
@@ -175,8 +175,10 @@ ${itemsList}
 
 Order Total: $${order.orderTotal.toFixed(2)}
 
-This is an automated message. Please do not reply to this email.
+This is an automated message from Ritt Drive-Thru, an AI-powered voice ordering system.
 For any issues with this order, please contact the customer directly.
+
+To learn more about Ritt Drive-Thru or to implement this system at your business, visit ritt.ai or contact us at info@ritt.ai.
   `;
 }
 
