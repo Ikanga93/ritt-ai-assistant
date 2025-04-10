@@ -22,5 +22,7 @@ services:
         sync: false
       - key: DEFAULT_RESTAURANT_EMAIL
         sync: false
+      - key: CENTRAL_ORDER_EMAIL
+        sync: false
       - key: PORT
         value: 8080
