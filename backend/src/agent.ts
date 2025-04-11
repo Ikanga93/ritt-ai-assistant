@@ -52,6 +52,7 @@ import { placeOrder } from './orderService.js';
 
 // Import payment handling
 import { handlePayment } from './handlePayment.js';
+import { handlePaymentResponse } from './handlePaymentResponse.js';
 
 // Import fuzzy matching utilities
 import { findBestMatch, findAllMatches, verifyOrderItems, normalizeString } from './utils/fuzzyMatch.js';
@@ -597,9 +598,6 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               status: 'confirmed'
             };
           
-            // Send notification email to coffee shop
-            await sendOrderNotification(restaurantId, order);
-            
             // Store the order in conversation state for payment processing
             conversationState.orderDetails = order;
             console.log('Order confirmed:', order.orderNumber);
@@ -608,13 +606,47 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             conversationState = updateStage(conversationState, ConversationStage.PAYMENT_PENDING);
             
             // Explicitly ask the customer about payment preferences and wait for response
-            await ctx.agent.sendText("Your order is confirmed! Would you like to pay now online, or pay at pickup?");
+            await ctx.agent.sendText("Thanks, " + customerName + "! Your order is confirmed. Would you like to pay now online, or pay at pickup?");
             
-            // We'll stop here and let the conversation continue based on the customer's response
-            // The handleMessage function will process the customer's payment preference
-            // and generate a payment link if they choose to pay now
+            // Process payment if customer chooses to pay now
+            // Check for keywords indicating payment preference
+            const payNowIndicators = ['now', 'yes', 'online', 'payment', 'link', 'pay now', 'sure'];
             
-            // Don't complete the order yet - we'll do that after handling payment
+            // Wait for customer's response (simulated for now)
+            // In a real implementation, we would listen for the next message
+            // For now, we'll generate a payment link immediately for testing
+            try {
+                // Generate payment link
+                console.log('Generating payment link for order:', order.orderNumber);
+                const updatedState = await handlePayment(ctx, conversationState);
+                
+                // Send the payment link to the customer in the chat interface
+                if (updatedState.paymentUrl) {
+                    console.log('Payment URL generated:', updatedState.paymentUrl);
+                    await ctx.agent.sendText(`Here's your payment link: ${updatedState.paymentUrl}\nAfter payment, please proceed to the pickup window.`);
+                } else {
+                    console.error('Failed to generate payment URL');
+                    await ctx.agent.sendText("I'm sorry, I couldn't generate a payment link at this time. You can pay at the pickup window instead.");
+                }
+                
+                // Send notification email to coffee shop with payment link
+                order.paymentUrl = updatedState.paymentUrl;
+                await sendOrderNotification(restaurantId, order);
+                
+                // Update conversation state with payment information
+                conversationState = { ...updatedState };
+            } catch (error) {
+                console.error('Error generating payment link:', error);
+                await ctx.agent.sendText("I'm sorry, there was an error processing your payment. You can pay at the pickup window instead.");
+                
+                // Send notification email to coffee shop without payment link
+                await sendOrderNotification(restaurantId, order);
+            }
+            
+            // Mark order as completed
+            conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
+            
+            // Return the updated conversation state
             return conversationState;
           
             // Mark order as completed in conversation state
