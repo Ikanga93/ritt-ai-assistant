@@ -50,37 +50,35 @@ const server = http.createServer(async (req, res) => {
         totalAmount: 19.97, // 9.99 + (4.99 * 2)
       };
       
-      // Create a product for this order
-      const product = await stripe.products.create({
-        name: `Ritt Drive-Thru Test Order #${testOrder.id}`,
-        description: testOrder.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
-      });
-
-      // Create a price for the order
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: Math.round(testOrder.totalAmount * 100), // Convert to cents
-        currency: 'usd',
-      });
-
-      // Create a payment link
-      const paymentLink = await stripe.paymentLinks.create({
-        line_items: [{ price: price.id, quantity: 1 }],
-        after_completion: { 
-          type: 'redirect', 
-          redirect: { 
-            url: `http://localhost:3000/order-confirmation?order_id=${testOrder.id}` 
-          } 
+      // Create a Checkout Session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: testOrder.items.map(item => ({
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: item.name,
+              description: `Quantity: ${item.quantity}`,
+            },
+            unit_amount: Math.round(item.price * 100), // Convert to cents
+          },
+          quantity: item.quantity,
+        })),
+        mode: 'payment',
+        success_url: `http://localhost:3000/order-confirmation?order_id=${testOrder.id}&status=success`,
+        cancel_url: `http://localhost:3000/order-confirmation?order_id=${testOrder.id}&status=canceled`,
+        metadata: {
+          order_id: testOrder.id,
         },
       });
       
-      console.log('Payment link generated:', paymentLink.url);
+      console.log('Checkout session created:', session.url);
       
-      // Return success response with payment link
+      // Return success response with checkout session URL
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 
         success: true, 
-        paymentUrl: paymentLink.url,
+        paymentUrl: session.url,
         order: testOrder
       }));
     } catch (error) {
