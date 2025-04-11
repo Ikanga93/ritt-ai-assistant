@@ -101,11 +101,37 @@ function ControlBar() {
    * Note: This is only available on Scale plan, see {@link https://livekit.io/pricing | LiveKit Pricing} for more details.
    */
   const krisp = useKrispNoiseFilter();
-  useEffect(() => {
-    krisp.setNoiseFilterEnabled(true);
-  }, []);
-
   const { state: agentState, audioTrack } = useVoiceAssistant();
+  
+  useEffect(() => {
+    // Only attempt to enable Krisp when the agent is ready
+    if (!krisp) return;
+    
+    // Wait for audio context to be fully established
+    const enableKrisp = setTimeout(() => {
+      try {
+        // First disable, then try to enable after a short delay
+        krisp.setNoiseFilterEnabled(false)
+          .then(() => {
+            // Try to enable it only after ensuring it's first disabled
+            setTimeout(() => {
+              krisp.setNoiseFilterEnabled(true)
+                .catch(err => {
+                  console.warn('Failed to enable noise filter, continuing without it:', err);
+                });
+            }, 500);
+          })
+          .catch(err => {
+            console.warn('Failed to disable noise filter before enabling:', err);
+          });
+      } catch (error) {
+        console.warn('Krisp noise filter initialization failed:', error);
+        // Continue without noise filtering if it fails
+      }
+    }, 2000); // Longer delay to ensure audio context is ready
+    
+    return () => clearTimeout(enableKrisp);
+  }, [krisp]);
 
   return (
     <div className="relative h-[100px]">
