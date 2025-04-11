@@ -63,6 +63,9 @@ interface OrderDetails {
   customerName: string;
   customerEmail?: string;
   items: OrderItem[];
+  subtotal?: number;
+  stateTax?: number;
+  processingFee?: number;
   orderTotal: number;
   timestamp: string;
   estimatedTime: number;
@@ -134,7 +137,9 @@ function generateOrderEmailHtml(order: OrderDetails): string {
         </table>
         
         <div class="total">
-          <p>Order Total: $${order.orderTotal.toFixed(2)}</p>
+          <p>Subtotal: $${(order.subtotal || 0).toFixed(2)}</p>
+          <p>Sales Tax (9%): $${(order.stateTax || 0).toFixed(2)}</p>
+          <p><strong>Order Total: $${order.orderTotal.toFixed(2)}</strong></p>
         </div>
         
         <div class="footer">
@@ -174,6 +179,8 @@ Estimated Preparation Time: ${order.estimatedTime} minutes
 ORDER ITEMS:
 ${itemsList}
 
+Subtotal: $${(order.subtotal || 0).toFixed(2)}
+Sales Tax (9%): $${(order.stateTax || 0).toFixed(2)}
 Order Total: $${order.orderTotal.toFixed(2)}
 
 This is an automated message from Ritt Drive-Thru, an AI-powered voice ordering system.
