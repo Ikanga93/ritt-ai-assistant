@@ -600,36 +600,22 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             // Send notification email to coffee shop
             await sendOrderNotification(restaurantId, order);
             
-            // Process payment before completing order
             // Store the order in conversation state for payment processing
             conversationState.orderDetails = order;
-            console.log('Starting payment processing for order:', order.orderNumber);
+            console.log('Order confirmed:', order.orderNumber);
             
-            // Explicitly ask the customer about payment preferences
+            // Set conversation state to PAYMENT_PENDING to wait for customer's payment preference
+            conversationState = updateStage(conversationState, ConversationStage.PAYMENT_PENDING);
+            
+            // Explicitly ask the customer about payment preferences and wait for response
             await ctx.agent.sendText("Your order is confirmed! Would you like to pay now online, or pay at pickup?");
             
-            // Generate payment link
-            try {
-              // Handle payment processing
-              const updatedState = await handlePayment(ctx, conversationState);
-              
-              // Update conversation state with payment information
-              conversationState = updatedState;
-              
-              // Add payment information to order summary if payment link was generated
-              if (conversationState.paymentUrl) {
-                order.paymentUrl = conversationState.paymentUrl;
-                console.log('Payment URL added to order:', order.paymentUrl);
-                
-                // Send the payment link to the customer
-                await ctx.agent.sendText(`Here's your payment link: ${conversationState.paymentUrl}\nAfter payment, please proceed to the pickup window.`);
-              } else {
-                console.log('No payment URL was generated for order:', order.orderNumber);
-              }
-            } catch (paymentError) {
-              console.error('Payment processing failed:', paymentError);
-              // Continue with order completion despite payment error
-            }
+            // We'll stop here and let the conversation continue based on the customer's response
+            // The handleMessage function will process the customer's payment preference
+            // and generate a payment link if they choose to pay now
+            
+            // Don't complete the order yet - we'll do that after handling payment
+            return conversationState;
           
             // Mark order as completed in conversation state
             completeOrder(conversationState);
