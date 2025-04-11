@@ -50,6 +50,9 @@ import {
 // Import order service
 import { placeOrder } from './orderService.js';
 
+// Import payment handling
+import { handlePayment } from './handlePayment.js';
+
 // Import fuzzy matching utilities
 import { findBestMatch, findAllMatches, verifyOrderItems, normalizeString } from './utils/fuzzyMatch.js';
 
@@ -99,6 +102,12 @@ IMPORTANT GUIDELINES FOR DRIVE-THRU:
    - Once a restaurant is selected, immediately ask "What would you like to order today?"
    - DO NOT list menu categories unless the customer specifically asks
    - DO NOT force the customer to browse by category first
+   
+4. PAYMENT PROCESSING (Final Step):
+   - After confirming the order details, ask the customer if they would like to pay now or at pickup
+   - If they choose to pay now, let them know a payment link will be provided
+   - Include the payment link in your response when available
+   - If they prefer to pay at pickup, acknowledge their preference
    - Let the customer order directly by item name
    - Always treat items with names like "The [Name]" as specific menu items, not as categories
    - If a customer says "I want the [item name]" or any variation, add it to their order as a menu item
@@ -590,6 +599,31 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
           
             // Send notification email to coffee shop
             await sendOrderNotification(restaurantId, order);
+            
+            // Process payment before completing order
+            // Store the order in conversation state for payment processing
+            conversationState.orderDetails = order;
+            console.log('Starting payment processing for order:', order.orderNumber);
+            
+            // Generate payment link
+            try {
+              // Handle payment processing
+              const updatedState = await handlePayment(ctx, conversationState);
+              
+              // Update conversation state with payment information
+              conversationState = updatedState;
+              
+              // Add payment information to order summary if payment link was generated
+              if (conversationState.paymentUrl) {
+                order.paymentUrl = conversationState.paymentUrl;
+                console.log('Payment URL added to order:', order.paymentUrl);
+              } else {
+                console.log('No payment URL was generated for order:', order.orderNumber);
+              }
+            } catch (paymentError) {
+              console.error('Payment processing failed:', paymentError);
+              // Continue with order completion despite payment error
+            }
           
             // Mark order as completed in conversation state
             completeOrder(conversationState);
@@ -613,8 +647,14 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               
               orderSummary += `\n\nYour estimated wait time is ${estimatedTime} minutes. `;
             
-              // Direct customer to pickup window instead of providing the address
-              orderSummary += `Please proceed to the pickup window for your order. `;
+              // Add payment link if available
+              if (order.paymentUrl) {
+                orderSummary += `\n\nYou can pay for your order now using this secure payment link: ${order.paymentUrl}\n\n`;
+                orderSummary += `After payment, please proceed to the pickup window for your order. `;
+              } else {
+                // Direct customer to pickup window instead of providing the address
+                orderSummary += `Please proceed to the pickup window for your order and payment. `;
+              }
               
             
               orderSummary += `Thank you for using our voice ordering service!`;

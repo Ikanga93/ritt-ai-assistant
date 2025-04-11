@@ -27,6 +27,13 @@ export interface ConversationState {
   
   // Last function called
   lastFunction?: string;
+  
+  // Payment information
+  paymentUrl?: string;
+  paymentError?: boolean;
+  
+  // Order details
+  orderDetails?: any; // Full order object
 }
 
 /**
@@ -50,6 +57,7 @@ export enum ConversationStage {
   CATEGORY_SELECTION = 'category_selection',
   ITEM_SELECTION = 'item_selection',
   ORDER_CONFIRMATION = 'order_confirmation',
+  PAYMENT_PENDING = 'payment_pending',
   ORDER_COMPLETED = 'order_completed'
 }
 
