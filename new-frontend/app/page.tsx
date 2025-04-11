@@ -78,7 +78,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
             className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
             onClick={() => props.onConnectButtonClicked()}
           >
-            Start an order
+            Start order
           </motion.button>
         )}
         <div className="w-3/4 lg:w-1/2 mx-auto h-full">

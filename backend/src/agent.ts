@@ -88,11 +88,12 @@ IMPORTANT GUIDELINES FOR COFFEE DRIVE-THRU:
 
 2. GREETING (First Step):
    - Begin with a brief, friendly greeting like "Hi, I'm Julie, your drive-thru assistant"
-   - Ask "Where would you like to order from today?" and immediately list all available coffee shops
-   - Always proactively list all coffee shops by name to help customers choose
+   - Ask "Where would you like to order from today?"
+   - DO NOT list all coffee shops unless the customer specifically asks for options
+   - If the customer asks what restaurants are available, then use the listRestaurants function
    - ONLY mention restaurants that are actually available in the system
    - NEVER mention or suggest restaurants like Dunkin, Starbucks, or any others unless they are specifically in your available restaurant list
-   - If the customer doesn't specify a preference, ask them to choose from the listed coffee shops
+   - If the customer doesn't specify a preference, ask them what type of food they're in the mood for
 
 3. ORDER TAKING (Second Step):
    - Once a restaurant is selected, immediately ask "What would you like to order today?"
@@ -484,7 +485,7 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             let orderTotal = 0;
             const itemsWithDetails = await Promise.all(items.map(async (item: any) => {
               // If price is not provided, try to find the item in the menu
-              if (item.price === undefined) {
+              if (item.price === undefined || item.price === 0) {
                 const allCategories = coffeeShop.menu_categories;
                 let foundItem = false;
                 
@@ -520,18 +521,53 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
                   }
                 }
                 
+                // If still no match, try fuzzy matching
+                if (!foundItem) {
+                  const allMenuItems = [];
+                  allCategories.forEach(category => {
+                    category.items.forEach(menuItem => {
+                      allMenuItems.push(menuItem);
+                    });
+                  });
+                  
+                  const bestMatch = findBestMatch(normalizeString(item.name), 
+                    allMenuItems.map(mi => normalizeString(mi.name)));
+                  
+                  if (bestMatch && bestMatch.similarity >= 0.6) {
+                    const matchedItem = allMenuItems[bestMatch.index];
+                    item.price = matchedItem.price;
+                    item.id = item.id || matchedItem.id;
+                    console.log(`Found fuzzy match for ${item.name}: ${matchedItem.name} at $${item.price} (similarity: ${bestMatch.similarity.toFixed(2)})`);
+                    foundItem = true;
+                  }
+                }
+                
                 if (!foundItem) {
                   console.log(`Could not find price for ${item.name}`);
+                  // Set a default price to avoid NaN in total
+                  item.price = 5.00; // Default price if not found
+                  console.log(`Setting default price of $5.00 for ${item.name}`);
                 }
               }
             
               if (item.price !== undefined) {
                 orderTotal += item.price * item.quantity;
+              } else {
+                // Ensure we always have a price
+                item.price = 5.00; // Default price
+                orderTotal += item.price * item.quantity;
+                console.log(`Using default price of $5.00 for ${item.name}`);
               }
               
               return item;
           }));
           
+            // Calculate subtotal, tax, and processing fee
+            const subtotal = parseFloat(orderTotal.toFixed(2));
+            const stateTax = parseFloat((subtotal * 0.09).toFixed(2));
+            const processingFee = parseFloat((subtotal * 0.035 + 0.30).toFixed(2));
+            const finalTotal = parseFloat((subtotal + stateTax + processingFee).toFixed(2));
+            
             // Create order object with more details
             const order = {
               orderNumber,
@@ -540,7 +576,10 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               customerName: customerName, // customerName is now required
               customerEmail: customerEmail,
               items: itemsWithDetails,
-              orderTotal: parseFloat(orderTotal.toFixed(2)),
+              subtotal: subtotal,
+              stateTax: stateTax,
+              processingFee: processingFee, // Hidden from customer
+              orderTotal: finalTotal,
               timestamp: new Date().toISOString(),
               estimatedTime,
               status: 'confirmed'
@@ -561,11 +600,15 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               orderSummary += `Your order number is ${orderNumber}. Here's a summary of your order:\n\n`;
             
               items.forEach((item: any) => {
-                orderSummary += `${item.quantity} ${item.name}${item.specialInstructions ? ` (${item.specialInstructions})` : ''}\n`;
+                orderSummary += `${item.quantity} ${item.name}${item.specialInstructions ? ` (${item.specialInstructions})` : ''} - $${(item.price * item.quantity).toFixed(2)}\n`;
               });
             
-              orderSummary += `\nYour order total is $${orderTotal.toFixed(2)}. `;
-              orderSummary += `Your estimated wait time is ${estimatedTime} minutes. `;
+              // Add subtotal, tax, and total information
+              orderSummary += `\nSubtotal: $${order.subtotal.toFixed(2)}`;
+              orderSummary += `\nState Tax (9%): $${order.stateTax.toFixed(2)}`;
+              orderSummary += `\nTotal: $${order.orderTotal.toFixed(2)}`;
+              
+              orderSummary += `\n\nYour estimated wait time is ${estimatedTime} minutes. `;
             
               // Direct customer to pickup window instead of providing the address
               orderSummary += `Please proceed to the pickup window for your order. `;
@@ -579,11 +622,13 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             return JSON.stringify({
               success: true,
               orderNumber,
-              restaurantName: restaurant.restaurant_name,
+              restaurantName: coffeeShop.coffee_shop_name,
               items: itemsWithDetails,
-              orderTotal: parseFloat(orderTotal.toFixed(2)),
+              subtotal: order.subtotal,
+              stateTax: order.stateTax,
+              orderTotal: order.orderTotal,
               estimatedTime,
-              message: `Order #${orderNumber} has been placed with ${restaurant.restaurant_name}${customerName ? ` for ${customerName}` : ''}. Your estimated wait time is ${estimatedTime} minutes. Thank you for your order!`
+              message: `Order #${orderNumber} has been placed with ${coffeeShop.coffee_shop_name}${customerName ? ` for ${customerName}` : ''}. Your total is $${order.orderTotal.toFixed(2)}. Your estimated wait time is ${estimatedTime} minutes. Thank you for your order!`
             });
         },
       },

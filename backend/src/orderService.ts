@@ -23,7 +23,10 @@ export interface OrderDetails {
   customerName: string;
   customerEmail?: string;
   items: OrderItem[];
+  subtotal: number;
+  stateTax: number;
   orderTotal: number;
+  processingFee?: number; // Hidden from customer
   timestamp: string;
   estimatedTime: number;
   status: string;
@@ -48,10 +51,19 @@ export async function placeOrder(
   const orderNumber = Math.floor(Math.random() * 10000) + 1000;
   const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
   
-  // Calculate order total
-  const orderTotal = items.reduce((total, item) => {
+  // Calculate subtotal
+  const subtotal = items.reduce((total, item) => {
     return total + ((item.price || 0) * item.quantity);
   }, 0);
+  
+  // Calculate state tax (9%)
+  const stateTax = subtotal * 0.09;
+  
+  // Calculate processing fee (3.5% + $0.30) - hidden from customer
+  const processingFee = subtotal * 0.035 + 0.30;
+  
+  // Calculate final order total (subtotal + tax + processing fee)
+  const orderTotal = subtotal + stateTax + processingFee;
   
   // Create order object
   const order: OrderDetails = {
@@ -61,7 +73,10 @@ export async function placeOrder(
     customerName,
     customerEmail,
     items,
+    subtotal: parseFloat(subtotal.toFixed(2)),
+    stateTax: parseFloat(stateTax.toFixed(2)),
     orderTotal: parseFloat(orderTotal.toFixed(2)),
+    processingFee: parseFloat(processingFee.toFixed(2)), // Hidden from customer
     timestamp: new Date().toISOString(),
     estimatedTime,
     status: 'confirmed'
