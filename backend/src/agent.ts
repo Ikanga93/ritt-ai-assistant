@@ -605,6 +605,9 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             conversationState.orderDetails = order;
             console.log('Starting payment processing for order:', order.orderNumber);
             
+            // Explicitly ask the customer about payment preferences
+            await ctx.agent.sendText("Your order is confirmed! Would you like to pay now online, or pay at pickup?");
+            
             // Generate payment link
             try {
               // Handle payment processing
@@ -617,6 +620,9 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               if (conversationState.paymentUrl) {
                 order.paymentUrl = conversationState.paymentUrl;
                 console.log('Payment URL added to order:', order.paymentUrl);
+                
+                // Send the payment link to the customer
+                await ctx.agent.sendText(`Here's your payment link: ${conversationState.paymentUrl}\nAfter payment, please proceed to the pickup window.`);
               } else {
                 console.log('No payment URL was generated for order:', order.orderNumber);
               }
