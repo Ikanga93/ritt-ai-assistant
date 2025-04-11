@@ -131,7 +131,22 @@ const coffeeShopNameMappings: Record<string, string> = {
   'macro dose': 'micro_dose',
   'macro does': 'micro_dose',
   'macro doze': 'micro_dose',
-  'macros': 'micro_dose'
+  'macros': 'micro_dose',
+  
+  // Niros Gyros variations
+  'niros gyros': 'niros_gyros',
+  'niros gyro': 'niros_gyros',
+  'niro gyros': 'niros_gyros',
+  'niro gyro': 'niros_gyros',
+  'niros': 'niros_gyros',
+  'niro': 'niros_gyros',
+  'gyros': 'niros_gyros',
+  'gyro': 'niros_gyros',
+  'niros greek': 'niros_gyros',
+  'niro greek': 'niros_gyros',
+  'greek food': 'niros_gyros',
+  'mediterranean': 'niros_gyros',
+  'greek restaurant': 'niros_gyros'
 };
 
 /**
@@ -168,9 +183,20 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   // If no exact match, try fuzzy matching
   console.warn(`Warning: Restaurant ID "${normalizedId}" is not in the list of known restaurants: ${validIds.join(', ')}`);
   
-  // Try to find a close match by ID substring
+  // Try to find a close match by ID substring with more flexible matching
   const substringMatch = validIds.find(validId => {
-    return validId.includes(normalizedId) || normalizedId.includes(validId);
+    // Check if either string contains the other
+    if (validId.includes(normalizedId) || normalizedId.includes(validId)) {
+      return true;
+    }
+    
+    // Check if any word in the normalized ID is in the valid ID or vice versa
+    const normalizedWords = normalizedId.split('_');
+    const validIdWords = validId.split('_');
+    
+    return normalizedWords.some(word => 
+      validIdWords.some(validWord => validWord.includes(word) || word.includes(validWord))
+    );
   });
   
   if (substringMatch) {
@@ -185,7 +211,8 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   // Try to find the best match among restaurant names
   const bestNameMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, restaurantNames);
   
-  if (bestNameMatch && bestNameMatch.similarity >= 0.5) {
+  // Use a lower threshold (0.4) for better recognition
+  if (bestNameMatch && bestNameMatch.similarity >= 0.4) {
     // Find the restaurant ID that corresponds to the matched name
     const matchedRestaurant = availableRestaurants.find(r => r.name === bestNameMatch.match);
     
@@ -199,8 +226,8 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
   // If still no match, try fuzzy matching with IDs as a last resort
   const bestIdMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, validIds);
   
-  if (bestIdMatch && bestIdMatch.similarity >= 0.5) {
-    console.log(`Fuzzy match found by ID: "${id}" -> "${bestIdMatch.match}" (similarity: ${bestIdMatch.similarity.toFixed(2)})`);
+  if (bestIdMatch && bestIdMatch.similarity >= 0.4) {
+    console.log(`Fuzzy ID match found: "${id}" -> "${bestIdMatch.match}" (similarity: ${bestIdMatch.similarity.toFixed(2)})`);
     return cacheManager.getOrSet(`restaurant_${bestIdMatch.match}`, () => loadRestaurantFromDisk(bestIdMatch.match));
   }
   

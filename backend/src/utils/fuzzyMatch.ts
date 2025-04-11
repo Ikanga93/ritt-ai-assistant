@@ -56,6 +56,15 @@ export function stringSimilarity(a: string, b: string): number {
     return 0.85 + (lengthRatio * 0.1); // Score between 0.85 and 0.95
   }
   
+  // Special case for restaurant names - check if first word matches
+  // This helps with cases like "Niros" matching "Niros Gyros"
+  const aFirstWord = aLower.split(/\s+/)[0];
+  const bFirstWord = bLower.split(/\s+/)[0];
+  if (aFirstWord && bFirstWord && (aFirstWord === bFirstWord || aFirstWord.includes(bFirstWord) || bFirstWord.includes(aFirstWord))) {
+    // First word matches, give a high score
+    return 0.75;
+  }
+  
   // Check for word-level matches (especially useful for multi-word items)
   const aWords = aLower.split(/\s+/);
   const bWords = bLower.split(/\s+/);
@@ -71,7 +80,7 @@ export function stringSimilarity(a: string, b: string): number {
   
   // If we have a good word-level match, boost the score
   const wordMatchRatio = matchingWords / Math.max(aWords.length, 1);
-  if (wordMatchRatio > 0.5) {
+  if (wordMatchRatio > 0.4) { // Lower threshold from 0.5 to 0.4 for better matching
     return 0.7 + (wordMatchRatio * 0.2); // Score between 0.7 and 0.9
   }
   
@@ -284,7 +293,7 @@ export interface FuzzyMenuItem {
 export function findMenuItemByName(
   itemName: string, 
   menuItems: FuzzyMenuItem[], 
-  threshold = 0.6
+  threshold = 0.5 // Lower threshold for better matching
 ): FuzzyMenuItem | null {
   if (!itemName || !menuItems || menuItems.length === 0) {
     return null;
@@ -355,7 +364,7 @@ export function findMenuItemByName(
 export function verifyOrderItems(
   requestedItems: Array<{name: string; quantity: number; [key: string]: any}>,
   menuItems: FuzzyMenuItem[],
-  threshold = 0.6
+  threshold = 0.5 // Lower threshold for better matching
 ): Array<{name: string; quantity: number; verified: boolean; suggestion?: string; [key: string]: any}> {
   return requestedItems.map(item => {
     const matchedItem = findMenuItemByName(item.name, menuItems, threshold);
