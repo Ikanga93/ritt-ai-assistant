@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc && cp -r menu_data dist/",
-    "lint": "eslint -f unix \"**/*.ts\""
+    "lint": "eslint -f unix \"**/*.ts\"",
+    "start": "node dist/agent.js dev",
+    "dev": "STRIPE_SECRET_KEY=sk_test_51R5kZQP4sLIsXeNy3uDv4DnTwD0h2WXfsv6Mp5Ee2felNv3zet4lCejwBdkqzGyoRo6tbfL7RG2ASSAgJH8B83GN00YSvfj4mA node dist/agent.js dev"
   },
   "packageManager": "pnpm@9.15.9",
   "devDependencies": {

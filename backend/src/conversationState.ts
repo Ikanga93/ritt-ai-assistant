@@ -56,8 +56,10 @@ export enum ConversationStage {
   MENU_BROWSING = 'menu_browsing',
   CATEGORY_SELECTION = 'category_selection',
   ITEM_SELECTION = 'item_selection',
-  ORDER_CONFIRMATION = 'order_confirmation',
+  NAME_CONFIRMATION = 'name_confirmation',
+  PAYMENT_REQUEST = 'payment_request',
   PAYMENT_PENDING = 'payment_pending',
+  ORDER_CONFIRMATION = 'order_confirmation',
   ORDER_COMPLETED = 'order_completed'
 }
 
@@ -163,7 +165,7 @@ export function updateCustomerInfo(
     ...state,
     customerName: name || state.customerName,
     customerEmail: email || state.customerEmail,
-    stage: ConversationStage.ORDER_CONFIRMATION
+    stage: ConversationStage.PAYMENT_REQUEST
   };
 }
 
@@ -196,13 +198,10 @@ export function completeOrder(state: ConversationState): ConversationState {
 /**
  * Update the conversation stage
  */
-export function updateStage(
-  state: ConversationState,
-  stage: ConversationStage
-): ConversationState {
+export function updateStage(state: ConversationState, newStage: ConversationStage): ConversationState {
   return {
     ...state,
-    stage
+    stage: newStage
   };
 }
 

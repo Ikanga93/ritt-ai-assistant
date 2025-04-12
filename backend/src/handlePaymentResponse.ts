@@ -15,8 +15,8 @@ export async function handlePaymentResponse(
   state: ConversationState,
   userMessage: string
 ): Promise<ConversationState> {
-  // Only process if we're in the payment pending stage
-  if (state.stage !== ConversationStage.PAYMENT_PENDING) {
+  // Only process if we're in the payment request stage
+  if (state.stage !== ConversationStage.PAYMENT_REQUEST) {
     return state;
   }
 
@@ -35,7 +35,7 @@ export async function handlePaymentResponse(
 
   if (wantToPayNow && !wantToPayLater) {
     // User wants to pay now, generate payment link
-    await ctx.agent.sendText("Alright, I'll generate a payment link for you. One moment please...");
+    await ctx.agent.sendText("I'll generate a payment link for you. One moment please...");
 
     try {
       // Generate payment link
@@ -43,22 +43,18 @@ export async function handlePaymentResponse(
       
       // Send the payment link to the customer
       if (updatedState.paymentUrl) {
-        await ctx.agent.sendText(`Here's your payment link: ${updatedState.paymentUrl}\nAfter payment, please proceed to the pickup window.`);
+        await ctx.agent.sendText("After payment, please return to this window and I'll confirm your order.");
       } else {
         await ctx.agent.sendText("I'm sorry, I couldn't generate a payment link at this time. You can pay at the pickup window instead.");
       }
 
-      // Update the state with the payment information
-      const finalState = { ...updatedState };
-      
-      // Mark order as completed
-      return updateStage(finalState, ConversationStage.ORDER_COMPLETED);
+      return updatedState;
     } catch (error) {
       console.error('Error generating payment link:', error);
       await ctx.agent.sendText("I'm sorry, there was an error processing your payment. You can pay at the pickup window instead.");
       
-      // Mark order as completed despite payment error
-      return updateStage(state, ConversationStage.ORDER_COMPLETED);
+      // Mark order as completed with payment error
+      return updateStage({ ...state, paymentError: true }, ConversationStage.ORDER_COMPLETED);
     }
   } else {
     // User wants to pay later or response is unclear
@@ -68,8 +64,8 @@ export async function handlePaymentResponse(
       // Response is unclear, default to paying at pickup
       await ctx.agent.sendText("I'll assume you'll pay at the pickup window. Thank you for your order!");
     }
-    
-    // Mark order as completed
-    return updateStage(state, ConversationStage.ORDER_COMPLETED);
+
+    // Mark order as completed with payment pending
+    return updateStage({ ...state, paymentError: true }, ConversationStage.ORDER_COMPLETED);
   }
 }

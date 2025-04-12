@@ -35,6 +35,7 @@ import {
   updateStage,
   updateLastFunction
 } from './conversationState.js';
+import { handlePayment } from './handlePayment.js';
 
 // Import restaurant utilities
 import {
@@ -85,6 +86,8 @@ export default defineAgent({
         interrupt_response: true
       },
       instructions: `You are Julie, a friendly AI drive-thru assistant. Your primary goal is to help customers place coffee and food orders from multiple restaurants through voice interaction only. IMPORTANT: You must ONLY reference restaurants and menu items that actually exist in the system data. NEVER mention or suggest restaurants or menu items that are not provided to you through the getRestaurants and other API functions.
+
+IMPORTANT: When a customer confirms their order, ALWAYS ask if they want to pay now online or at pickup. If they choose to pay online, use the processPayment function with paymentMethod='online'. If they choose to pay at pickup, use processPayment with paymentMethod='pickup'.
       
 IMPORTANT GUIDELINES FOR DRIVE-THRU:
 
@@ -602,101 +605,71 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             conversationState.orderDetails = order;
             console.log('Order confirmed:', order.orderNumber);
             
-            // Set conversation state to PAYMENT_PENDING to wait for customer's payment preference
-            conversationState = updateStage(conversationState, ConversationStage.PAYMENT_PENDING);
+            // Update conversation state to PAYMENT_REQUEST stage
+            const updatedState = updateStage(conversationState, ConversationStage.PAYMENT_REQUEST);
             
-            // Explicitly ask the customer about payment preferences and wait for response
+            // Ask the customer about payment preferences
             await ctx.agent.sendText("Thanks, " + customerName + "! Your order is confirmed. Would you like to pay now online, or pay at pickup?");
             
-            // Process payment if customer chooses to pay now
-            // Check for keywords indicating payment preference
-            const payNowIndicators = ['now', 'yes', 'online', 'payment', 'link', 'pay now', 'sure'];
-            
-            // Wait for customer's response (simulated for now)
-            // In a real implementation, we would listen for the next message
-            // For now, we'll generate a payment link immediately for testing
-            try {
-                // Generate payment link
-                console.log('Generating payment link for order:', order.orderNumber);
-                const updatedState = await handlePayment(ctx, conversationState);
-                
-                // Send the payment link to the customer in the chat interface
-                if (updatedState.paymentUrl) {
-                    console.log('Payment URL generated:', updatedState.paymentUrl);
-                    await ctx.agent.sendText(`Here's your payment link: ${updatedState.paymentUrl}\nAfter payment, please proceed to the pickup window.`);
-                } else {
-                    console.error('Failed to generate payment URL');
-                    await ctx.agent.sendText("I'm sorry, I couldn't generate a payment link at this time. You can pay at the pickup window instead.");
-                }
-                
-                // Send notification email to coffee shop with payment link
-                order.paymentUrl = updatedState.paymentUrl;
-                await sendOrderNotification(restaurantId, order);
-                
-                // Update conversation state with payment information
-                conversationState = { ...updatedState };
-            } catch (error) {
-                console.error('Error generating payment link:', error);
-                await ctx.agent.sendText("I'm sorry, there was an error processing your payment. You can pay at the pickup window instead.");
-                
-                // Send notification email to coffee shop without payment link
-                await sendOrderNotification(restaurantId, order);
-            }
-            
-            // Mark order as completed
-            conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
-            
             // Return the updated conversation state
-            return conversationState;
-          
-            // Mark order as completed in conversation state
-            completeOrder(conversationState);
-            console.log('Order completed, conversation state reset');
-          
+            return updatedState;
+        },
+      },
 
-            
-            if (formatForVoice) {
-              // Format order summary for voice readout
-              let orderSummary = `Thank you for your order with ${coffeeShop.coffee_shop_name}. `;
-              orderSummary += `Your order number is ${orderNumber}. Here's a summary of your order:\n\n`;
-            
-              items.forEach((item: any) => {
-                orderSummary += `${item.quantity} ${item.name}${item.specialInstructions ? ` (${item.specialInstructions})` : ''} - $${(item.price * item.quantity).toFixed(2)}\n`;
-              });
-            
-              // Add subtotal, tax, and total information
-              orderSummary += `\nSubtotal: $${order.subtotal.toFixed(2)}`;
-              orderSummary += `\nState Tax (9%): $${order.stateTax.toFixed(2)}`;
-              orderSummary += `\nTotal: $${order.orderTotal.toFixed(2)}`;
+      processPayment: {
+        description: 'Process payment for the current order',
+        parameters: z.object({
+          paymentMethod: z.string().describe('The payment method chosen by the customer (online or pickup)'),
+        }),
+        execute: async ({ paymentMethod }: { paymentMethod: string }) => {
+          console.debug(`Processing payment with method: ${paymentMethod}`);
+          
+          // Check if we have order details
+          if (!conversationState.orderDetails) {
+            return "I'm sorry, but there doesn't seem to be an active order to process payment for.";
+          }
+          
+          // Normalize payment method input
+          const normalizedMethod = paymentMethod.toLowerCase().trim();
+          const isOnlinePayment = normalizedMethod.includes('online') || 
+                                normalizedMethod.includes('now') || 
+                                normalizedMethod.includes('card') || 
+                                normalizedMethod.includes('credit') || 
+                                normalizedMethod.includes('debit');
+          
+          if (isOnlinePayment) {
+            try {
+              // Update state to payment pending
+              updateStage(conversationState, ConversationStage.PAYMENT_PENDING);
               
-              orderSummary += `\n\nYour estimated wait time is ${estimatedTime} minutes. `;
-            
-              // Add payment link if available
-              if (order.paymentUrl) {
-                orderSummary += `\n\nYou can pay for your order now using this secure payment link: ${order.paymentUrl}\n\n`;
-                orderSummary += `After payment, please proceed to the pickup window for your order. `;
+              // Call the handlePayment function to generate payment URL
+              const updatedState = await handlePayment(ctx, conversationState);
+              
+              // Update the conversation state with payment URL
+              conversationState.paymentUrl = updatedState.paymentUrl;
+              
+              // Check if we have a payment URL
+              if (conversationState.paymentUrl) {
+                return `Great! I've generated a payment link for you. Please use this link to complete your payment: ${conversationState.paymentUrl}\n\nAfter payment is complete, you can proceed to the pickup window.`;
               } else {
-                // Direct customer to pickup window instead of providing the address
-                orderSummary += `Please proceed to the pickup window for your order and payment. `;
+                // If payment URL generation failed
+                conversationState.paymentError = true;
+                return "I'm sorry, but I couldn't generate a payment link at this time. Please pay at the pickup window instead.";
               }
-              
-            
-              orderSummary += `Thank you for using our voice ordering service!`;
-            
-              return orderSummary;
+            } catch (error) {
+              console.error('Error processing online payment:', error);
+              conversationState.paymentError = true;
+              return "I apologize, but there was an error processing your online payment. Please pay at the pickup window instead.";
             }
+          } else {
+            // Customer chose to pay at pickup
+            updateStage(conversationState, ConversationStage.ORDER_CONFIRMATION);
             
-            return JSON.stringify({
-              success: true,
-              orderNumber,
-              restaurantName: coffeeShop.coffee_shop_name,
-              items: itemsWithDetails,
-              subtotal: order.subtotal,
-              stateTax: order.stateTax,
-              orderTotal: order.orderTotal,
-              estimatedTime,
-              message: `Order #${orderNumber} has been placed with ${coffeeShop.coffee_shop_name}${customerName ? ` for ${customerName}` : ''}. Your total is $${order.orderTotal.toFixed(2)}. Your estimated wait time is ${estimatedTime} minutes. Thank you for your order!`
-            });
+            // Format order summary
+            const orderSummary = `Thank you, ${conversationState.customerName}. Your order is one ${conversationState.cartItems.map(item => `${item.quantity} ${item.name}`).join(', ')} from ${conversationState.selectedRestaurantName}.`;
+            
+            return `${orderSummary}\n\nYou've chosen to pay at pickup. Please proceed to the pickup window.`;
+          }
         },
       },
       
@@ -840,5 +813,14 @@ const port = process.env.PORT || 8081;
 cli.runApp(new WorkerOptions({
   agent: fileURLToPath(import.meta.url),
   port: parseInt(port.toString(), 10),
-  host: '0.0.0.0'
+  host: '0.0.0.0',
+  cors: {
+    origin: ['http://localhost:3000'],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  },
+  ws: {
+    path: '/rtc'
+  }
 }));

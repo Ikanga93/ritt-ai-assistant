@@ -123,6 +123,7 @@ function generateOrderEmailHtml(order: OrderDetails): string {
           <p><strong>Customer:</strong> ${order.customerName}</p>
           <p><strong>Order Time:</strong> ${orderDate}</p>
           <p><strong>Estimated Preparation Time:</strong> ${order.estimatedTime} minutes</p>
+          <p><strong>Payment Status:</strong> ${order.status === 'paid' ? 'Paid' : 'Pending'}</p>
         </div>
         
         <h2>Order Items:</h2>
