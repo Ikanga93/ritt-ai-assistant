@@ -71,6 +71,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
       <AnimatePresence>
         {agentState === "disconnected" && (
           <motion.button
+            key="start-button"
             initial={{ opacity: 0, top: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, top: "-10px" }}
@@ -81,7 +82,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
             Start order
           </motion.button>
         )}
-        <div className="w-3/4 lg:w-1/2 mx-auto h-full">
+        <div key="transcription-view" className="w-3/4 lg:w-1/2 mx-auto h-full">
           <TranscriptionView />
         </div>
       </AnimatePresence>
@@ -138,6 +139,7 @@ function ControlBar() {
       <AnimatePresence>
         {agentState !== "disconnected" && agentState !== "connecting" && (
           <motion.div
+            key="control-bar"
             initial={{ opacity: 0, top: "10px" }}
             animate={{ opacity: 1, top: 0 }}
             exit={{ opacity: 0, top: "-10px" }}
