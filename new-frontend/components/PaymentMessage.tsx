@@ -48,6 +48,12 @@ function extractPaymentUrl(text: string): string | null {
   
   // Try different patterns to extract the URL
   
+  // Pattern 0: Extract URL from <payment-url> tags (production-safe format)
+  const paymentUrlTagMatch = normalizedText.match(/<payment-url>(https?:\/\/[^<]+)<\/payment-url>/i);
+  if (paymentUrlTagMatch) {
+    return paymentUrlTagMatch[1];
+  }
+  
   // Pattern 1: Complete Stripe URL
   const stripeUrlMatch = normalizedText.match(/https?:\/\/buy\.stripe\.[^\s]+\/test_[a-zA-Z0-9]+/i);
   if (stripeUrlMatch) {
@@ -142,8 +148,11 @@ function extractPaymentUrl(text: string): string | null {
  * Remove the URL from the message text
  */
 function removeUrlFromText(text: string): string {
+  // Remove <payment-url> tags and their contents
+  let cleanText = text.replace(/<payment-url>.*?<\/payment-url>/g, '');
+  
   // Remove plain URLs
-  let cleanText = text.replace(/https?:\/\/[^\s\n]+/g, '');
+  cleanText = cleanText.replace(/https?:\/\/[^\s\n]+/g, '');
   
   // Clean up any double spaces or trailing/leading spaces
   cleanText = cleanText.replace(/\s+/g, ' ').trim();
