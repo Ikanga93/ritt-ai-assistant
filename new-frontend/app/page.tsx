@@ -2,6 +2,7 @@
 
 import { CloseIcon } from "@/components/CloseIcon";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
+import PaymentBanner from "@/components/PaymentBanner";
 import TranscriptionView from "@/components/TranscriptionView";
 import {
   BarVisualizer,
@@ -82,6 +83,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void }) {
           </motion.button>
         )}
         <div className="w-3/4 lg:w-1/2 mx-auto h-full">
+          {agentState !== "disconnected" && <PaymentBanner />}
           <TranscriptionView />
         </div>
       </AnimatePresence>
