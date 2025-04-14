@@ -1,0 +1,31 @@
+{
+  "orderNumber": "1294",
+  "restaurantId": "starbucks",
+  "restaurantName": "Starbucks",
+  "customerName": "Test Customer",
+  "customerEmail": "test@example.com",
+  "items": [
+    {
+      "name": "Caffe Latte",
+      "quantity": 2,
+      "price": 4.95,
+      "specialInstructions": "Extra hot"
+    },
+    {
+      "name": "Croissant",
+      "quantity": 1,
+      "price": 3.5,
+      "specialInstructions": ""
+    }
+  ],
+  "subtotal": 13.4,
+  "stateTax": 1.11,
+  "processingFee": 0.77,
+  "orderTotal": 15.28,
+  "timestamp": "2025-04-13T03:37:40.582Z",
+  "estimatedTime": 10,
+  "status": "confirmed",
+  "paymentMethod": "window",
+  "paymentStatus": "pending",
+  "notificationSent": false
+}

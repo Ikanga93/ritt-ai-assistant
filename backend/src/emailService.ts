@@ -57,7 +57,7 @@ interface OrderItem {
  * Interface for order details
  */
 interface OrderDetails {
-  orderNumber: number;
+  orderNumber: number | string;
   restaurantId: string;
   restaurantName: string;
   customerName: string;
@@ -70,6 +70,13 @@ interface OrderDetails {
   timestamp: string;
   estimatedTime: number;
   status: string;
+  
+  // Payment-related fields
+  paymentMethod?: "online" | "window";
+  paymentStatus?: "pending" | "completed" | "failed";
+  paymentLinkId?: string;
+  paymentTimestamp?: string;
+  paymentTransactionId?: string;
 }
 
 /**
@@ -91,6 +98,37 @@ function generateOrderEmailHtml(order: OrderDetails): string {
     .join('');
 
   const orderDate = new Date(order.timestamp).toLocaleString();
+  
+  // Generate payment status HTML based on payment method and status
+  let paymentStatusHtml = '';
+  
+  if (order.paymentMethod === 'window') {
+    // Window payment - payment due at pickup
+    paymentStatusHtml = `
+      <div style="background-color: #FFF7E6; border: 2px solid #FF9900; padding: 15px; margin-bottom: 20px;">
+        <h2 style="color: #FF6600; margin: 0;">⚠️ PAYMENT DUE AT WINDOW: $${order.orderTotal.toFixed(2)} ⚠️</h2>
+        <p style="margin: 10px 0 0 0;">Please collect payment when customer arrives.</p>
+      </div>
+    `;
+  } else if (order.paymentMethod === 'online' && order.paymentStatus === 'completed') {
+    // Online payment - completed
+    const paymentDate = order.paymentTimestamp ? new Date(order.paymentTimestamp).toLocaleString() : 'Unknown';
+    paymentStatusHtml = `
+      <div style="background-color: #E6FFE6; border: 2px solid #00CC00; padding: 15px; margin-bottom: 20px;">
+        <h2 style="color: #009900; margin: 0;">✅ PAID ONLINE: $${order.orderTotal.toFixed(2)} ✅</h2>
+        <p style="margin: 10px 0 0 0;">Payment confirmed at ${paymentDate}</p>
+        ${order.paymentTransactionId ? `<p style="margin: 5px 0 0 0;">Transaction ID: ${order.paymentTransactionId}</p>` : ''}
+      </div>
+    `;
+  } else {
+    // Default or unknown payment method (should not happen in normal flow)
+    paymentStatusHtml = `
+      <div style="background-color: #F5F5F5; border: 2px solid #888888; padding: 15px; margin-bottom: 20px;">
+        <h2 style="color: #555555; margin: 0;">💵 PAYMENT: $${order.orderTotal.toFixed(2)} 💵</h2>
+        <p style="margin: 10px 0 0 0;">Order payment status not specified.</p>
+      </div>
+    `;
+  }
 
   return `
     <!DOCTYPE html>
@@ -114,6 +152,8 @@ function generateOrderEmailHtml(order: OrderDetails): string {
         <div class="header">
           <h1>New Order #${order.orderNumber}</h1>
         </div>
+        
+        ${paymentStatusHtml}
         
         <div class="order-info">
           <p><strong>Restaurant:</strong> ${order.restaurantName}</p>
@@ -193,15 +233,30 @@ To learn more about Ritt Drive-Thru or to implement this system at your business
 /**
  * Send an order notification email to a restaurant
  */
+/**
+ * Send an order notification email to a restaurant
+ * @param restaurantEmail The email address of the restaurant
+ * @param order The order details including payment information
+ * @returns Promise<boolean> indicating success or failure
+ */
 export async function sendOrderEmail(
   restaurantEmail: string,
   order: OrderDetails
 ): Promise<boolean> {
-  // Prepare the email message for the restaurant
+  // Prepare the email message for the restaurant with payment status in subject
+  let subjectPrefix = '';
+  
+  // Add payment status to subject line for quick identification
+  if (order.paymentMethod === 'window') {
+    subjectPrefix = '[PAYMENT DUE] ';
+  } else if (order.paymentMethod === 'online' && order.paymentStatus === 'completed') {
+    subjectPrefix = '[PAID ONLINE] ';
+  }
+  
   const restaurantMsg = {
     to: restaurantEmail,
     from: FROM_EMAIL,
-    subject: `New Order #${order.orderNumber} from ${order.customerName}`,
+    subject: `${subjectPrefix}New Order #${order.orderNumber} from ${order.customerName}`,
     text: generateOrderEmailText(order),
     html: generateOrderEmailHtml(order),
   };

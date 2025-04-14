@@ -33,7 +33,9 @@ import {
   resetOrder,
   completeOrder,
   updateStage,
-  updateLastFunction
+  updateLastFunction,
+  setPaymentInfo,
+  startPaymentMethodSelection
 } from './conversationState.js';
 
 // Import restaurant utilities
@@ -50,8 +52,26 @@ import {
 // Import order service
 import { placeOrder } from './orderService.js';
 
+// Import payment integration
+import { generatePaymentLink, checkPayment } from './paymentIntegration.js';
+
+// Import enhanced payment flow management
+import { 
+  handlePaymentMethodSelection, 
+  checkPaymentStatus, 
+  suggestPaymentMethod, 
+  recoverFromPaymentError,
+  PaymentMethod
+} from './paymentFlow.js';
+
+// Import order storage system
+import { storeOrder, convertToOrderWithPayment, OrderWithPayment } from './orderStorage.js';
+
 // Import fuzzy matching utilities
 import { findBestMatch, findAllMatches, verifyOrderItems, normalizeString } from './utils/fuzzyMatch.js';
+
+// Import payment webhook handler
+import { startWebhookServer } from './paymentWebhook.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, '../.env.local');
@@ -60,6 +80,27 @@ dotenv.config({ path: envPath });
 export default defineAgent({
   entry: async (ctx: JobContext) => {
     await ctx.connect();
+    
+    // Start the payment webhook server to handle payment notifications
+    try {
+      const webhookPort = parseInt(process.env.WEBHOOK_PORT || '3333', 10);
+      // The startWebhookServer function now returns a promise
+      startWebhookServer(webhookPort).then(actualPort => {
+        if (actualPort > 0) {
+          console.log(`Payment webhook server started on port ${actualPort}`);
+        } else {
+          console.log('Payment webhook server not started (port already in use)');
+          console.log('This is normal if you have multiple instances running');
+        }
+      }).catch(err => {
+        console.error('Failed to start webhook server:', err);
+        console.log('Continuing without webhook server - payment notifications may not work');
+      });
+    } catch (err) {
+      console.error('Error setting up webhook server:', err);
+      console.log('Continuing without webhook server - payment notifications may not work');
+    }
+    
     console.log('waiting for participant');
     const participant = await ctx.waitForParticipant();
     console.log(`starting assistant example agent for ${participant.identity}`);
@@ -148,7 +189,59 @@ IMPORTANT GUIDELINES FOR DRIVE-THRU:
    - Summarize the full order before finalizing
    - Double-check customer name and any customizations
 
-10. MENU ITEMS AND COMMON CONFUSIONS:
+10. PAYMENT PROCESSING:
+   - After confirming the order details, always ask: "Would you like to pay online now or at the pickup window?"
+   - Listen carefully for the customer's payment preference
+   
+   IF CUSTOMER CHOOSES ONLINE PAYMENT:
+   - Say "Great! Let me generate a payment link for you."
+   - Use the createPaymentLink function
+   - When sharing the link, say: "I've created a secure payment link for your order. You can complete your payment at [payment link]. After payment, please proceed to the pickup window."
+   - Offer to help with any payment questions
+   
+   IF CUSTOMER CHOOSES PICKUP PAYMENT:
+   - Say "No problem! You can pay at the pickup window when you arrive."
+   - Remind them of their order total: "Your total of $[amount] will be due at pickup."
+   
+   IF CUSTOMER ASKS ABOUT PAYMENT STATUS:
+   - Use the checkPaymentStatus function
+   - If payment is complete, say: "Great news! Your payment has been successfully processed."
+   - If payment is pending, say: "I don't see your payment completed yet. You can still complete it at [payment link]."
+   
+   PAYMENT PHRASES TO USE:
+   - "Would you like to pay online now or at the pickup window?"
+   - "I can generate a secure payment link for you to pay online."
+   - "Your total is $[amount]. Would you prefer to pay now or at pickup?"
+   - "I've created a payment link for you at [link]. You can complete your payment there."
+   - "After completing your payment online, please proceed to the pickup window."
+   - "Your payment has been successfully processed. Thank you!"
+   - "I don't see your payment completed yet. Do you need help with the payment process?"
+   
+   SAMPLE PAYMENT DIALOG:
+   AGENT: "Your order total is $15.75. Would you like to pay online now or at the pickup window?"
+   CUSTOMER: "I'll pay online."
+   AGENT: "Great! Let me generate a payment link for you."
+   AGENT: "I've created a secure payment link for your order. You can complete your payment at https://pay.stripe.com/link123. After payment, please proceed to the pickup window."
+   CUSTOMER: "Thanks, I'll pay now."
+   AGENT: "Perfect! Let me know if you have any questions about the payment process."
+   
+   ALTERNATIVE DIALOG (PAYMENT AT PICKUP):
+   AGENT: "Your order total is $15.75. Would you like to pay online now or at the pickup window?"
+   CUSTOMER: "I'll pay at pickup."
+   AGENT: "No problem! Your total of $15.75 will be due when you arrive at the pickup window. Your order will be ready in approximately 10 minutes."
+   
+   PAYMENT STATUS CHECK DIALOG:
+   CUSTOMER: "Has my payment gone through?"
+   AGENT: "Let me check that for you."
+   AGENT: "Great news! Your payment has been successfully processed. Your order will be ready for pickup in approximately 10 minutes."
+   
+   PAYMENT TROUBLESHOOTING DIALOG:
+   CUSTOMER: "I'm having trouble with the payment link."
+   AGENT: "I'm sorry to hear that. Let me help you. What issue are you experiencing with the payment?"
+   CUSTOMER: "It's not accepting my card."
+   AGENT: "I apologize for the inconvenience. You can try using a different card or payment method on the payment page. Alternatively, you can pay at the pickup window when you arrive."
+
+11. MENU ITEMS AND COMMON CONFUSIONS:
    - Restaurants may have specialty items with unique names - always treat these as specific menu items
    - Pay close attention to menu items with names starting with "The" - these are individual items, not categories
    - When a customer asks for items with names like "The [Name]", always recognize it as a specific menu item, not as a category
@@ -571,8 +664,8 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
             const processingFee = parseFloat((subtotal * 0.035 + 0.30).toFixed(2));
             const finalTotal = parseFloat((subtotal + stateTax + processingFee).toFixed(2));
             
-            // Create order object with more details
-            const order = {
+            // Create base order object with more details
+            const baseOrder = {
               orderNumber,
               restaurantId,
               restaurantName: coffeeShop.coffee_shop_name,
@@ -587,15 +680,101 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               estimatedTime,
               status: 'confirmed'
             };
+            
+            // Get payment method suggestion based on order context
+            // Always prioritize online payment as our preferred method
+            const paymentSuggestion = suggestPaymentMethod(conversationState);
+            
+            // Always use online payment as the default method unless explicitly changed by the user
+            const paymentMethod = conversationState.stage === ConversationStage.PAYMENT_METHOD_SELECTION && 
+                                conversationState.paymentMethod === 'window' ? 
+                                'window' : 'online';
+            
+            // Convert to order with payment fields
+            const order: OrderWithPayment = convertToOrderWithPayment(baseOrder, paymentMethod as "online" | "window");
+            
+            // Add payment suggestion to conversation state for the AI to reference
+            conversationState.paymentSuggestion = {
+              method: paymentMethod,
+              reason: paymentSuggestion.reason
+            };
           
-            // Send notification email to coffee shop
-            await sendOrderNotification(restaurantId, order);
-          
-            // Mark order as completed in conversation state
-            completeOrder(conversationState);
-            console.log('Order completed, conversation state reset');
-          
-
+            // Update conversation state to payment method selection stage
+            // We'll keep the order active until payment is completed
+            startPaymentMethodSelection(conversationState);
+            console.log('Moving to payment method selection stage');
+            
+            // Store the order in our order storage system with enhanced error handling
+            const storeResult = await storeOrder(order);
+            
+            // Log storage result
+            if (!storeResult.success) {
+              console.error(`Failed to store order #${orderNumber}: ${storeResult.error}`);
+            } else if (storeResult.error) {
+              console.warn(`Order #${orderNumber} stored with warnings: ${storeResult.error}`);
+            } else {
+              console.log(`Order #${orderNumber} stored successfully`);
+            }
+            
+            // For window payments, send notification immediately
+            // For online payments, notification will be sent after payment confirmation
+            if (order.paymentMethod === 'window') {
+              // Send notification email to coffee shop for window payment
+              await sendOrderNotification(restaurantId, order);
+              console.log('Window payment selected, notification sent immediately');
+              
+              // Mark notification as sent
+              updateOrder(order.orderNumber, { notificationSent: true });
+            } else {
+              console.log('Online payment selected, notification will be sent after payment confirmation');
+            }
+            
+            // Set up payment flow if enabled
+            let paymentLink = null;
+            let paymentFlowResult = null;
+            
+            if (process.env.ENABLE_PAYMENTS === 'true') {
+              try {
+                // Start with the suggested payment method
+                // The customer will be able to choose their preference during the conversation
+                const initialPaymentMethod = paymentSuggestion.method;
+                
+                // Set up the initial payment flow based on the suggested method
+                paymentFlowResult = await handlePaymentMethodSelection(
+                  conversationState,
+                  orderNumber.toString(),
+                  initialPaymentMethod as PaymentMethod
+                );
+                
+                // Store payment information if available
+                if (paymentFlowResult.success && paymentFlowResult.paymentUrl && paymentFlowResult.paymentId) {
+                  paymentLink = {
+                    url: paymentFlowResult.paymentUrl,
+                    id: paymentFlowResult.paymentId
+                  };
+                  console.log('Payment flow initialized:', paymentFlowResult.message);
+                } else if (!paymentFlowResult.success) {
+                  // If payment setup fails, log the error but continue with the order
+                  console.error('Payment flow initialization failed:', paymentFlowResult.error);
+                  
+                  // Try to recover from the error
+                  const recoveryResult = await recoverFromPaymentError(
+                    conversationState,
+                    orderNumber.toString(),
+                    paymentFlowResult.errorCode || 'UNKNOWN_ERROR'
+                  );
+                  
+                  console.log('Payment recovery attempt:', recoveryResult.message);
+                }
+              } catch (error) {
+                console.error('Error in payment flow:', error);
+                // If there's an error, complete the order anyway
+                completeOrder(conversationState);
+              }
+            } else {
+              // If payments are not enabled, complete the order
+              completeOrder(conversationState);
+            }
             
             if (formatForVoice) {
               // Format order summary for voice readout
@@ -617,12 +796,32 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               orderSummary += `Please proceed to the pickup window for your order. `;
               
             
-              orderSummary += `Thank you for using our voice ordering service!`;
-            
+              // Add payment method options if payments are enabled
+              if (process.env.ENABLE_PAYMENTS === 'true') {
+                // If we have a payment suggestion, include it in the prompt
+                const suggestion = suggestPaymentMethod(conversationState);
+                orderSummary += ` Would you like to pay online now or at the pickup window? ${suggestion.reason}`;
+              } else {
+                orderSummary += ` Thank you for using our voice ordering service!`;
+              }
+              
+              // Add payment flow result message if available
+              if (paymentFlowResult && paymentFlowResult.message) {
+                orderSummary += ` ${paymentFlowResult.message}`;
+              }
+              // Add payment link information if available and if we're in payment link shared stage
+              else if (paymentLink && paymentLink.url && conversationState.stage === ConversationStage.PAYMENT_LINK_SHARED) {
+                // Format the payment link in a way that will be recognized as clickable by most chat interfaces
+                // Use https:// prefix to ensure it's recognized as a link
+                const linkUrl = paymentLink.url.startsWith('http') ? paymentLink.url : `https://${paymentLink.url}`;
+                orderSummary += ` Great! I've generated a secure payment link for you.\n\nClick here to pay: ${linkUrl}\n\nAfter payment, please proceed to the pickup window.`;
+              }
+              
               return orderSummary;
             }
             
-            return JSON.stringify({
+            // Include payment link in response if available
+            const response = {
               success: true,
               orderNumber,
               restaurantName: coffeeShop.coffee_shop_name,
@@ -632,17 +831,176 @@ You are Julie, a coffee drive-thru assistant who can take orders from multiple c
               orderTotal: order.orderTotal,
               estimatedTime,
               message: `Order #${orderNumber} has been placed with ${coffeeShop.coffee_shop_name}${customerName ? ` for ${customerName}` : ''}. Your total is $${order.orderTotal.toFixed(2)}. Your estimated wait time is ${estimatedTime} minutes. Thank you for your order!`
-            });
+            };
+            
+            // Add payment info if available
+            if (paymentLink && paymentLink.url) {
+              response.paymentLink = {
+                url: paymentLink.url,
+                id: paymentLink.id
+              };
+            }
+            
+            return JSON.stringify(response);
+          },
         },
-      },
-      
-      // Keep the weather function as a bonus feature
-      weather: {
-        description: 'Get the weather in a location',
-        parameters: z.object({
-          location: z.string().describe('The location to get the weather for'),
-        }),
-        execute: async ({ location }: { location: string }) => {
+        
+        // Add payment functions
+        createPaymentLink: {
+          description: 'Create a payment link for an order',
+          parameters: z.object({
+            orderDetails: z.object({
+              orderNumber: z.string().describe('The order number'),
+              customerName: z.string().describe('The customer name'),
+              restaurantName: z.string().describe('The restaurant name'),
+              orderTotal: z.number().describe('The total order amount'),
+              items: z.array(z.object({
+                name: z.string(),
+                quantity: z.number(),
+                price: z.number().optional()
+              })).optional().describe('The order items')
+            }).describe('The order details')
+          }),
+          execute: async ({ orderDetails }: { orderDetails: any }) => {
+            console.debug(`Creating payment link for order: ${orderDetails.orderNumber}`);
+            try {
+              // Use the enhanced payment flow to handle online payment
+              const result = await handlePaymentMethodSelection(
+                conversationState,
+                orderDetails.orderNumber,
+                PaymentMethod.ONLINE
+              );
+              
+              if (result.success) {
+                console.log(`Payment link created: ${result.paymentUrl}`);
+                
+                return JSON.stringify({
+                  success: true,
+                  url: result.paymentUrl,
+                  id: result.paymentId,
+                  message: result.message
+                });
+              } else {
+                console.error('Failed to create payment link:', result.error);
+                
+                // Try to recover from the error
+                const recoveryResult = await recoverFromPaymentError(
+                  conversationState,
+                  orderDetails.orderNumber,
+                  result.errorCode || 'UNKNOWN_ERROR'
+                );
+                
+                return JSON.stringify({
+                  success: false,
+                  error: result.error || 'Failed to create payment link',
+                  recoveryMessage: recoveryResult.message,
+                  suggestedAction: recoveryResult.suggestedAction
+                });
+              }
+            } catch (error) {
+              console.error('Error creating payment link:', error);
+              return JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error creating payment link',
+                message: "I'm having trouble generating a payment link. Would you prefer to pay at the pickup window instead?"
+              });
+            }
+          },
+        },
+        
+        checkPaymentStatus: {
+          description: 'Check the status of a payment',
+          parameters: z.object({
+            paymentLinkId: z.string().describe('The ID of the payment link to check')
+          }),
+          execute: async ({ paymentLinkId }: { paymentLinkId: string }) => {
+            console.debug(`Checking payment status for: ${paymentLinkId}`);
+            try {
+              // Use the enhanced payment status checking function
+              const result = await checkPaymentStatus(conversationState, paymentLinkId);
+              
+              if (result.success) {
+                console.log(`Payment status checked: ${result.message}`);
+                return JSON.stringify({
+                  success: true,
+                  message: result.message,
+                  stage: result.stage,
+                  paymentUrl: result.paymentUrl
+                });
+              } else {
+                console.error('Failed to check payment status:', result.error);
+                return JSON.stringify({
+                  success: false,
+                  error: result.error || 'Failed to check payment status',
+                  message: result.message
+                });
+              }
+            } catch (error) {
+              console.error('Error checking payment status:', error);
+              return JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error checking payment status',
+                message: "I'm having trouble checking your payment status. You can try completing your payment using the link I provided earlier, or you can pay at the pickup window when you arrive."
+              });
+            }
+          },
+        },
+        
+        // Add payment method selection function
+        selectPaymentMethod: {
+          description: 'Select a payment method for an order',
+          parameters: z.object({
+            orderNumber: z.string().describe('The order number'),
+            method: z.enum(['online', 'window']).describe('The payment method to use')
+          }),
+          execute: async ({ orderNumber, method }: { orderNumber: string; method: string }) => {
+            console.debug(`Selecting payment method for order #${orderNumber}: ${method}`);
+            try {
+              // Convert method string to PaymentMethod enum
+              const paymentMethod = method === 'online' ? PaymentMethod.ONLINE : PaymentMethod.WINDOW;
+              
+              // Handle payment method selection
+              const result = await handlePaymentMethodSelection(
+                conversationState,
+                orderNumber,
+                paymentMethod
+              );
+              
+              if (result.success) {
+                console.log(`Payment method selected: ${method}`);
+                return JSON.stringify({
+                  success: true,
+                  message: result.message,
+                  paymentUrl: result.paymentUrl,
+                  paymentId: result.paymentId
+                });
+              } else {
+                console.error(`Failed to set up ${method} payment:`, result.error);
+                return JSON.stringify({
+                  success: false,
+                  error: result.error,
+                  message: result.message,
+                  suggestedAction: result.suggestedAction
+                });
+              }
+            } catch (error) {
+              console.error(`Error selecting payment method:`, error);
+              return JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error selecting payment method',
+                message: "I'm having trouble setting up your payment. Would you like to try a different payment method?"
+              });
+            }
+          },
+        },
+        
+        // Keep the weather function as a bonus feature
+        weather: {
+          description: 'Get the weather in a location',
+          parameters: z.object({
+            location: z.string().describe('The location to get the weather for'),
+          }),
+          execute: async ({ location }: { location: string }) => {
           console.debug(`executing weather function for ${location}`);
           const response = await fetch(`https://wttr.in/${location}?format=%C+%t`);
           if (!response.ok) {

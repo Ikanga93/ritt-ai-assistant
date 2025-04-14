@@ -1,0 +1,25 @@
+{
+  "orderNumber": "432",
+  "restaurantId": "niros_gyros",
+  "restaurantName": "Niro's Gyros",
+  "customerName": "Chris",
+  "items": [
+    {
+      "name": "Italian sausage",
+      "quantity": 1,
+      "price": 6.49,
+      "id": "niros_gyros_italian_sausage_sandwich_2"
+    }
+  ],
+  "subtotal": 6.49,
+  "stateTax": 0.58,
+  "processingFee": 0.53,
+  "orderTotal": 7.6,
+  "timestamp": "2025-04-13T05:01:19.610Z",
+  "estimatedTime": 7,
+  "status": "confirmed",
+  "paymentMethod": "online",
+  "paymentStatus": "pending",
+  "notificationSent": false,
+  "paymentLinkId": "plink_1RDIfWP4sLIsXeNyHDvVYSyI"
+}

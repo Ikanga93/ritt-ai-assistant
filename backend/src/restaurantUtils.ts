@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { cacheManager } from './cacheManager.js';
 // Import the entire module instead of specific functions
 import * as fuzzyMatchUtils from './utils/fuzzyMatch.js';
+import { sendOrderEmail } from './emailService.js';
+import { getOrder, updateOrder, OrderWithPayment } from './orderStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const menuDataPath = path.join(__dirname, '../menu_data');
@@ -398,37 +400,101 @@ export async function getAllMenuItems(restaurantId: string): Promise<Record<stri
   
   return menuByCategory;
 }
-
-/**
- * Send an order notification email using SendGrid
- */
-import { sendOrderEmail } from './emailService.js';
-
 export async function sendOrderNotification(
   restaurantId: string,
   orderDetails: any
 ): Promise<boolean> {
-  const coffeeShop = await getRestaurantById(restaurantId);
-  if (!coffeeShop) {
-    console.error(`Coffee shop with ID ${restaurantId} not found. Cannot send order notification.`);
-    return false;
-  }
-  
-  // Use the coffee shop's email if available, otherwise use the default email
-  const coffeeShopEmail = coffeeShop.email || 'pofaraorder@gmail.com';
-  
-  // Send the email notification
   try {
+    // Get restaurant details
+    const coffeeShop = await getRestaurantById(restaurantId);
+    if (!coffeeShop) {
+      console.error(`Restaurant with ID ${restaurantId} not found`);
+      return false;
+    }
+
+    // Get restaurant email (or use default)
+    const coffeeShopEmail = coffeeShop.email || process.env.DEFAULT_RESTAURANT_EMAIL || 'test@example.com';
+    
+    // Send email notification
     const emailSent = await sendOrderEmail(coffeeShopEmail, orderDetails);
+    
     if (emailSent) {
-      console.log(`Order notification sent to ${coffeeShop.coffee_shop_name} at ${coffeeShopEmail}`);
+      console.log(`Order notification sent to ${coffeeShopEmail}`);
+      
+      // If this is an order from our storage system, mark notification as sent
+      if (orderDetails.orderNumber) {
+        const storedOrder = await getOrder(orderDetails.orderNumber);
+        if (storedOrder) {
+          updateOrder(orderDetails.orderNumber, { notificationSent: true });
+          console.log(`Order #${orderDetails.orderNumber} marked as notified`);
+        }
+      }
+      
       return true;
     } else {
-      console.error(`Failed to send order notification to ${coffeeShop.coffee_shop_name}`);
+      console.error(`Failed to send order notification to ${coffeeShopEmail}`);
       return false;
     }
   } catch (error) {
-    console.error(`Error sending order notification to ${coffeeShop.coffee_shop_name}:`, error);
+    console.error('Error sending order notification:', error);
+    return false;
+  }
+}
+
+/**
+ * Send order notification after payment is confirmed
+ * @param orderNumber - The order number
+ * @param paymentDetails - Payment details including transaction ID and timestamp
+ * @returns Promise<boolean> indicating success or failure
+ */
+export async function sendOrderNotificationAfterPayment(
+  orderNumber: string | number,
+  paymentDetails: { transactionId: string; timestamp: string }
+): Promise<boolean> {
+  try {
+    // Check if we already have the order in memory
+    const existingOrder = await getOrder(orderNumber);
+    if (existingOrder) {
+      console.log(`Order #${orderNumber} already exists, not sending duplicate notification`);
+      return true;
+    }
+    
+    // Get the order
+    const order = await getOrder(orderNumber);
+    if (!order) {
+      console.error(`Order #${orderNumber} not found`);
+      return false;
+    }
+    
+    // Check if notification was already sent
+    if (order.success && order.order.notificationSent) {
+      console.log(`Order #${orderNumber} notification was already sent, skipping`);
+      return true;
+    }
+    
+    // Update the order with payment details
+    const updateSuccess = await updateOrder(orderNumber, {
+      paymentStatus: 'completed',
+      paymentTransactionId: paymentDetails.transactionId,
+      paymentTimestamp: paymentDetails.timestamp
+    });
+  
+    if (!updateSuccess) {
+      console.error(`Failed to update order #${orderNumber}`);
+      return false;
+    }
+  
+    // Get the updated order
+    const updatedOrderResult = await getOrder(orderNumber);
+    if (!updatedOrderResult.success || !updatedOrderResult.order) {
+      console.error(`Failed to retrieve updated order #${orderNumber}`);
+      return false;
+    }
+  
+    // Send the order notification
+    return await sendOrderNotification(updatedOrderResult.order.restaurantId, updatedOrderResult.order);
+  } catch (error) {
+    console.error('Error sending order notification after payment:', error);
     return false;
   }
 }

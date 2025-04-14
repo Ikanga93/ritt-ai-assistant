@@ -1,0 +1,24 @@
+{
+  "orderNumber": "1",
+  "restaurantId": "unknown",
+  "restaurantName": "Unknown Restaurant",
+  "customerName": "Unknown Customer",
+  "items": [
+    {
+      "name": "Placeholder Item",
+      "quantity": 1,
+      "price": 10
+    }
+  ],
+  "subtotal": 10,
+  "stateTax": 0.9,
+  "processingFee": 0.65,
+  "orderTotal": 11.55,
+  "timestamp": "2025-04-13T03:57:53.380Z",
+  "estimatedTime": 15,
+  "status": "placeholder",
+  "paymentMethod": "online",
+  "paymentStatus": "pending",
+  "notificationSent": false,
+  "paymentLinkId": "plink_1RDdFDP4sLIsXeNyMDLACZnm"
+}

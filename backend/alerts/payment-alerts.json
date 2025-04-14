@@ -1,0 +1,171 @@
+[
+  {
+    "id": "alert_1744504374464_5343",
+    "timestamp": "2025-04-13T00:32:54.464Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Payment Link Generation failed after 4 attempts",
+    "orderId": "1",
+    "data": {
+      "lastError": "Invalid integer: NaN",
+      "attempts": 4
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744504374466_6276",
+    "timestamp": "2025-04-13T00:32:54.467Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Invalid integer: NaN",
+    "orderId": "1",
+    "data": {
+      "orderTotal": 0,
+      "restaurantName": "Niro's Gyros"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744504387688_4116",
+    "timestamp": "2025-04-13T00:33:07.688Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Payment Link Generation failed after 4 attempts",
+    "orderId": "1",
+    "data": {
+      "lastError": "Invalid integer: NaN",
+      "attempts": 4
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744504387690_9584",
+    "timestamp": "2025-04-13T00:33:07.690Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Invalid integer: NaN",
+    "orderId": "1",
+    "data": {
+      "orderTotal": 0,
+      "restaurantName": "Niro's Gyros"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744505314686_3379",
+    "timestamp": "2025-04-13T00:48:34.686Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Payment Link Generation failed after 4 attempts",
+    "orderId": "TEST-001",
+    "data": {
+      "lastError": "Price calculation error: Order total amount is missing",
+      "attempts": 4
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744505314687_8308",
+    "timestamp": "2025-04-13T00:48:34.687Z",
+    "level": "WARNING",
+    "type": "API_ERROR",
+    "message": "Payment API error in PAYMENT_LINK_GENERATION: Price calculation error: Order total amount is missing",
+    "orderId": "TEST-001",
+    "errorCode": "AMOUNT_ERROR",
+    "data": {
+      "orderTotal": 24.99,
+      "restaurantName": "Test Restaurant",
+      "itemCount": 2
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744507273289_2350",
+    "timestamp": "2025-04-13T01:21:13.289Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Error in online payment flow for order #1",
+    "orderId": "1",
+    "data": {
+      "error": "Order #1 not found"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744507291612_7138",
+    "timestamp": "2025-04-13T01:21:31.612Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Error in online payment flow for order #12345",
+    "orderId": "12345",
+    "data": {
+      "error": "Order #12345 not found"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744515662814_3888",
+    "timestamp": "2025-04-13T03:41:02.814Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Failed to generate payment link for order #12345",
+    "orderId": "12345",
+    "errorCode": "VALIDATION_ERROR",
+    "data": {
+      "error": "Order total (11.55) doesn't match calculated total from items (10.00)"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744515673899_589",
+    "timestamp": "2025-04-13T03:41:13.899Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Failed to generate payment link for order #12345",
+    "orderId": "12345",
+    "errorCode": "VALIDATION_ERROR",
+    "data": {
+      "error": "Order total (11.55) doesn't match calculated total from items (10.00)"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744515687508_4211",
+    "timestamp": "2025-04-13T03:41:27.508Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Failed to generate payment link for order #12345",
+    "orderId": "12345",
+    "errorCode": "VALIDATION_ERROR",
+    "data": {
+      "error": "Order total (11.55) doesn't match calculated total from items (10.00)"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744516673386_784",
+    "timestamp": "2025-04-13T03:57:53.386Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Failed to generate payment link for order #1",
+    "orderId": "1",
+    "errorCode": "VALIDATION_ERROR",
+    "data": {
+      "error": "Order total (11.55) doesn't match calculated total from items (10.00)"
+    },
+    "resolved": false
+  },
+  {
+    "id": "alert_1744516689048_8263",
+    "timestamp": "2025-04-13T03:58:09.048Z",
+    "level": "WARNING",
+    "type": "PAYMENT_FAILURE",
+    "message": "Failed to generate payment link for order #2",
+    "orderId": "2",
+    "errorCode": "VALIDATION_ERROR",
+    "data": {
+      "error": "Order total (11.55) doesn't match calculated total from items (10.00)"
+    },
+    "resolved": false
+  }
+]

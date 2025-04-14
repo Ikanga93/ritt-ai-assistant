@@ -1,0 +1,25 @@
+{
+  "orderNumber": "81",
+  "restaurantId": "niros_gyros",
+  "restaurantName": "Niro's Gyros",
+  "customerName": "Chris",
+  "items": [
+    {
+      "name": "Single Gyro",
+      "quantity": 1,
+      "price": 7.99,
+      "id": "niros_gyros_single_gyro_0"
+    }
+  ],
+  "subtotal": 7.99,
+  "stateTax": 0.72,
+  "processingFee": 0.58,
+  "orderTotal": 9.29,
+  "timestamp": "2025-04-14T02:05:33.995Z",
+  "estimatedTime": 10,
+  "status": "confirmed",
+  "paymentMethod": "online",
+  "paymentStatus": "pending",
+  "notificationSent": false,
+  "paymentLinkId": "plink_1RDcPDP4sLIsXeNyklSVBQ4i"
+}
