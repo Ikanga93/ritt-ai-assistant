@@ -202,12 +202,14 @@ export async function startOnlinePayment(
       data: { url: paymentResult.url }
     });
     
+    // Create a special format that will be preserved in production
+    // Using HTML-like tags that the model is less likely to modify
     return {
       success: true,
       stage: ConversationStage.PAYMENT_LINK_SHARED,
       message: `I've created a secure payment link for your order.
 
-${paymentResult.url}
+<payment-url>${paymentResult.url}</payment-url>
 
 After payment, please proceed to the pickup window.`,
       paymentUrl: paymentResult.url,
