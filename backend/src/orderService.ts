@@ -6,7 +6,8 @@
  * Order service for handling order placement and processing
  */
 
-import { sendOrderNotification } from './restaurantUtils.js';
+// Email notification removed.
+
 
 export interface OrderItem {
   id?: string;
@@ -22,6 +23,7 @@ export interface OrderDetails {
   restaurantName: string;
   customerName: string;
   customerEmail?: string;
+  customerPhone?: string; // Added for SMS payment flow
   items: OrderItem[];
   subtotal: number;
   stateTax: number;
@@ -30,6 +32,8 @@ export interface OrderDetails {
   timestamp: string;
   estimatedTime: number;
   status: string;
+  paymentLinkSent?: boolean; // Track if payment link was sent via SMS
+  paymentUrl?: string; // Store the payment URL for SMS sending
 }
 
 /**
@@ -39,13 +43,15 @@ export interface OrderDetails {
  * @param customerName Name of the customer
  * @param items Items in the order
  * @param customerEmail Optional email for confirmation
+ * @param customerPhone Optional phone number for SMS payment link
  * @returns Order details
  */
 export async function placeOrder(
   restaurantId: string,
   customerName: string,
   items: OrderItem[],
-  customerEmail?: string
+  customerEmail?: string,
+  customerPhone?: string
 ): Promise<OrderDetails> {
   // Generate order details
   const orderNumber = Math.floor(Math.random() * 10000) + 1000;
@@ -69,9 +75,10 @@ export async function placeOrder(
   const order: OrderDetails = {
     orderNumber,
     restaurantId,
-    restaurantName: '', // Will be filled in by sendOrderNotification
+    restaurantName: '', 
     customerName,
     customerEmail,
+    customerPhone, // Include phone number for SMS payment
     items,
     subtotal: parseFloat(subtotal.toFixed(2)),
     stateTax: parseFloat(stateTax.toFixed(2)),
@@ -79,7 +86,8 @@ export async function placeOrder(
     processingFee: parseFloat(processingFee.toFixed(2)), // Hidden from customer
     timestamp: new Date().toISOString(),
     estimatedTime,
-    status: 'confirmed'
+    status: 'confirmed',
+    paymentLinkSent: false // Initialize as not sent
   };
   
   // Log the order

@@ -38,7 +38,6 @@ export interface CoffeeShop {
   coffee_shop_name: string;
   menu_categories: MenuCategory[];
   notes?: string;
-  email?: string; // Added for order notifications
 }
 
 /**
@@ -402,33 +401,4 @@ export async function getAllMenuItems(restaurantId: string): Promise<Record<stri
 /**
  * Send an order notification email using SendGrid
  */
-import { sendOrderEmail } from './emailService.js';
 
-export async function sendOrderNotification(
-  restaurantId: string,
-  orderDetails: any
-): Promise<boolean> {
-  const coffeeShop = await getRestaurantById(restaurantId);
-  if (!coffeeShop) {
-    console.error(`Coffee shop with ID ${restaurantId} not found. Cannot send order notification.`);
-    return false;
-  }
-  
-  // Use the coffee shop's email if available, otherwise use the default email
-  const coffeeShopEmail = coffeeShop.email || 'pofaraorder@gmail.com';
-  
-  // Send the email notification
-  try {
-    const emailSent = await sendOrderEmail(coffeeShopEmail, orderDetails);
-    if (emailSent) {
-      console.log(`Order notification sent to ${coffeeShop.coffee_shop_name} at ${coffeeShopEmail}`);
-      return true;
-    } else {
-      console.error(`Failed to send order notification to ${coffeeShop.coffee_shop_name}`);
-      return false;
-    }
-  } catch (error) {
-    console.error(`Error sending order notification to ${coffeeShop.coffee_shop_name}:`, error);
-    return false;
-  }
-}

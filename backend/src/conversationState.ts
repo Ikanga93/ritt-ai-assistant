@@ -21,12 +21,21 @@ export interface ConversationState {
   // Customer information
   customerName?: string;
   customerEmail?: string;
+  customerPhone?: string; // Added for SMS payment flow
   
   // Conversation stage
   stage: ConversationStage;
   
   // Last function called
   lastFunction?: string;
+  
+  // Payment information
+  paymentUrl?: string; // Store the actual Stripe checkout URL
+  paymentLinkSent?: boolean; // Track if payment link was sent
+  paymentOrderId?: number; // Store the order ID associated with the payment
+  
+  // Order details
+  orderDetails?: any; // Store the complete order details
 }
 
 /**
@@ -149,13 +158,40 @@ export function removeFromCart(
 export function updateCustomerInfo(
   state: ConversationState,
   name?: string,
-  email?: string
+  email?: string,
+  phone?: string
 ): ConversationState {
   return {
     ...state,
     customerName: name || state.customerName,
     customerEmail: email || state.customerEmail,
+    customerPhone: phone || state.customerPhone,
+    lastFunction: 'updateCustomerInfo',
     stage: ConversationStage.ORDER_CONFIRMATION
+  };
+}
+
+/**
+ * Update payment status with URL and tracking information
+ * 
+ * @param state Current conversation state
+ * @param paymentUrl Stripe checkout URL for the order
+ * @param orderId Order ID associated with the payment
+ * @param paymentLinkSent Whether the payment link was sent/displayed
+ * @returns Updated conversation state
+ */
+export function updatePaymentStatus(
+  state: ConversationState,
+  paymentUrl?: string,
+  orderId?: number,
+  paymentLinkSent: boolean = false
+): ConversationState {
+  return {
+    ...state,
+    paymentUrl: paymentUrl || state.paymentUrl,
+    paymentOrderId: orderId || state.paymentOrderId,
+    paymentLinkSent,
+    lastFunction: 'updatePaymentStatus'
   };
 }
 
@@ -166,10 +202,16 @@ export function resetOrder(state: ConversationState): ConversationState {
   return {
     ...state,
     cartItems: [],
+    selectedRestaurantId: undefined,
+    selectedRestaurantName: undefined,
     currentCategory: undefined,
-    stage: state.selectedRestaurantId 
-      ? ConversationStage.MENU_BROWSING 
-      : ConversationStage.RESTAURANT_SELECTION
+    customerPhone: undefined,
+    // Clear all payment-related fields
+    paymentUrl: undefined,
+    paymentOrderId: undefined,
+    paymentLinkSent: false,
+    stage: ConversationStage.GREETING,
+    lastFunction: 'resetOrder'
   };
 }
 

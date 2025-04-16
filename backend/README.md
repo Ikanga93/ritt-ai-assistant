@@ -41,7 +41,12 @@ To run the agent, first build the TypeScript project, then execute the output wi
     
 ```bash
 pnpm build
-node dist/agent.js dev # see agents-js for more info on subcommands
+node dist/agent.js dev
+
+pnpm install
+pnpm dev
+
+# see agents-js for more info on subcommands
 ```
 
 This agent requires a frontend application to communicate with. You can use one of our example frontends in [livekit-examples](https://github.com/livekit-examples/), create your own following one of our [client quickstarts](https://docs.livekit.io/realtime/quickstarts/), or test instantly against one of our hosted [Sandbox](https://cloud.livekit.io/projects/p_/sandbox) frontends.

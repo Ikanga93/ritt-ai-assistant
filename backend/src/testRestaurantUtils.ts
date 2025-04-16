@@ -32,7 +32,7 @@ async function testRestaurantUtils() {
   console.log(`Name: ${coffeeShop?.coffee_shop_name}`);
   console.log(`Description: ${coffeeShop?.description}`);
   console.log(`Address: ${coffeeShop?.location.address}`);
-  console.log(`Email: ${coffeeShop?.email || 'Not specified'}`);
+
   
   // Test 3: Get menu categories
   console.log('\n3. Getting menu categories:');
