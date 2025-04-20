@@ -173,32 +173,62 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
       await initializeDatabase();
     }
     
-    // First, try to find the restaurant by name
+    // First, try to find the restaurant by ID or name
     const restaurantRepository = AppDataSource.getRepository('restaurants');
     
-    // Try to find the restaurant
-    const restaurant = await restaurantRepository.findOne({
-      where: { name: restaurantName }
+    // Get the restaurant data from the JSON file to ensure we have the correct name
+    const { getRestaurantById } = await import('../restaurantUtils.js');
+    const restaurantData = await getRestaurantById(restaurantId);
+    
+    // Get the proper restaurant name from the data
+    const properRestaurantName = restaurantData?.coffee_shop_name || 
+                               restaurantData?.coffee_shop || 
+                               restaurantName || 
+                               'Unknown Restaurant';
+    
+    console.log(`Looking for restaurant with proper name: ${properRestaurantName}`);
+    
+    // Try to find the restaurant by name
+    let restaurant = await restaurantRepository.findOne({
+      where: [{ name: properRestaurantName }]
     });
     
     if (restaurant) {
-      console.log(`Found existing restaurant: ${restaurantName} with ID: ${restaurant.id}`);
+      console.log(`Found existing restaurant: ${properRestaurantName} with ID: ${restaurant.id}`);
       return restaurant.id;
     }
     
-    // If restaurant doesn't exist, create it
+    // If restaurant doesn't exist, use the data we already loaded
+    console.log(`Restaurant not found in database, creating new record for: ${properRestaurantName}`);
+    
+    // We already have the restaurant data from above
+    
+    if (!restaurantData) {
+      console.error(`Could not find restaurant data for ID: ${restaurantId}`);
+      throw new Error(`Restaurant data not found for ID: ${restaurantId}`);
+    }
+    
+    // Extract the location data
+    const address = restaurantData.location?.address || 'Address not provided';
+    const phone = restaurantData.location?.phone || 'Phone not provided';
+    const email = restaurantData.location?.email || restaurantData.email || null;
+    
+    console.log(`Creating restaurant with data from JSON: ${properRestaurantName}, ${address}, ${phone}, ${email || 'No email'}`);
+    
+    // Create the restaurant with the data from the JSON file
     const result = await AppDataSource.query(
-      `INSERT INTO restaurants (name, address, phone, is_active) 
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [restaurantName, 'Address not provided', 'Phone not provided', true]
+      `INSERT INTO restaurants (name, address, phone, email, is_active) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [properRestaurantName, address, phone, email, true]
     );
     
     if (result && result.length > 0) {
-      console.log(`Created new restaurant: ${restaurantName} with ID: ${result[0].id}`);
+      console.log(`Created new restaurant: ${properRestaurantName} with ID: ${result[0].id}`);
       return result[0].id;
+    } else {
+      console.error('Failed to create restaurant');
+      throw new Error('Failed to create restaurant');
     }
-    
-    throw new Error(`Failed to create restaurant: ${restaurantName}`);
   } catch (error) {
     console.error(`Error finding or creating restaurant: ${restaurantName}`, error);
     // Return a default ID

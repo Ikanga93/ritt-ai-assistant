@@ -17,6 +17,9 @@ export class Restaurant {
   @Column({ type: "varchar", length: 20, nullable: true })
   phone: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true })
+  email: string;
+
   @Column({ type: "boolean", default: true })
   is_active: boolean;
 

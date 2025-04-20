@@ -22,6 +22,9 @@ export class Order {
   @Column({ type: "decimal", precision: 10, scale: 2 })
   tax: number;
 
+  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
+  processing_fee: number;
+
   @Column({ type: "decimal", precision: 10, scale: 2 })
   total: number;
 

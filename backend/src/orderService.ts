@@ -59,21 +59,55 @@ export async function placeOrder(
   const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
   
   // Ensure all items have a price (use default if not provided)
-  const itemsWithPrices = items.map(item => ({
-    ...item,
-    price: item.price || 9.99 // Default price if not specified
-  }));
+  const itemsWithPrices = items.map(item => {
+    // Check if item is undefined or null
+    if (!item) {
+      console.error('Received undefined or null item in order');
+      return {
+        name: 'Unknown item',
+        quantity: 1,
+        price: 9.99
+      };
+    }
+    
+    // Double check that price is a valid number
+    let price = 9.99; // Default price
+    
+    if (item.price !== undefined && item.price !== null) {
+      // Try to convert to number if it's not already
+      const numPrice = Number(item.price);
+      if (!isNaN(numPrice)) {
+        price = numPrice;
+      } else {
+        console.warn(`Invalid price for item ${item.name}: ${item.price}, using default price`);
+      }
+    } else {
+      console.warn(`No price specified for item ${item.name}, using default price`);
+    }
+    
+    return {
+      ...item,
+      price: price
+    };
+  });
   
-  // Calculate subtotal
+  // Calculate subtotal with extra validation
   const subtotal = itemsWithPrices.reduce((total, item) => {
-    return total + (item.price * item.quantity);
+    // Ensure price and quantity are valid numbers
+    const price = typeof item.price === 'number' ? item.price : 9.99;
+    const quantity = typeof item.quantity === 'number' ? item.quantity : 1;
+    
+    return total + (price * quantity);
   }, 0);
   
   // Calculate state tax (9%)
   const stateTax = subtotal * 0.09;
   
-  // Calculate processing fee (3.5% + $0.30) - hidden from customer
-  const processingFee = subtotal * 0.035 + 0.30;
+  // Calculate subtotal + tax
+  const subtotalPlusTax = subtotal + stateTax;
+  
+  // Calculate processing fee (2.9% + $0.40) - based on subtotal + tax
+  const processingFee = subtotalPlusTax * 0.029 + 0.40;
   
   // Calculate final order total (subtotal + tax + processing fee)
   const orderTotal = subtotal + stateTax + processingFee;

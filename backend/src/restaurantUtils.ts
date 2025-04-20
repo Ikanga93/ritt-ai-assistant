@@ -28,6 +28,7 @@ export interface CoffeeShopLocation {
   address: string;
   phone: string;
   hours: string;
+  email?: string;
 }
 
 export interface CoffeeShop {
@@ -38,6 +39,7 @@ export interface CoffeeShop {
   coffee_shop_name: string;
   menu_categories: MenuCategory[];
   notes?: string;
+  email?: string; // Alternative location for email
 }
 
 /**

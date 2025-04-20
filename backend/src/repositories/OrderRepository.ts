@@ -34,9 +34,10 @@ export class OrderRepository extends BaseRepository<Order> {
       order.order_number = `ORD-${Date.now()}`;
 
       // Calculate initial totals (will be updated with actual menu item prices)
-      const { subtotal, tax, total } = await this.calculateOrderTotals(orderData.items);
+      const { subtotal, tax, processingFee, total } = await this.calculateOrderTotals(orderData.items);
       order.subtotal = subtotal;
       order.tax = tax;
+      order.processing_fee = processingFee;
       order.total = total;
 
       const savedOrder = await queryRunner.manager.save(Order, order);
@@ -146,9 +147,10 @@ export class OrderRepository extends BaseRepository<Order> {
       await queryRunner.manager.save(OrderItem, orderItems);
 
       // Update order totals
-      const { subtotal, tax, total } = await this.calculateOrderTotals(items);
+      const { subtotal, tax, processingFee, total } = await this.calculateOrderTotals(items);
       order.subtotal = subtotal;
       order.tax = tax;
+      order.processing_fee = processingFee;
       order.total = total;
 
       const updatedOrder = await queryRunner.manager.save(Order, order);
@@ -178,13 +180,24 @@ export class OrderRepository extends BaseRepository<Order> {
       return total + (menuItem ? menuItem.price * item.quantity : 0);
     }, 0);
 
-    // Calculate tax (assuming 10% tax rate)
-    const taxRate = 0.10;
+    // Calculate tax (9% tax rate)
+    const taxRate = 0.09;
     const tax = subtotal * taxRate;
-
-    // Calculate total
-    const total = subtotal + tax;
-
-    return { subtotal, tax, total };
+    
+    // Calculate subtotal + tax
+    const subtotalPlusTax = subtotal + tax;
+    
+    // Calculate processing fee (2.9% + $0.40) based on subtotal + tax
+    const processingFee = (subtotalPlusTax * 0.029) + 0.40;
+    
+    // Calculate total (subtotal + tax + processing fee)
+    const total = subtotal + tax + processingFee;
+    
+    return { 
+      subtotal: parseFloat(subtotal.toFixed(2)), 
+      tax: parseFloat(tax.toFixed(2)), 
+      processingFee: parseFloat(processingFee.toFixed(2)), 
+      total: parseFloat(total.toFixed(2)) 
+    };
   }
 } 
