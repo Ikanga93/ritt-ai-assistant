@@ -6,7 +6,8 @@
  * Order service for handling order placement and processing
  */
 
-// Email notification removed.
+// Import database service for order storage
+import { saveOrderToDatabase } from './services/orderDatabaseService.js';
 
 
 export interface OrderItem {
@@ -57,9 +58,15 @@ export async function placeOrder(
   const orderNumber = Math.floor(Math.random() * 10000) + 1000;
   const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
   
+  // Ensure all items have a price (use default if not provided)
+  const itemsWithPrices = items.map(item => ({
+    ...item,
+    price: item.price || 9.99 // Default price if not specified
+  }));
+  
   // Calculate subtotal
-  const subtotal = items.reduce((total, item) => {
-    return total + ((item.price || 0) * item.quantity);
+  const subtotal = itemsWithPrices.reduce((total, item) => {
+    return total + (item.price * item.quantity);
   }, 0);
   
   // Calculate state tax (9%)
@@ -79,7 +86,7 @@ export async function placeOrder(
     customerName,
     customerEmail,
     customerPhone, // Include phone number for SMS payment
-    items,
+    items: itemsWithPrices,
     subtotal: parseFloat(subtotal.toFixed(2)),
     stateTax: parseFloat(stateTax.toFixed(2)),
     orderTotal: parseFloat(orderTotal.toFixed(2)),
@@ -98,5 +105,14 @@ export async function placeOrder(
     total: order.orderTotal
   });
   
-  return order;
+  // Save the order to the database
+  try {
+    const savedOrder = await saveOrderToDatabase(order);
+    console.log(`Order #${orderNumber} saved to database with ID: ${savedOrder.dbOrderId}`);
+    return savedOrder; // Return the order with the database ID
+  } catch (error) {
+    console.error(`Failed to save order #${orderNumber} to database:`, error);
+    // Still return the original order even if database save fails
+    return order;
+  }
 }

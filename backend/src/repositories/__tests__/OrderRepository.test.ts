@@ -18,7 +18,7 @@ describe("OrderRepository", () => {
 
     // Clean up any existing data
     await AppDataSource.manager.query('DELETE FROM "order_items"');
-    await AppDataSource.manager.query('DELETE FROM "payments"');
+
     await AppDataSource.manager.query('DELETE FROM "orders"');
     await AppDataSource.manager.query('DELETE FROM "customers"');
   });
@@ -27,7 +27,7 @@ describe("OrderRepository", () => {
     // Create a test customer
     testCustomer = new Customer();
     testCustomer.name = "Test Customer";
-    testCustomer.email = "test@example.com";
+
     testCustomer.phone = "1234567890";
     await AppDataSource.manager.save(testCustomer);
 
@@ -46,7 +46,7 @@ describe("OrderRepository", () => {
   afterEach(async () => {
     // Clean up test data in the correct order
     await AppDataSource.manager.query('DELETE FROM "order_items"');
-    await AppDataSource.manager.query('DELETE FROM "payments"');
+
     await AppDataSource.manager.query('DELETE FROM "orders"');
     await AppDataSource.manager.query('DELETE FROM "customers"');
   });

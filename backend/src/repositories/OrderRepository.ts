@@ -41,13 +41,26 @@ export class OrderRepository extends BaseRepository<Order> {
 
       const savedOrder = await queryRunner.manager.save(Order, order);
 
-      // Create order items
+      // Fetch menu items to get prices
+      const menuItemIds = orderData.items.map(item => item.menuItemId);
+      const menuItems = await queryRunner.manager
+        .createQueryBuilder()
+        .select("menu_item")
+        .from("menu_items", "menu_item")
+        .whereInIds(menuItemIds)
+        .getMany();
+
+      // Create order items with prices
       const orderItems = orderData.items.map(item => {
+        const menuItem = menuItems.find(mi => mi.id === item.menuItemId);
+        const price = menuItem ? menuItem.price : 9.99; // Default price if not found
+        
         const orderItem = new OrderItem();
         orderItem.order_id = savedOrder.id;
         orderItem.menu_item_id = item.menuItemId;
         orderItem.quantity = item.quantity;
         orderItem.special_instructions = item.specialInstructions || null;
+        orderItem.price_at_time = price; // Set the price_at_time field
         return orderItem;
       });
 
@@ -107,13 +120,26 @@ export class OrderRepository extends BaseRepository<Order> {
       // Delete existing items
       await queryRunner.manager.delete(OrderItem, { order_id: orderId });
 
-      // Create new items
+      // Fetch menu items to get prices
+      const menuItemIds = items.map(item => item.menuItemId);
+      const menuItems = await queryRunner.manager
+        .createQueryBuilder()
+        .select("menu_item")
+        .from("menu_items", "menu_item")
+        .whereInIds(menuItemIds)
+        .getMany();
+
+      // Create new items with prices
       const orderItems = items.map(item => {
+        const menuItem = menuItems.find(mi => mi.id === item.menuItemId);
+        const price = menuItem ? menuItem.price : 9.99; // Default price if not found
+        
         const orderItem = new OrderItem();
         orderItem.order_id = orderId;
         orderItem.menu_item_id = item.menuItemId;
         orderItem.quantity = item.quantity;
         orderItem.special_instructions = item.specialInstructions || null;
+        orderItem.price_at_time = price; // Set the price_at_time field
         return orderItem;
       });
 

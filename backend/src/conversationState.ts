@@ -29,10 +29,7 @@ export interface ConversationState {
   // Last function called
   lastFunction?: string;
   
-  // Payment information
-  paymentUrl?: string; // Store the actual Stripe checkout URL
-  paymentLinkSent?: boolean; // Track if payment link was sent
-  paymentOrderId?: number; // Store the order ID associated with the payment
+
   
   // Order details
   orderDetails?: any; // Store the complete order details
@@ -59,6 +56,7 @@ export enum ConversationStage {
   CATEGORY_SELECTION = 'category_selection',
   ITEM_SELECTION = 'item_selection',
   ORDER_CONFIRMATION = 'order_confirmation',
+
   ORDER_COMPLETED = 'order_completed'
 }
 
@@ -171,29 +169,7 @@ export function updateCustomerInfo(
   };
 }
 
-/**
- * Update payment status with URL and tracking information
- * 
- * @param state Current conversation state
- * @param paymentUrl Stripe checkout URL for the order
- * @param orderId Order ID associated with the payment
- * @param paymentLinkSent Whether the payment link was sent/displayed
- * @returns Updated conversation state
- */
-export function updatePaymentStatus(
-  state: ConversationState,
-  paymentUrl?: string,
-  orderId?: number,
-  paymentLinkSent: boolean = false
-): ConversationState {
-  return {
-    ...state,
-    paymentUrl: paymentUrl || state.paymentUrl,
-    paymentOrderId: orderId || state.paymentOrderId,
-    paymentLinkSent,
-    lastFunction: 'updatePaymentStatus'
-  };
-}
+
 
 /**
  * Clear the cart and reset the order state
@@ -206,10 +182,7 @@ export function resetOrder(state: ConversationState): ConversationState {
     selectedRestaurantName: undefined,
     currentCategory: undefined,
     customerPhone: undefined,
-    // Clear all payment-related fields
-    paymentUrl: undefined,
-    paymentOrderId: undefined,
-    paymentLinkSent: false,
+
     stage: ConversationStage.GREETING,
     lastFunction: 'resetOrder'
   };

@@ -7,7 +7,7 @@ import { Restaurant } from "./entities/Restaurant.js";
 import { MenuItem } from "./entities/MenuItem.js";
 import { Order } from "./entities/Order.js";
 import { OrderItem } from "./entities/OrderItem.js";
-import { Payment } from "./entities/Payment.js";
+
 
 const envPath = path.resolve(process.cwd(), ".env.local");
 
@@ -24,28 +24,35 @@ export const AppDataSource = new DataSource({
   password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB || "ritt_drive_thru",
   schema: process.env.POSTGRES_SCHEMA || "public",
-  synchronize: process.env.NODE_ENV !== "production", // Only synchronize in development
+  synchronize: false, // Disable schema synchronization
   logging: process.env.NODE_ENV !== "production", // Only log in development
-  entities: [Customer, Restaurant, MenuItem, Order, OrderItem, Payment],
-  migrations: ["dist/migrations/**/*.js"], // Use compiled migrations
-  migrationsRun: process.env.NODE_ENV === "production", // Automatically run migrations in production
+  entities: [Customer, Restaurant, MenuItem, Order, OrderItem],
+  migrations: [], // Disable migrations
+  migrationsRun: false, // Never run migrations automatically
   migrationsTableName: "migrations",
-  subscribers: ["dist/subscribers/**/*.js"], // Use compiled subscribers
+  subscribers: ["dist/subscribers/**/*.js"] // Use compiled subscribers
 });
 
 // Function to initialize the database connection
 export async function initializeDatabase() {
   try {
-    await AppDataSource.initialize();
-    console.log("Database connection established successfully");
+    // Check if already initialized
+    if (AppDataSource.isInitialized) {
+      console.log("Database already initialized");
+      return;
+    }
 
-    // Run migrations if not in production (in production, they run automatically)
-    if (process.env.NODE_ENV !== "production") {
-      await AppDataSource.runMigrations();
-      console.log("Database migrations applied successfully");
+    // Initialize the database connection without running migrations
+    try {
+      await AppDataSource.initialize();
+      console.log("Database connection established successfully");
+    } catch (error) {
+      console.error("Error connecting to database:", error);
+      throw error;
     }
   } catch (error) {
-    console.error("Error during database initialization:", error);
-    throw error;
+    console.error("Fatal database initialization error:", error);
+    // Don't throw - allow application to continue without database
+    console.warn("Application will run without database functionality");
   }
 } 

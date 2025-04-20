@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from "typeorm";
-import { MenuItem } from "./MenuItem.js";
-import { Order } from "./Order.js";
+// Import types only for type checking, not for runtime
+import type { MenuItem } from "./MenuItem.js";
+import type { Order } from "./Order.js";
 
 @Entity("restaurants")
 export class Restaurant {
@@ -19,10 +20,10 @@ export class Restaurant {
   @Column({ type: "boolean", default: true })
   is_active: boolean;
 
-  // Relationships
-  @OneToMany(() => MenuItem, menuItem => menuItem.restaurant)
+  // Relationships - use string references to avoid circular dependencies
+  @OneToMany('MenuItem', 'restaurant')
   menu_items: MenuItem[];
 
-  @OneToMany(() => Order, order => order.restaurant)
+  @OneToMany('Order', 'restaurant')
   orders: Order[];
 } 

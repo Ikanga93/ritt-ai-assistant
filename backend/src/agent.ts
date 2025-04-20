@@ -15,6 +15,7 @@ import {
   import path from 'node:path';
   import { fileURLToPath } from 'node:url';
   import { z } from 'zod';
+  import express from 'express';
   
   // Import API throttler and performance monitor
   import { apiThrottler } from './apiThrottler.js';
@@ -42,21 +43,28 @@ import {
   // Import order service
   import { placeOrder } from './orderService.js';
 
-  // Import payment response enhancer
-  import { addPaymentMarkerToResponse } from './paymentResponseEnhancer.js';
+  // Import database initialization to ensure connection is established
+  import { ensureDatabaseInitialized } from './database-init.js';
+
+  // Ensure database is initialized
+  ensureDatabaseInitialized();
+
+  import { preprocessMessage } from './messageProcessor.js';
   
-  // Import payment handling
-  import { handlePayment } from './handlePayment.js';
-  import { handlePaymentResponse } from './handlePaymentResponse.js';
+
   
   // Import fuzzy matching utilities
   import { findBestMatch, findAllMatches, verifyOrderItems, normalizeString } from './utils/fuzzyMatch.js';
+  
+
   
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const envPath = path.join(__dirname, '../.env.local');
   dotenv.config({ path: envPath });
   
-  export default defineAgent({
+
+
+export default defineAgent({
     entry: async (ctx: JobContext) => {
       await ctx.connect();
       console.log('waiting for participant');
@@ -120,15 +128,12 @@ import {
   5. ORDER CONFIRMATION (Final Step):
      - ALWAYS ask for the customer's name if not already provided
      - Briefly summarize their complete order including all items and total
-     - ALWAYS provide the payment link directly in the chat interface
-     - DO NOT tell customers to proceed to the pickup window until AFTER they have completed payment
      - Use placeOrder function with the correct restaurant ID
 
-  6. PAYMENT PROCESSING (Final Step):
-     - After confirming the customer's name and the order details, inform the customer they will need to pay online now
-     - Let them know you are providing a payment link to pay for their order
-     - Include the payment link in your response when available with the total amount due of the order
-     - Payment is only available online through the provided payment link. DO NOT tell the customer to proceed to the pickup window until AFTER they have completed payment.
+  6. ORDER COMPLETION (Final Step):
+     - After the order is placed, thank the customer for their order
+     - Tell them their order will be ready for pickup at the window
+     - Wish them a good day
      - IMPORTANT: If a customer asks for a specific restaurant like Niros Gyros, ALWAYS try to find it even if initial lookup fails
      - If you initially say a restaurant doesn't exist but the customer insists, try again using the getRestaurantById function
      - NEVER tell customers a restaurant doesn't exist without trying multiple times to find it
@@ -136,8 +141,7 @@ import {
   7. ORDER CONFIRMATION (Final Step):
      - ALWAYS ask for the customer's name if not already provided
      - Briefly summarize their complete order including all items and total
-     - ALWAYS provide the payment link directly in the chat interface
-     - DO NOT tell customers to proceed to the pickup window until AFTER they have completed payment
+
      - Use placeOrder function with the correct restaurant ID
   
   8. CONVERSATION FLOW:
@@ -384,6 +388,27 @@ import {
                 });
               });
               
+              // Ensure all items have a price
+              const itemsWithPrices = items.map(item => {
+                // If item doesn't have a price, try to find it in the menu
+                if (item.price === undefined || item.price === null) {
+                  const menuItem = allMenuItems.find(mi => 
+                    mi.name.toLowerCase() === item.name.toLowerCase() ||
+                    mi.id === item.id
+                  );
+                  
+                  if (menuItem && menuItem.price) {
+                    return { ...item, price: menuItem.price };
+                  } else {
+                    // If we can't find the price, use a default price
+                    console.warn(`Could not find price for item: ${item.name}, using default price of 9.99`);
+                    return { ...item, price: 9.99 };
+                  }
+                }
+                
+                return item;
+              });
+              
               console.log(`Validating ${items.length} order items against ${allMenuItems.length} menu items`);
               
               // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
@@ -396,9 +421,14 @@ import {
               for (const item of verifiedItems) {
                 if (item.verified) {
                   console.log(`Verified menu item: "${item.name}"`);
+                  // Find the actual menu item to get its price
+                  const menuItem = allMenuItems.find(mi => mi.name === item.name);
+                  const itemPrice = menuItem?.price || item.price || 9.99;
+                  console.log(`Found ${menuItem ? 'exact' : 'fuzzy'} match for ${item.name}: $${itemPrice}`);
+                  
                   validatedItems.push({
                     ...item,
-                    price: item.price
+                    price: itemPrice
                   });
                 } else {
                   console.warn(`Unverified menu item: "${item.name}"${item.suggestion ? `, did you mean "${item.suggestion}"?` : ''}`);
@@ -408,10 +438,13 @@ import {
                     const suggestedItem = allMenuItems.find(mi => mi.name === item.suggestion);
                     if (suggestedItem) {
                       console.log(`Using suggested menu item: "${item.name}" -> "${suggestedItem.name}"`);
+                      const itemPrice = suggestedItem.price || item.price || 9.99;
+                      console.log(`Using suggested price for ${suggestedItem.name}: $${itemPrice}`);
+                      
                       validatedItems.push({
                         ...item,
                         name: suggestedItem.name,
-                        price: suggestedItem.price || item.price,
+                        price: itemPrice,
                         id: suggestedItem.id || item.id
                       });
                       continue;
@@ -419,6 +452,7 @@ import {
                   }
                   
                   // If we still don't have a match, try using normalizeString for a more aggressive match
+                  console.log(`Could not find price for item: ${item.name}, using default price of 9.99`);
                   const normalizedItemName = normalizeString(item.name);
                   const normalizedMenuItems = allMenuItems.map(mi => ({
                     ...mi,
@@ -433,10 +467,13 @@ import {
                   
                   if (normalizedMatch) {
                     console.log(`Found normalized match for "${item.name}": "${normalizedMatch.name}"`);
+                    const itemPrice = normalizedMatch.price || item.price || 9.99;
+                    console.log(`Using normalized match price for ${normalizedMatch.name}: $${itemPrice}`);
+                    
                     validatedItems.push({
                       ...item,
                       name: normalizedMatch.name,
-                      price: normalizedMatch.price || item.price,
+                      price: itemPrice,
                       id: normalizedMatch.id || item.id
                     });
                     continue;
@@ -452,10 +489,13 @@ import {
                     // Use the first item from the matched category as a fallback
                     const categoryItem = categoryMatch.items[0];
                     console.log(`Item "${item.name}" seems to be a category (${categoryMatch.category}). Using first item: "${categoryItem.name}"`);
+                    const itemPrice = categoryItem.price || item.price || 9.99;
+                    console.log(`Using category item price for ${categoryItem.name}: $${itemPrice}`);
+                    
                     validatedItems.push({
                       ...item,
                       name: categoryItem.name,
-                      price: categoryItem.price || item.price,
+                      price: itemPrice,
                       id: categoryItem.id || item.id,
                       note: `Selected from ${categoryMatch.category} category`
                     });
@@ -584,81 +624,49 @@ import {
               const stateTax = parseFloat((subtotal * 0.09).toFixed(2));
               const processingFee = parseFloat((subtotal * 0.035 + 0.30).toFixed(2));
               const finalTotal = parseFloat((subtotal + stateTax + processingFee).toFixed(2));
-              
-              // Create order object with more details
-              const order = {
-                orderNumber,
-                restaurantId,
-                restaurantName: coffeeShop.coffee_shop_name,
-                customerName: customerName, // customerName is now required
-                customerEmail: customerEmail,
-                items: itemsWithDetails,
-                subtotal: subtotal,
-                stateTax: stateTax,
-                processingFee: processingFee, // Hidden from customer
-                orderTotal: finalTotal,
-                timestamp: new Date().toISOString(),
-                estimatedTime,
-                status: 'confirmed'
-              };
-            
-              // Store the order in conversation state for payment processing
-              conversationState.orderDetails = order;
-              console.log('Order confirmed:', order.orderNumber);
-              
-              // Set conversation state to PAYMENT_PENDING to wait for customer's payment preference
-              conversationState = updateStage(conversationState, ConversationStage.PAYMENT_PENDING);
-              
-              // Create the order confirmation message with total price
-              const confirmationMessage = `Thanks, ${customerName}! Your order is confirmed. Your total is $${order.orderTotal.toFixed(2)}.`;
-              
-              // Send confirmation message without payment marker first
-              await ctx.agent.sendText(confirmationMessage);
-              
-              // Immediately generate payment link without waiting for customer response
               try {
-                  // Generate payment link
-                  console.log('Generating payment link for order:', order.orderNumber);
-                  const updatedState = await handlePayment(ctx, conversationState);
-                  
-                  // Send a payment message with button if we have a payment URL
-                  if (updatedState.paymentUrl) {
-                      console.log('Payment URL generated:', updatedState.paymentUrl);
-                      
-                      // Send a simple payment instruction first
-                      await ctx.agent.sendText("Please complete your payment using the link below:");
-                      
-                      // Format the payment URL as a proper string message
-                      const paymentMessage = `Payment Link: ${updatedState.paymentUrl}`;
-                      console.log('Sending payment URL');
-                      await ctx.agent.sendText(paymentMessage);
-                      
-                      // Send a follow-up message with instructions
-                      await ctx.agent.sendText("After completing your payment, you'll receive pickup instructions.");
-                  } else {
-                      console.error('Failed to generate payment URL');
-                      await ctx.agent.sendText("I'm sorry, I couldn't generate a payment link at this time. Please try again in a few moments or contact customer support for assistance.");
-                  }
-                  
-                  // Notification functionality removed
-                  order.paymentUrl = updatedState.paymentUrl;
-                  console.log('Order placed with payment link:', order.orderNumber);
-                  
-                  // Update conversation state with payment information
-                  conversationState = { ...updatedState };
-              } catch (error) {
-                  console.error('Error generating payment link:', error);
-                  await ctx.agent.sendText("I'm sorry, there was an error processing your payment. Please try again in a few moments or contact customer support for assistance.");
-                  
-                  // Notification functionality removed
-                  console.log('Order placed without payment link:', order.orderNumber);
+                // Place the order using the items with prices
+                const order = await placeOrder(restaurantId, customerName, itemsWithDetails, customerEmail);
+                
+                // Update the order with restaurant name
+                order.restaurantName = coffeeShop.coffee_shop_name;
+                
+                // Create order object with more details
+                const orderDetails = {
+                  orderNumber,
+                  restaurantId,
+                  restaurantName: coffeeShop.coffee_shop_name,
+                  customerName: customerName, // customerName is now required
+                  customerEmail: customerEmail,
+                  items: itemsWithDetails,
+                  subtotal: subtotal,
+                  stateTax: stateTax,
+                  processingFee: processingFee, // Hidden from customer
+                  orderTotal: finalTotal,
+                  timestamp: new Date().toISOString(),
+                  estimatedTime,
+                  status: 'confirmed'
+                };
+                
+                // Store the order in conversation state
+                conversationState.orderDetails = orderDetails;
+                console.log('Order confirmed:', order.orderNumber);
+                
+                // Set conversation state to ORDER_COMPLETED
+                conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
+                
+                // Return a message confirming the order
+                const confirmationMessage = `Okay, your order #${orderDetails.orderNumber} is confirmed for a total of $${orderDetails.orderTotal.toFixed(2)}. Your order will be ready for pickup at the window. Thank you for choosing us!`;
+                console.log('Order confirmed, returning confirmation message to LLM:', confirmationMessage);
+                return confirmationMessage;
+                
+              } catch (orderError) {
+                console.error('Error placing order:', orderError);
+                // Handle order placement error
+                return 'I apologize, but there was an error placing your order. Please try again.';               
               }
               
-              // Mark order as completed
-              conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
-              
-              // Return the updated conversation state
-              return conversationState;
+
           },
         },
         
@@ -678,28 +686,11 @@ import {
             return `The weather in ${location} right now is ${weather}.`;
           },
         },
-        handlePayment: {
-          description: 'Generate a payment link for the current order',
-          parameters: z.object({}),
-          execute: async () => {
-            try {
-              // Generate payment link and get updated state
-              const { state: updatedState, paymentUrl } = await handlePayment(ctx, conversationState);
-              
-              // Update conversation state
-              conversationState = updatedState;
-              
-              // Return the payment URL for the chat message
-              return `Here's your payment link: ${paymentUrl}`;
-            } catch (error) {
-              console.error('Error generating payment link:', error);
-              return 'I apologize, but I encountered an error generating your payment link. Please try again.';
-            }
-          },
-        },
       };
   
       // Create the agent and start the session
+      // The functions are already defined in fncCtx when it was created above
+      // No need to update it again, just use it directly
       const agent = new multimodal.MultimodalAgent({ model, fncCtx });
       
       // Define the conversation function that will be throttled
@@ -758,9 +749,9 @@ import {
       try {
         // Use the throttler to manage API rate limits
         // Reduce token estimate to 3000 to be more conservative
-        const session = await performanceMonitor.measure('conversation-session', () => 
-          apiThrottler.throttle(runConversation, 3000)
-        );
+        const session = await performanceMonitor.measure('conversation-session', async () => {
+          return await apiThrottler.throttle(runConversation, 3000);
+        });
         
         console.log('Conversation session started successfully with throttling');
         
@@ -810,6 +801,7 @@ import {
           console.error('Final retry failed:', retryError);
           // At this point, we've done all we can - the error will propagate up
         }
+        throw error;
       }
     },
   });

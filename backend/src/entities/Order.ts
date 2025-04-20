@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, OneToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, OneToOne, JoinColumn } from "typeorm";
 import { Customer } from "./Customer.js";
-import { Restaurant } from "./Restaurant.js";
-import { OrderItem } from "./OrderItem.js";
-import { Payment } from "./Payment.js";
+// Import types only for type checking, not for runtime
+import type { Restaurant } from "./Restaurant.js";
+import type { OrderItem } from "./OrderItem.js";
+
 
 @Entity("orders")
 export class Order {
@@ -41,12 +42,14 @@ export class Order {
   @ManyToOne(() => Customer, customer => customer.orders)
   customer: Customer;
 
-  @ManyToOne(() => Restaurant, restaurant => restaurant.orders)
+  // Use string reference to avoid circular dependency
+  @ManyToOne('Restaurant', 'orders')
+  @JoinColumn({ name: 'restaurant_id' })
   restaurant: Restaurant;
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.order)
+  // Use string reference to avoid circular dependency
+  @OneToMany('OrderItem', 'order')
   order_items: OrderItem[];
 
-  @OneToOne(() => Payment, payment => payment.order)
-  payment: Payment;
+
 } 

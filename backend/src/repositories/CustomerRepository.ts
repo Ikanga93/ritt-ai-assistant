@@ -17,10 +17,10 @@ export class CustomerRepository extends BaseRepository<Customer> {
     let customer = await this.findByPhoneNumber(phoneNumber);
     
     if (!customer) {
-      customer = await this.create({
+      customer = await this.repository.save({
         ...data,
         phoneNumber,
-      });
+      } as Customer);
     }
     
     return customer;

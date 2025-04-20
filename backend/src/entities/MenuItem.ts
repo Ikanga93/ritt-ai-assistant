@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from "typeorm";
-import { Restaurant } from "./Restaurant.js";
-import { OrderItem } from "./OrderItem.js";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from "typeorm";
+// Import types only for type checking, not for runtime
+import type { Restaurant } from "./Restaurant.js";
+import type { OrderItem } from "./OrderItem.js";
 
 @Entity("menu_items")
 export class MenuItem {
@@ -26,10 +27,12 @@ export class MenuItem {
   @Column({ type: "integer" })
   restaurant_id: number;
 
-  // Relationships
-  @ManyToOne(() => Restaurant, restaurant => restaurant.menu_items)
+  // Relationships - use string reference to avoid circular dependency
+  @ManyToOne('Restaurant', 'menu_items')
+  @JoinColumn({ name: 'restaurant_id' })
   restaurant: Restaurant;
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.menu_item)
+  // Use string reference to avoid circular dependency
+  @OneToMany('OrderItem', 'menu_item')
   order_items: OrderItem[];
 } 
