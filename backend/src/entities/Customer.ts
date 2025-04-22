@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from "typeorm";
 import { Order } from "./Order.js";
 
 @Entity("customers")
@@ -9,13 +9,23 @@ export class Customer {
   @Column({ type: "varchar", length: 255 })
   name: string;
 
-
+  @Column({ type: "varchar", length: 255, nullable: true })
+  email: string;
 
   @Column({ type: "varchar", length: 20, nullable: true })
   phone: string;
 
+  @Column({ type: "varchar", length: 255, nullable: true, unique: true })
+  auth0Id: string;
+
+  @Column({ type: "varchar", length: 1024, nullable: true })
+  picture: string;
+
   @CreateDateColumn({ type: "timestamp" })
   created_at: Date;
+
+  @UpdateDateColumn({ type: "timestamp", nullable: true })
+  updated_at: Date;
 
   // Relationships
   @OneToMany(() => Order, order => order.customer)

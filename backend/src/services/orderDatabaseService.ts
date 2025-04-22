@@ -16,6 +16,7 @@ import { Customer } from '../entities/Customer.js';
 import { AppDataSource } from '../database.js';
 import { Order } from '../entities/Order.js';
 import { initializeDatabase } from '../database.js';
+import { syncCustomerWithAuth0 } from './customerAuthService.js';
 
 
 // Initialize repository
@@ -25,9 +26,13 @@ const orderRepository = new OrderRepository();
  * Save an order to the database
  * 
  * @param orderDetails Order details from the conversation
+ * @param auth0User Optional Auth0 user object for authenticated orders
  * @returns The saved order with database ID
  */
-export async function saveOrderToDatabase(orderDetails: OrderDetails): Promise<OrderDetails & { dbOrderId: number }> {
+export async function saveOrderToDatabase(
+  orderDetails: OrderDetails, 
+  auth0User?: any
+): Promise<OrderDetails & { dbOrderId: number }> {
   try {
     console.log(`Saving order #${orderDetails.orderNumber} to database`);
     
@@ -37,8 +42,30 @@ export async function saveOrderToDatabase(orderDetails: OrderDetails): Promise<O
       await initializeDatabase();
     }
     
-    // First, ensure the customer exists or create a new one
-    let customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone);
+    // Handle customer creation/lookup based on Auth0 user if available
+    let customerId: number;
+    
+    if (auth0User) {
+      // If we have an Auth0 user, sync it with our customer database
+      console.log(`Syncing Auth0 user ${auth0User.email} with customer database`);
+      const customer = await syncCustomerWithAuth0(auth0User);
+      
+      if (customer) {
+        customerId = customer.id;
+        // Update order details with verified email from Auth0
+        orderDetails.customerEmail = auth0User.email || orderDetails.customerEmail;
+        // Use Auth0 name if available and not already set
+        if (auth0User.name && (!orderDetails.customerName || orderDetails.customerName === 'Anonymous')) {
+          orderDetails.customerName = auth0User.name;
+        }
+      } else {
+        // Fallback to regular customer creation if sync fails
+        customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
+      }
+    } else {
+      // No Auth0 user, use regular customer creation
+      customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
+    }
     
     // First, ensure the restaurant exists in the database
     const restaurantId = await findOrCreateRestaurant(orderDetails.restaurantId, orderDetails.restaurantName);
@@ -109,11 +136,13 @@ export async function getOrderByNumber(orderNumber: string): Promise<Order | nul
  * 
  * @param name Customer name
  * @param phone Optional customer phone
+ * @param email Optional customer email
  * @returns Customer ID
  */
 async function getOrCreateCustomer(
   name: string,
-  phone?: string
+  phone?: string,
+  email?: string
 ): Promise<number> {
   try {
     // Ensure database is initialized
@@ -122,10 +151,25 @@ async function getOrCreateCustomer(
       await initializeDatabase();
     }
     
-    // Try to find an existing customer by phone if provided
+    // Try to find an existing customer by email first (most reliable), then phone
     let customer: Customer | null = null;
     
-    if (phone) {
+    if (email) {
+      try {
+        customer = await AppDataSource.getRepository(Customer).findOne({
+          where: { email }
+        });
+        
+        if (customer) {
+          console.log(`Found existing customer by email: ${email}`);
+          return customer.id;
+        }
+      } catch (error) {
+        console.error('Error finding customer by email:', error);
+      }
+    }
+    
+    if (phone && !customer) {
       try {
         customer = await AppDataSource.getRepository(Customer)
           .findOne({ where: { phone } });
@@ -135,23 +179,15 @@ async function getOrCreateCustomer(
     }
     
     // If customer doesn't exist, create a new one
-    if (!customer) {
-      try {
-        customer = new Customer();
-        customer.name = name;
-        customer.phone = phone || ''; // Use empty string instead of null
-        
-        customer = await AppDataSource.getRepository(Customer).save(customer);
-        console.log(`Created new customer with ID: ${customer.id}`);
-      } catch (error) {
-        console.error('Error creating new customer:', error);
-        throw error;
-      }
-    } else {
-      console.log(`Found existing customer with ID: ${customer.id}`);
-    }
+    console.log(`Creating new customer: ${name}`);
+    const newCustomer = new Customer();
+    newCustomer.name = name;
+    newCustomer.phone = phone || '';
+    newCustomer.email = email || '';
     
-    return customer.id;
+    const savedCustomer = await AppDataSource.getRepository(Customer).save(newCustomer);
+    console.log(`Created new customer with ID: ${savedCustomer.id}`);
+    return savedCustomer.id;
   } catch (error) {
     console.error('Error getting or creating customer:', error);
     // Return a default customer ID
