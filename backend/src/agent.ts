@@ -455,7 +455,17 @@ export default defineAgent({
                 return item;
               });
               
-              console.log(`Validating ${items.length} order items against ${allMenuItems.length} menu items`);
+              // Add items to cart before order placement
+              itemsWithPrices.forEach(item => {
+                addToCart(conversationState, {
+                  name: item.name,
+                  quantity: item.quantity,
+                  price: item.price,
+                  specialInstructions: item.specialInstructions
+                });
+              });
+              
+              console.log('Items added to cart:', conversationState.cartItems);
               
               // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
               const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);

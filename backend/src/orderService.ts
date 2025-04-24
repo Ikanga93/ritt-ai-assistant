@@ -56,8 +56,19 @@ export async function placeOrder(
   customerPhone?: string,
   auth0User?: any
 ): Promise<OrderDetails> {
+  console.log('=== Order Placement Started ===');
+  console.log('Input parameters:', {
+    restaurantId,
+    customerName,
+    itemsCount: items.length,
+    customerEmail,
+    customerPhone,
+    hasAuth0User: !!auth0User
+  });
+
   // Generate order details
   const orderNumber = Math.floor(Math.random() * 10000) + 1000;
+  console.log(`Generated order number: ${orderNumber}`);
   const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
   
   // Ensure all items have a price (use default if not provided)
@@ -121,35 +132,34 @@ export async function placeOrder(
     restaurantName: '', 
     customerName,
     customerEmail,
-    customerPhone, // Include phone number for SMS payment
+    customerPhone,
     items: itemsWithPrices,
     subtotal: parseFloat(subtotal.toFixed(2)),
     stateTax: parseFloat(stateTax.toFixed(2)),
     orderTotal: parseFloat(orderTotal.toFixed(2)),
-    processingFee: parseFloat(processingFee.toFixed(2)), // Hidden from customer
+    processingFee: parseFloat(processingFee.toFixed(2)),
     timestamp: new Date().toISOString(),
     estimatedTime,
     status: 'confirmed',
-    paymentLinkSent: false // Initialize as not sent
+    paymentLinkSent: false
   };
   
-  // Log the order
-  console.log(`New order #${orderNumber} placed:`, {
-    restaurantId,
-    customerName,
-    items: items.map(item => `${item.quantity}x ${item.name}`).join(', '),
+  console.log('Order object created:', {
+    orderNumber: order.orderNumber,
+    restaurantId: order.restaurantId,
+    customerName: order.customerName,
+    itemsCount: order.items.length,
     total: order.orderTotal
   });
   
   // Save the order to the database
   try {
-    // Pass the Auth0 user data to saveOrderToDatabase if available
+    console.log('Attempting to save order to database...');
     const savedOrder = await saveOrderToDatabase(order, auth0User);
     console.log(`Order #${orderNumber} saved to database with ID: ${savedOrder.dbOrderId}`);
-    return savedOrder; // Return the order with the database ID
+    return savedOrder;
   } catch (error) {
     console.error(`Failed to save order #${orderNumber} to database:`, error);
-    // Still return the original order even if database save fails
     return order;
   }
 }

@@ -6,13 +6,15 @@ import { AppDataSource, initializeDatabase } from "../database.js";
  * Either finds an existing customer by Auth0 ID or creates a new one
  */
 export async function syncCustomerWithAuth0(auth0User: any): Promise<Customer | null> {
+  console.log('=== Auth0 Sync Started ===');
+  
   if (!auth0User) {
     console.log('No Auth0 user provided to syncCustomerWithAuth0');
     return null;
   }
   
   try {
-    console.log('Starting syncCustomerWithAuth0 for user:', {
+    console.log('Auth0 user data:', {
       sub: auth0User.sub,
       email: auth0User.email,
       name: auth0User.name
@@ -22,6 +24,9 @@ export async function syncCustomerWithAuth0(auth0User: any): Promise<Customer | 
     if (!AppDataSource.isInitialized) {
       console.log('Database not initialized in syncCustomerWithAuth0, attempting to initialize...');
       await initializeDatabase();
+      console.log('Database initialization completed');
+    } else {
+      console.log('Database already initialized');
     }
     
     const customerRepository = AppDataSource.getRepository(Customer);
@@ -87,7 +92,7 @@ export async function syncCustomerWithAuth0(auth0User: any): Promise<Customer | 
     
     return null;
   } catch (error) {
-    console.error("Error syncing customer with Auth0:", error);
+    console.error("Error in syncCustomerWithAuth0:", error);
     return null;
   }
 }

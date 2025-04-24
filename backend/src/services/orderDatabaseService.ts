@@ -33,61 +33,65 @@ export async function saveOrderToDatabase(
   orderDetails: OrderDetails, 
   auth0User?: any
 ): Promise<OrderDetails & { dbOrderId: number }> {
+  console.log('=== Database Save Started ===');
+  console.log('Order details:', {
+    orderNumber: orderDetails.orderNumber,
+    restaurantId: orderDetails.restaurantId,
+    customerName: orderDetails.customerName,
+    hasAuth0User: !!auth0User
+  });
+  
   try {
-    console.log(`Saving order #${orderDetails.orderNumber} to database`);
-    
     // Ensure database is initialized
     if (!AppDataSource.isInitialized) {
       console.log('Database not initialized, attempting to initialize...');
       await initializeDatabase();
+      console.log('Database initialization completed');
+    } else {
+      console.log('Database already initialized');
     }
     
     // Handle customer creation/lookup based on Auth0 user if available
     let customerId: number;
     
     if (auth0User) {
-      // If we have an Auth0 user, sync it with our customer database
-      console.log(`Syncing Auth0 user ${auth0User.email} with customer database`);
-      console.log('Auth0 user data:', JSON.stringify({
+      console.log('Processing Auth0 user:', {
         sub: auth0User.sub,
         email: auth0User.email,
-        name: auth0User.name,
-        picture: auth0User.picture
-      }));
+        name: auth0User.name
+      });
       
       const customer = await syncCustomerWithAuth0(auth0User);
-      console.log('Customer after sync:', customer ? JSON.stringify({
+      console.log('Customer sync result:', customer ? {
         id: customer.id,
         name: customer.name,
         email: customer.email,
         auth0Id: customer.auth0Id
-      }) : 'null');
+      } : 'null');
       
       if (customer) {
         customerId = customer.id;
-        // Update order details with verified email from Auth0
-        orderDetails.customerEmail = auth0User.email || orderDetails.customerEmail;
-        // Use Auth0 name if available and not already set
-        if (auth0User.name && (!orderDetails.customerName || orderDetails.customerName === 'Anonymous')) {
-          orderDetails.customerName = auth0User.name;
-        }
+        console.log(`Using customer ID from Auth0 sync: ${customerId}`);
       } else {
-        // Fallback to regular customer creation if sync fails
+        console.log('Auth0 sync failed, falling back to regular customer creation');
         customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
       }
     } else {
-      // No Auth0 user, use regular customer creation
+      console.log('No Auth0 user, using regular customer creation');
       customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
     }
     
+    console.log(`Final customer ID: ${customerId}`);
+    
     // First, ensure the restaurant exists in the database
     const restaurantId = await findOrCreateRestaurant(orderDetails.restaurantId, orderDetails.restaurantName);
+    console.log(`Restaurant ID: ${restaurantId}`);
     
     // Then, ensure menu items exist in the database
+    console.log('Processing menu items...');
     const orderItems = await Promise.all(orderDetails.items.map(async item => {
-      // Try to find an existing menu item by name
-      let menuItemId = await findOrCreateMenuItem(item.name, item.price || 9.99, restaurantId);
-      
+      const menuItemId = await findOrCreateMenuItem(item.name, item.price || 9.99, restaurantId);
+      console.log(`Menu item processed: ${item.name} -> ID: ${menuItemId}`);
       return {
         menuItemId,
         quantity: item.quantity,
@@ -95,27 +99,24 @@ export async function saveOrderToDatabase(
       };
     }));
     
-    // Create the order in the database
+    console.log('Creating order in database...');
     const order = await orderRepository.createOrderWithItems({
       customerId,
-      restaurantId, // Use the restaurant ID we found or created
+      restaurantId,
       items: orderItems
     });
     
-    console.log(`Order saved to database with ID: ${order.id}`);
+    console.log(`Order created successfully with ID: ${order.id}`);
     
-    // Return the original order details with the database ID added
     return {
       ...orderDetails,
       dbOrderId: order.id
     };
   } catch (error) {
-    console.error('Error saving order to database:', error);
-    // Return the original order details without a database ID
-    // This allows the system to continue functioning even if database save fails
+    console.error('Error in saveOrderToDatabase:', error);
     return {
       ...orderDetails,
-      dbOrderId: 0 // Indicate failure with 0 ID
+      dbOrderId: 0
     };
   }
 }
