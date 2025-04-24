@@ -70,10 +70,46 @@ export default defineAgent({
       console.log('waiting for participant');
       const participant = await ctx.waitForParticipant();
       console.log(`starting assistant example agent for ${participant.identity}`);
+      
+      // Extract Auth0 user data from participant metadata if available
+      let auth0User = null;
+      console.log('Checking participant metadata for Auth0 user data...');
+      console.log('Participant identity:', participant.identity);
+      console.log('Participant metadata exists:', !!participant.metadata);
+      
+      if (participant.metadata) {
+        console.log('Raw participant metadata:', participant.metadata);
+        try {
+          const metadata = JSON.parse(participant.metadata);
+          console.log('Parsed participant metadata:', metadata);
+          
+          // Check for Auth0 user data in various formats
+          if (metadata.sub && (metadata.email || metadata.name)) {
+            auth0User = metadata;
+            console.log('Auth0 user data found directly in metadata:', auth0User);
+          } else if (metadata.user && metadata.user.sub) {
+            auth0User = metadata.user;
+            console.log('Auth0 user data found in metadata.user:', auth0User);
+          } else {
+            // Log all keys in the metadata to help diagnose the structure
+            console.log('Metadata keys:', Object.keys(metadata));
+            console.log('No Auth0 user data found in expected format');
+          }
+        } catch (error) {
+          console.error('Error parsing participant metadata:', error);
+        }
+      } else {
+        console.log('No participant metadata available');
+      }
   
       // Initialize conversation state
       // Use let instead of const for conversationState so we can reassign it
       let conversationState: ConversationState = createInitialState();
+      
+      // Store Auth0 user data in conversation state
+      if (auth0User) {
+        conversationState.auth0User = auth0User;
+      }
       
       const model = new openai.realtime.RealtimeModel({
         apiKey: process.env.OPENAI_API_KEY,
@@ -130,7 +166,13 @@ export default defineAgent({
      - Briefly summarize their complete order including all items and total
      - Use placeOrder function with the correct restaurant ID
 
-  6. ORDER COMPLETION (Final Step):
+  6. ORDER CONFIRMATION (Final Step):
+     - Summarize the complete order with all items, quantities, and the total price
+     - Ask the customer to confirm if everything is correct
+     - If confirmed, tell them: "Thanks for confirming your order! You'll receive a payment link via the email you used to sign in. Once payment is confirmed, your order will be sent to the kitchen for preparation. Your order will be ready for pickup shortly after payment is processed."
+     - If they want changes, go back to the appropriate step
+
+  7. ORDER COMPLETION (Final Step):
      - After the order is placed, thank the customer for their order
      - Tell them their order will be ready for pickup at the window
      - Wish them a good day
@@ -138,8 +180,6 @@ export default defineAgent({
      - If you initially say a restaurant doesn't exist but the customer insists, try again using the getRestaurantById function
      - NEVER tell customers a restaurant doesn't exist without trying multiple times to find it
   
-  7. ORDER CONFIRMATION (Final Step):
-     - ALWAYS ask for the customer's name if not already provided
      - Briefly summarize their complete order including all items and total
 
      - Use placeOrder function with the correct restaurant ID
@@ -348,9 +388,15 @@ export default defineAgent({
             })).describe('List of items in the order'),
             customerName: z.string().describe('Name of the customer for the order (required)'),
             customerEmail: z.string().optional().describe('Email of the customer for order confirmation'),
+            auth0User: z.object({
+              sub: z.string().optional(),
+              email: z.string().optional(),
+              name: z.string().optional(),
+              picture: z.string().optional()
+            }).optional().describe('Auth0 user data for authenticated orders'),
             formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
           }),
-          execute: async ({ restaurantId, items, customerName, customerEmail, formatForVoice = true }) => {
+          execute: async ({ restaurantId, items, customerName, customerEmail, auth0User, formatForVoice = true }) => {
               console.debug(`placing order with coffee shop ${restaurantId} for customer: ${customerName}:`, items);
               
               // Validate restaurant ID first
@@ -626,7 +672,33 @@ export default defineAgent({
               const finalTotal = parseFloat((subtotal + stateTax + processingFee).toFixed(2));
               try {
                 // Place the order using the items with prices
-                const order = await placeOrder(restaurantId, customerName, itemsWithDetails, customerEmail);
+                // Pass auth0User data from conversation state if available
+                console.log('Attempting to place order with the following data:');
+                console.log('Restaurant ID:', restaurantId);
+                console.log('Customer Name:', customerName);
+                console.log('Items:', JSON.stringify(itemsWithDetails));
+                console.log('Customer Email:', customerEmail);
+                console.log('Auth0 User from conversation state:', conversationState.auth0User ? 
+                  JSON.stringify({
+                    sub: conversationState.auth0User.sub,
+                    email: conversationState.auth0User.email,
+                    name: conversationState.auth0User.name
+                  }) : 'Not available');
+                
+                const order = await placeOrder(
+                  restaurantId, 
+                  customerName, 
+                  itemsWithDetails, 
+                  customerEmail, 
+                  undefined, 
+                  conversationState.auth0User // Use Auth0 user data from conversation state
+                );
+                
+                console.log('Order placed successfully:', JSON.stringify({
+                  orderNumber: order.orderNumber,
+                  total: order.orderTotal,
+                  dbOrderId: order.dbOrderId
+                }));
                 
                 // Update the order with restaurant name
                 order.restaurantName = coffeeShop.coffee_shop_name;

@@ -48,7 +48,20 @@ export async function saveOrderToDatabase(
     if (auth0User) {
       // If we have an Auth0 user, sync it with our customer database
       console.log(`Syncing Auth0 user ${auth0User.email} with customer database`);
+      console.log('Auth0 user data:', JSON.stringify({
+        sub: auth0User.sub,
+        email: auth0User.email,
+        name: auth0User.name,
+        picture: auth0User.picture
+      }));
+      
       const customer = await syncCustomerWithAuth0(auth0User);
+      console.log('Customer after sync:', customer ? JSON.stringify({
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        auth0Id: customer.auth0Id
+      }) : 'null');
       
       if (customer) {
         customerId = customer.id;

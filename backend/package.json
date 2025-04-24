@@ -20,9 +20,9 @@
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.15.0",
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.9.1",
-
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
@@ -37,13 +37,12 @@
     "@livekit/agents": "^0.7.0",
     "@livekit/agents-plugin-openai": "^0.9.0",
     "@livekit/rtc-node": "^0.13.3",
-
-
+    "@types/cors": "^2.8.17",
     "@types/pg": "^8.11.13",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "pg": "^8.14.1",
     "reflect-metadata": "^0.2.2",
-
     "twilio": "^5.5.2",
     "typeorm": "^0.3.22",
     "zod": "^3.23.8"

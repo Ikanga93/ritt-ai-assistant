@@ -23,6 +23,9 @@ export interface ConversationState {
   customerEmail?: string;
   customerPhone?: string; // Added for SMS payment flow
   
+  // Auth0 user information
+  auth0User?: any; // Auth0 user data from participant metadata
+  
   // Conversation stage
   stage: ConversationStage;
   

@@ -45,6 +45,7 @@ export interface OrderDetails {
  * @param items Items in the order
  * @param customerEmail Optional email for confirmation
  * @param customerPhone Optional phone number for SMS payment link
+ * @param auth0User Optional Auth0 user data for authenticated orders
  * @returns Order details
  */
 export async function placeOrder(
@@ -52,7 +53,8 @@ export async function placeOrder(
   customerName: string,
   items: OrderItem[],
   customerEmail?: string,
-  customerPhone?: string
+  customerPhone?: string,
+  auth0User?: any
 ): Promise<OrderDetails> {
   // Generate order details
   const orderNumber = Math.floor(Math.random() * 10000) + 1000;
@@ -141,7 +143,8 @@ export async function placeOrder(
   
   // Save the order to the database
   try {
-    const savedOrder = await saveOrderToDatabase(order);
+    // Pass the Auth0 user data to saveOrderToDatabase if available
+    const savedOrder = await saveOrderToDatabase(order, auth0User);
     console.log(`Order #${orderNumber} saved to database with ID: ${savedOrder.dbOrderId}`);
     return savedOrder; // Return the order with the database ID
   } catch (error) {

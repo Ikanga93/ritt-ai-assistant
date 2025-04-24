@@ -9,13 +9,25 @@
 import express from 'express';
 import { WorkerOptions, cli } from '@livekit/agents';
 import { fileURLToPath } from 'node:url';
+import cors from 'cors';
+import apiRoutes from './routes.js';
 
 
 // Create an Express app
 const app = express();
 
+// Add middleware
+app.use(express.json());
+app.use(cors());
+
+// Initialize database before registering routes
+import { initializeDatabase } from './database.js';
+
 // Use PORT environment variable provided by Render or default to 8081
 const port = process.env.PORT || 8081;
+
+// Register API routes
+app.use('/api', apiRoutes);
 
 // Start the Express server
 const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
