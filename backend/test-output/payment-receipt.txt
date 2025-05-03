@@ -1,0 +1,35 @@
+RITT DRIVE-THRU
+ORDER RECEIPT
+
+Thank You, Test Customer!
+
+PAYMENT SUCCESSFUL
+Your payment has been processed successfully. Your order is now being prepared by Test Restaurant.
+
+RECEIPT INFORMATION
+Receipt Number: RCPT-868659--123
+Order ID: TEST-ORDER-123
+Payment Date: 5/2/2025, 10:11:08 PM
+Payment ID: pi_test_123456789
+
+ORDER SUMMARY
+Restaurant: Test Restaurant
+Order Date: 5/2/2025, 10:11:08 PM
+
+- Burger (1) - $9.99
+- Fries (2) - $3.99
+- Drink (1) - $2.49
+
+Subtotal: $20.46
+Tax: $1.64
+Order Total: $22.10
+Processing Fee: $1.04
+Total Paid: $23.14
+
+We hope you enjoy your meal! If you have any questions about your order, please contact the restaurant directly.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to 
+If you have any questions, please contact us at support@rittdrivethru.com

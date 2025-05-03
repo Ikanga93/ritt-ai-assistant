@@ -1,0 +1,14 @@
+# Stripe Webhook Configuration
+# Add these to your .env.local file
+
+# Webhook secret for verifying webhook signatures
+# You'll need to create a webhook endpoint in the Stripe dashboard and get the signing secret
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+
+# Payment Link Configuration
+STRIPE_PAYMENT_LINK_EXPIRATION_DAYS=7
+STRIPE_PAYMENT_LINK_DEFAULT_CURRENCY=usd
+
+# Webhook Events to Listen For
+# These are the events your webhook will process
+STRIPE_WEBHOOK_EVENTS=payment_intent.succeeded,payment_intent.payment_failed,checkout.session.completed

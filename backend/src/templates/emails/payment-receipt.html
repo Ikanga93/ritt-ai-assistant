@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Ritt Drive-Thru Order Receipt</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .logo {
+      max-width: 150px;
+      height: auto;
+    }
+    .content {
+      padding: 20px 0;
+    }
+    .success-message {
+      background-color: #e8f5e9;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 20px 0;
+      border-left: 4px solid #4caf50;
+    }
+    .order-summary {
+      background-color: #f7f7f7;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .order-items {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+    .order-items th, .order-items td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    .order-items th {
+      background-color: #f2f2f2;
+    }
+    .order-total {
+      text-align: right;
+      margin-top: 15px;
+    }
+    .receipt-details {
+      border: 1px dashed #ddd;
+      padding: 15px;
+      margin: 20px 0;
+      background-color: #fafafa;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px 0;
+      font-size: 12px;
+      color: #777;
+      border-top: 1px solid #eee;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100%;
+        padding: 10px;
+      }
+      .order-items {
+        font-size: 14px;
+      }
+      .order-total {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Ritt Drive-Thru</h1>
+      <p>Order Receipt</p>
+    </div>
+    
+    <div class="content">
+      <h2>Thank You, {{customerName}}!</h2>
+      
+      <div class="success-message">
+        <h3>Payment Successful</h3>
+        <p>Your payment has been processed successfully. Your order is now being prepared by {{restaurantName}}.</p>
+      </div>
+      
+      <div class="receipt-details">
+        <h3>Receipt Information</h3>
+        <p><strong>Receipt Number:</strong> {{receiptNumber}}</p>
+        <p><strong>Order ID:</strong> {{orderId}}</p>
+        <p><strong>Payment Date:</strong> {{paidDate}}</p>
+        <p><strong>Payment ID:</strong> {{paymentId}}</p>
+      </div>
+      
+      <div class="order-summary">
+        <h3>Order Summary</h3>
+        <p><strong>Restaurant:</strong> {{restaurantName}}</p>
+        <p><strong>Order Date:</strong> {{orderDate}}</p>
+        
+        <table class="order-items">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each items}}
+            <tr>
+              <td>{{name}}</td>
+              <td>{{quantity}}</td>
+              <td>${{price}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+        
+        <div class="order-total">
+          <p><strong>Subtotal:</strong> ${{subtotal}}</p>
+          <p><strong>Tax:</strong> ${{tax}}</p>
+          <p><strong>Order Total:</strong> ${{total}}</p>
+          <p><strong>Processing Fee:</strong> ${{processingFee}}</p>
+          <p><strong>Total Paid:</strong> ${{totalWithFees}}</p>
+        </div>
+      </div>
+      
+      <p>We hope you enjoy your meal! If you have any questions about your order, please contact the restaurant directly.</p>
+      
+      <p>Thank you for choosing Ritt Drive-Thru!</p>
+    </div>
+    
+    <div class="footer">
+      <p>&copy; 2025 Ritt Drive-Thru. All rights reserved.</p>
+      <p>This email was sent to {{customerEmail}}</p>
+      <p>If you have any questions, please contact us at <a href="mailto:support@rittdrivethru.com">support@rittdrivethru.com</a></p>
+    </div>
+  </div>
+</body>
+</html>

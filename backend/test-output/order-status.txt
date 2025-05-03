@@ -1,0 +1,26 @@
+RITT DRIVE-THRU
+ORDER STATUS UPDATE
+
+Hello Test Customer,
+
+YOUR ORDER STATUS: Preparing
+Your order is being prepared by the restaurant.
+Estimated Time: 15-20 minutes
+
+ORDER SUMMARY
+Order ID: TEST-ORDER-123
+Restaurant: Test Restaurant
+Order Date: 5/2/2025, 10:11:08 PM
+
+ORDER PROGRESS
+1. Order Placed & Paid - 5/2/2025, 10:01:08 PM
+2. Preparing - 5/2/2025, 10:11:08 PM
+3. Ready for Pickup
+4. Completed
+
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to test@example.com
+If you have any questions, please contact us at support@rittdrivethru.com

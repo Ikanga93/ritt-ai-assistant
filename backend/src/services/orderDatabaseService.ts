@@ -13,11 +13,13 @@ import { OrderDetails, OrderItem } from '../orderService.js';
 import { OrderStatus } from '../types/order.js';
 
 import { Customer } from '../entities/Customer.js';
-import { AppDataSource } from '../database.js';
+import { AppDataSource, ensureDatabaseConnection, executeWithRetry } from '../database.js';
 import { Order } from '../entities/Order.js';
-import { initializeDatabase } from '../database.js';
 import { syncCustomerWithAuth0 } from './customerAuthService.js';
-
+import * as logger from '../utils/logger.js';
+import * as orderRetryQueue from '../utils/orderRetryQueue.js';
+import { generateOrderPaymentLink } from './orderPaymentService.js';
+import { PaymentStatus } from '../entities/Order.js';
 
 // Initialize repository
 const orderRepository = new OrderRepository();
@@ -33,95 +35,357 @@ export async function saveOrderToDatabase(
   orderDetails: OrderDetails, 
   auth0User?: any
 ): Promise<OrderDetails & { dbOrderId: number }> {
-  console.log('=== Database Save Started ===');
-  console.log('Order details:', {
-    orderNumber: orderDetails.orderNumber,
-    restaurantId: orderDetails.restaurantId,
-    customerName: orderDetails.customerName,
-    hasAuth0User: !!auth0User
+  // Create a correlation ID for tracking this order throughout the system
+  const correlationId = logger.createCorrelationId(
+    undefined,  // Order ID not yet available
+    String(orderDetails.orderNumber)
+  );
+  
+  logger.info('Database save started', {
+    correlationId,
+    orderNumber: String(orderDetails.orderNumber),
+    context: 'saveOrderToDatabase',
+    data: {
+      restaurantId: orderDetails.restaurantId,
+      customerName: orderDetails.customerName,
+      hasAuth0User: !!auth0User,
+      itemCount: orderDetails.items.length
+    }
+  });
+  
+  logger.info('Ensuring database connection is healthy', {
+    correlationId,
+    orderNumber: String(orderDetails.orderNumber),
+    context: 'saveOrderToDatabase'
   });
   
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      console.log('Database not initialized, attempting to initialize...');
-      await initializeDatabase();
-      console.log('Database initialization completed');
-    } else {
-      console.log('Database already initialized');
-    }
-    
-    // Handle customer creation/lookup based on Auth0 user if available
-    let customerId: number;
-    
-    if (auth0User) {
-      console.log('Processing Auth0 user:', {
-        sub: auth0User.sub,
-        email: auth0User.email,
-        name: auth0User.name
+    // Ensure database connection is ready before proceeding
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      const errorMessage = 'Failed to establish a healthy database connection for order processing';
+      logger.error(errorMessage, {
+        correlationId,
+        orderNumber: String(orderDetails.orderNumber),
+        context: 'saveOrderToDatabase'
       });
       
-      const customer = await syncCustomerWithAuth0(auth0User);
-      console.log('Customer sync result:', customer ? {
-        id: customer.id,
-        name: customer.name,
-        email: customer.email,
-        auth0Id: customer.auth0Id
-      } : 'null');
+      // Add to retry queue if database connection fails
+      orderRetryQueue.addFailedOrder(
+        orderDetails,
+        auth0User,
+        correlationId,
+        errorMessage
+      );
       
-      if (customer) {
-        customerId = customer.id;
-        console.log(`Using customer ID from Auth0 sync: ${customerId}`);
-      } else {
-        console.log('Auth0 sync failed, falling back to regular customer creation');
-        customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
-      }
-    } else {
-      console.log('No Auth0 user, using regular customer creation');
-      customerId = await getOrCreateCustomer(orderDetails.customerName, orderDetails.customerPhone, orderDetails.customerEmail);
+      throw new Error(errorMessage);
+    }
+
+    // Verify database is initialized
+    if (!AppDataSource.isInitialized) {
+      throw new Error('Database not initialized');
     }
     
-    console.log(`Final customer ID: ${customerId}`);
-    
-    // First, ensure the restaurant exists in the database
-    const restaurantId = await findOrCreateRestaurant(orderDetails.restaurantId, orderDetails.restaurantName);
-    console.log(`Restaurant ID: ${restaurantId}`);
-    
-    // Then, ensure menu items exist in the database
-    console.log('Processing menu items...');
-    const orderItems = await Promise.all(orderDetails.items.map(async item => {
-      const menuItemId = await findOrCreateMenuItem(item.name, item.price || 9.99, restaurantId);
-      console.log(`Menu item processed: ${item.name} -> ID: ${menuItemId}`);
+    // Start a transaction to ensure all operations succeed or fail together
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+  
+    try {
+      
+      // Handle customer creation/lookup based on Auth0 user if available
+      let customerId: number;
+      
+      if (auth0User) {
+        console.log('Processing Auth0 user:', {
+          sub: auth0User.sub,
+          email: auth0User.email,
+          name: auth0User.name
+        });
+        
+        const customer = await syncCustomerWithAuth0(auth0User);
+        console.log('Customer sync result:', customer ? {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          auth0Id: customer.auth0Id
+        } : 'null');
+        
+        if (customer) {
+          customerId = customer.id;
+          console.log(`Using customer ID from Auth0 sync: ${customerId}`);
+        } else {
+          console.log('Auth0 sync failed, falling back to regular customer creation');
+          customerId = await executeWithRetry(
+            () => getOrCreateCustomer(
+              orderDetails.customerName,
+              orderDetails.customerPhone,
+              orderDetails.customerEmail
+            ),
+            'getOrCreateCustomer'
+          );
+        }
+      } else {
+        console.log('No Auth0 user, using regular customer creation');
+        customerId = await executeWithRetry(
+          () => getOrCreateCustomer(
+            orderDetails.customerName,
+            orderDetails.customerPhone,
+            orderDetails.customerEmail
+          ),
+          'getOrCreateCustomer'
+        );
+      }
+      
+      if (!customerId) {
+        throw new Error('Failed to get or create customer');
+      }
+      
+      console.log(`Final customer ID: ${customerId}`);
+      
+      // First, ensure the restaurant exists in the database
+      const restaurantId = await findOrCreateRestaurant(orderDetails.restaurantId, orderDetails.restaurantName);
+      if (!restaurantId) {
+        throw new Error('Failed to get or create restaurant');
+      }
+      console.log(`Restaurant ID: ${restaurantId}`);
+      
+      // Then, ensure menu items exist in the database
+      console.log('Processing menu items...');
+      const orderItems = await Promise.all(orderDetails.items.map(async item => {
+        const menuItemId = await executeWithRetry(
+          () => findOrCreateMenuItem(item.name, item.price || 9.99, restaurantId),
+          `findOrCreateMenuItem-${item.name}`
+        );
+        if (!menuItemId) {
+          throw new Error(`Failed to get or create menu item: ${item.name}`);
+        }
+        console.log(`Menu item processed: ${item.name} -> ID: ${menuItemId}`);
+        return {
+          menuItemId,
+          quantity: item.quantity,
+          specialInstructions: item.specialInstructions
+        };
+      }));
+      
+      if (!orderItems.length) {
+        throw new Error('No order items to save');
+      }
+      
+      console.log('Creating order in database...');
+      const newOrder = new Order();
+      newOrder.customer = { id: customerId } as Customer;
+      newOrder.restaurant = { id: restaurantId } as any;
+      newOrder.status = OrderStatus.PENDING;
+      
+      // Use existing subtotal from orderDetails or calculate it
+      let subtotal = orderDetails.subtotal;
+      if (subtotal === undefined || subtotal === null) {
+        // Calculate subtotal from items if not provided
+        subtotal = orderDetails.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+      }
+      newOrder.subtotal = subtotal;
+      
+      // Use existing tax or calculate it
+      let tax = orderDetails.stateTax;
+      if (tax === undefined || tax === null) {
+        // Calculate tax (assuming 8% tax rate)
+        tax = parseFloat((subtotal * 0.08).toFixed(2));
+      }
+      newOrder.tax = tax;
+      
+      // Use existing processing fee or default to 0
+      const processingFee = orderDetails.processingFee || 0;
+      newOrder.processing_fee = processingFee;
+      
+      // Use existing total or calculate it
+      let total = orderDetails.orderTotal;
+      if (total === undefined || total === null) {
+        // Calculate total (subtotal + tax + processing fee)
+        total = subtotal + tax + processingFee;
+      }
+      newOrder.total = parseFloat(total.toFixed(2));
+      
+      // Ensure order_number is a string as required by the entity
+      newOrder.order_number = String(orderDetails.orderNumber);
+      newOrder.created_at = new Date();
+      newOrder.updated_at = new Date();
+      
+      console.log(`Order details: subtotal=${subtotal}, tax=${tax}, processingFee=${processingFee}, total=${total}`);
+      
+      // Save the order to get an ID
+      const savedOrder = await queryRunner.manager.save(newOrder);
+      console.log(`Order saved with ID: ${savedOrder.id}`);
+      
+      // Create order items
+      const orderItemsToSave: any[] = [];
+      for (const item of orderDetails.items) {
+        console.log(`Processing order item: ${item.name}`);
+        
+        // Find or create the menu item with retry logic
+        const menuItemId = await executeWithRetry(
+          () => findOrCreateMenuItem(item.name, item.price || 0, restaurantId),
+          `findOrCreateMenuItem-${item.name}`
+        );
+        
+        const orderItem = queryRunner.manager.create('order_item', {
+          order: { id: savedOrder.id },
+          menu_item: { id: menuItemId },
+          quantity: item.quantity,
+          price: item.price,
+          special_instructions: item.specialInstructions || null,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+        
+        orderItemsToSave.push(orderItem);
+      }
+      
+      // Save all order items
+      console.log(`Saving ${orderItemsToSave.length} order items with retry logic...`);
+      await executeWithRetry(
+        () => queryRunner.manager.save('order_item', orderItemsToSave),
+        'saveOrderItems'
+      );
+      console.log(`Saved ${orderItemsToSave.length} order items successfully`);
+      
+      // Get the complete order with items
+      const completedOrder = await executeWithRetry(
+        () => queryRunner.manager
+          .createQueryBuilder(Order, 'order')
+          .where('order.id = :id', { id: savedOrder.id })
+          .leftJoinAndSelect('order.order_items', 'order_items')
+          .getOne(),
+        'getCompleteOrder'
+      ) as Order; // Add type assertion to fix TypeScript errors
+      
+      if (!completedOrder) {
+        throw new Error(`Failed to retrieve complete order with ID: ${savedOrder.id}`);
+      }
+      
+      console.log(`Order created successfully with ID: ${(completedOrder as Order).id}`);
+      
+      // Commit the transaction
+      logger.info('Committing transaction', {
+        correlationId,
+        orderNumber: String(orderDetails.orderNumber),
+        orderId: String(completedOrder.id),
+        context: 'saveOrderToDatabase'
+      });
+      
+      await queryRunner.commitTransaction();
+      
+      // Generate payment link if customer email is available
+      let paymentLinkUrl = null;
+      
+      console.log('Order saved to database, checking for customer email to generate payment link', {
+        orderId: completedOrder.id,
+        orderNumber: orderDetails.orderNumber,
+        hasEmail: !!orderDetails.customerEmail,
+        email: orderDetails.customerEmail
+      });
+      
+      if (orderDetails.customerEmail) {
+        try {
+          logger.info('Generating payment link for order', {
+            correlationId,
+            orderNumber: String(orderDetails.orderNumber),
+            orderId: String(completedOrder.id),
+            context: 'saveOrderToDatabase'
+          });
+          
+          paymentLinkUrl = await generateOrderPaymentLink(orderDetails, completedOrder.id);
+          
+          logger.info('Payment link generated successfully', {
+            correlationId,
+            orderNumber: String(orderDetails.orderNumber),
+            orderId: String(completedOrder.id),
+            context: 'saveOrderToDatabase',
+            data: { paymentLinkUrl }
+          });
+        } catch (paymentError) {
+          // Log the error but don't fail the order creation
+          logger.error('Failed to generate payment link', {
+            correlationId,
+            orderNumber: String(orderDetails.orderNumber),
+            orderId: String(completedOrder.id),
+            context: 'saveOrderToDatabase',
+            error: paymentError
+          });
+          // We'll continue without a payment link
+        }
+      } else {
+        logger.info('No customer email provided, skipping payment link generation', {
+          correlationId,
+          orderNumber: String(orderDetails.orderNumber),
+          orderId: String(completedOrder.id),
+          context: 'saveOrderToDatabase'
+        });
+      }
+      
+      logger.info('Order saved successfully', {
+        correlationId,
+        orderNumber: String(orderDetails.orderNumber),
+        orderId: String(completedOrder.id),
+        context: 'saveOrderToDatabase',
+        data: {
+          customerId: completedOrder.customer_id,
+          restaurantId: completedOrder.restaurant_id,
+          itemCount: orderDetails.items.length
+        }
+      });
+      
+      // Remove the correlation ID from active tracking since the operation is complete
+      logger.removeCorrelationId(correlationId);
+      
       return {
-        menuItemId,
-        quantity: item.quantity,
-        specialInstructions: item.specialInstructions
+        ...orderDetails,
+        dbOrderId: completedOrder.id,
+        paymentUrl: paymentLinkUrl || undefined // Using paymentUrl to match OrderDetails interface, convert null to undefined
       };
-    }));
-    
-    console.log('Creating order in database...');
-    const order = await orderRepository.createOrderWithItems({
-      customerId,
-      restaurantId,
-      items: orderItems
+    } catch (error: any) {
+      // Rollback the transaction on error
+      await queryRunner.rollbackTransaction();
+      
+      logger.error('Failed to save order to database', {
+        correlationId,
+        orderNumber: String(orderDetails.orderNumber),
+        context: 'saveOrderToDatabase',
+        error
+      });
+      
+      // Add to retry queue
+      orderRetryQueue.addFailedOrder(
+        orderDetails,
+        auth0User,
+        correlationId,
+        error.message || 'Unknown error in saveOrderToDatabase'
+      );
+      
+      throw error; // Re-throw the error to be handled by the caller
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
+    }
+  } catch (error: any) {
+    logger.error('Failed to save order to database', {
+      correlationId,
+      orderNumber: String(orderDetails.orderNumber),
+      context: 'saveOrderToDatabase',
+      error
     });
     
-    console.log(`Order created successfully with ID: ${order.id}`);
+    // Add to retry queue
+    orderRetryQueue.addFailedOrder(
+      orderDetails,
+      auth0User,
+      correlationId,
+      error.message || 'Unknown error in saveOrderToDatabase'
+    );
     
-    return {
-      ...orderDetails,
-      dbOrderId: order.id
-    };
-  } catch (error) {
-    console.error('Error in saveOrderToDatabase:', error);
-    return {
-      ...orderDetails,
-      dbOrderId: 0
-    };
+    throw error; // Re-throw the error to be handled by the caller
   }
 }
-
-
 
 /**
  * Retrieve an order from the database by order number
@@ -159,10 +423,11 @@ async function getOrCreateCustomer(
   email?: string
 ): Promise<number> {
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      console.log('Database not initialized in getOrCreateCustomer, attempting to initialize...');
-      await initializeDatabase();
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in getOrCreateCustomer...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in getOrCreateCustomer');
     }
     
     // Try to find an existing customer by email first (most reliable), then phone
@@ -218,17 +483,23 @@ async function getOrCreateCustomer(
  */
 async function findOrCreateRestaurant(restaurantId: string, restaurantName: string): Promise<number> {
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      await initializeDatabase();
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in findOrCreateRestaurant...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in findOrCreateRestaurant');
     }
+    
+    // Normalize the restaurant ID (replace hyphens with underscores)
+    const normalizedRestaurantId = restaurantId.replace(/-/g, '_');
+    console.log(`Normalized restaurant ID: ${normalizedRestaurantId} (from "${restaurantId}")`);
     
     // First, try to find the restaurant by ID or name
     const restaurantRepository = AppDataSource.getRepository('restaurants');
     
     // Get the restaurant data from the JSON file to ensure we have the correct name
     const { getRestaurantById } = await import('../restaurantUtils.js');
-    const restaurantData = await getRestaurantById(restaurantId);
+    const restaurantData = await getRestaurantById(normalizedRestaurantId);
     
     // Get the proper restaurant name from the data
     const properRestaurantName = restaurantData?.coffee_shop_name || 
@@ -254,8 +525,8 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
     // We already have the restaurant data from above
     
     if (!restaurantData) {
-      console.error(`Could not find restaurant data for ID: ${restaurantId}`);
-      throw new Error(`Restaurant data not found for ID: ${restaurantId}`);
+      console.error(`Could not find restaurant data for ID: ${normalizedRestaurantId}`);
+      throw new Error(`Restaurant data not found for ID: ${normalizedRestaurantId}`);
     }
     
     // Extract the location data
@@ -281,8 +552,7 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
     }
   } catch (error) {
     console.error(`Error finding or creating restaurant: ${restaurantName}`, error);
-    // Return a default ID
-    return 1;
+    throw error; // Re-throw the error to be handled by the caller
   }
 }
 
@@ -296,9 +566,11 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
  */
 async function findOrCreateMenuItem(itemName: string, price: number, restaurantId: number): Promise<number> {
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      await initializeDatabase();
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in findOrCreateMenuItem...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in findOrCreateMenuItem');
     }
     
     // First, try to find an existing menu item by name and restaurant ID

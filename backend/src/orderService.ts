@@ -8,33 +8,85 @@
 
 // Import database service for order storage
 import { saveOrderToDatabase } from './services/orderDatabaseService.js';
+import { createCorrelationId, info, error, warn } from './utils/logger.js';
+import { generatePaymentLink } from './services/paymentService.js';
+import { generateOrderNumber } from './utils/orderUtils.js';
 
+// Constants
+const TAX_RATE = 0.0825; // 8.25%
+const PROCESSING_FEE_RATE = 0.029; // 2.9%
+const PROCESSING_FEE_FIXED = 0.30; // $0.30
 
 export interface OrderItem {
-  id?: string;
+  id: string;
   name: string;
+  price: number;
   quantity: number;
-  price?: number;
   specialInstructions?: string;
+  options?: {
+    name: string;
+    value: string;
+  }[];
 }
 
 export interface OrderDetails {
-  orderNumber: number;
+  orderNumber: string;
   restaurantId: string;
   restaurantName: string;
   customerName: string;
-  customerEmail?: string;
-  customerPhone?: string; // Added for SMS payment flow
+  customerEmail: string;
+  customerPhone: string;
   items: OrderItem[];
   subtotal: number;
-  stateTax: number;
-  orderTotal: number;
-  processingFee?: number; // Hidden from customer
-  timestamp: string;
-  estimatedTime: number;
-  status: string;
-  paymentLinkSent?: boolean; // Track if payment link was sent via SMS
-  paymentUrl?: string; // Store the payment URL for SMS sending
+  tax: number;
+  processingFee: number;
+  total: number;
+  stateTax?: number;
+  orderTotal?: number;
+  specialInstructions?: string;
+  paymentUrl?: string;
+}
+
+export interface OrderData {
+  items: OrderItem[];
+}
+
+export interface CustomerInfo {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface Order {
+  orderNumber: string;
+  restaurantId: string;
+  restaurantName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  items: OrderItem[];
+  subtotal: number;
+  tax: number;
+  processingFee: number;
+  total: number;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  createdAt: Date;
+  updatedAt: Date;
+  stateTax?: number;
+  orderTotal?: number;
+  specialInstructions?: string;
+}
+
+export interface OrderResult {
+  orderId: string;
+  orderNumber: string;
+  total: string;
+  paymentLink?: string;
+}
+
+export interface PaymentLinkResponse {
+  url: string;
+  expiresAt: Date;
 }
 
 /**
@@ -48,118 +100,199 @@ export interface OrderDetails {
  * @param auth0User Optional Auth0 user data for authenticated orders
  * @returns Order details
  */
+/**
+ * Diagnostic logging function for order processing
+ */
+function logOrderDetails(stage: string, details: any) {
+  console.log(`[ORDER PROCESSING - ${stage}]`, JSON.stringify(details, null, 2));
+}
+
 export async function placeOrder(
+  orderData: OrderData,
+  customerInfo: CustomerInfo,
   restaurantId: string,
-  customerName: string,
-  items: OrderItem[],
-  customerEmail?: string,
-  customerPhone?: string,
-  auth0User?: any
-): Promise<OrderDetails> {
-  console.log('=== Order Placement Started ===');
-  console.log('Input parameters:', {
-    restaurantId,
-    customerName,
-    itemsCount: items.length,
-    customerEmail,
-    customerPhone,
-    hasAuth0User: !!auth0User
+  restaurantName: string
+): Promise<OrderResult> {
+  const correlationId = createCorrelationId();
+  console.log('\n=== STARTING ORDER PLACEMENT ===');
+  console.log(`Restaurant: ${restaurantName} (${restaurantId})`);
+  console.log(`Customer: ${customerInfo.name} (${customerInfo.email})`);
+  console.log('Items:', orderData.items.map(item => `${item.quantity}x ${item.name}`).join(', '));
+  
+  info('Starting order placement process', { 
+    correlationId, 
+    context: 'orderService', 
+    data: { 
+      restaurantId,
+      restaurantName,
+      customerName: customerInfo.name,
+      customerEmail: customerInfo.email,
+      itemCount: orderData.items.length
+    } 
   });
 
-  // Generate order details
-  const orderNumber = Math.floor(Math.random() * 10000) + 1000;
-  console.log(`Generated order number: ${orderNumber}`);
-  const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
-  
-  // Ensure all items have a price (use default if not provided)
-  const itemsWithPrices = items.map(item => {
-    // Check if item is undefined or null
-    if (!item) {
-      console.error('Received undefined or null item in order');
-      return {
-        name: 'Unknown item',
-        quantity: 1,
-        price: 9.99
-      };
-    }
-    
-    // Double check that price is a valid number
-    let price = 9.99; // Default price
-    
-    if (item.price !== undefined && item.price !== null) {
-      // Try to convert to number if it's not already
-      const numPrice = Number(item.price);
-      if (!isNaN(numPrice)) {
-        price = numPrice;
-      } else {
-        console.warn(`Invalid price for item ${item.name}: ${item.price}, using default price`);
-      }
-    } else {
-      console.warn(`No price specified for item ${item.name}, using default price`);
-    }
-    
-    return {
-      ...item,
-      price: price
-    };
-  });
-  
-  // Calculate subtotal with extra validation
-  const subtotal = itemsWithPrices.reduce((total, item) => {
-    // Ensure price and quantity are valid numbers
-    const price = typeof item.price === 'number' ? item.price : 9.99;
-    const quantity = typeof item.quantity === 'number' ? item.quantity : 1;
-    
-    return total + (price * quantity);
-  }, 0);
-  
-  // Calculate state tax (9%)
-  const stateTax = subtotal * 0.09;
-  
-  // Calculate subtotal + tax
-  const subtotalPlusTax = subtotal + stateTax;
-  
-  // Calculate processing fee (2.9% + $0.40) - based on subtotal + tax
-  const processingFee = subtotalPlusTax * 0.029 + 0.40;
-  
-  // Calculate final order total (subtotal + tax + processing fee)
-  const orderTotal = subtotal + stateTax + processingFee;
-  
-  // Create order object
-  const order: OrderDetails = {
-    orderNumber,
-    restaurantId,
-    restaurantName: '', 
-    customerName,
-    customerEmail,
-    customerPhone,
-    items: itemsWithPrices,
-    subtotal: parseFloat(subtotal.toFixed(2)),
-    stateTax: parseFloat(stateTax.toFixed(2)),
-    orderTotal: parseFloat(orderTotal.toFixed(2)),
-    processingFee: parseFloat(processingFee.toFixed(2)),
-    timestamp: new Date().toISOString(),
-    estimatedTime,
-    status: 'confirmed',
-    paymentLinkSent: false
-  };
-  
-  console.log('Order object created:', {
-    orderNumber: order.orderNumber,
-    restaurantId: order.restaurantId,
-    customerName: order.customerName,
-    itemsCount: order.items.length,
-    total: order.orderTotal
-  });
-  
-  // Save the order to the database
   try {
-    console.log('Attempting to save order to database...');
-    const savedOrder = await saveOrderToDatabase(order, auth0User);
-    console.log(`Order #${orderNumber} saved to database with ID: ${savedOrder.dbOrderId}`);
-    return savedOrder;
-  } catch (error) {
-    console.error(`Failed to save order #${orderNumber} to database:`, error);
-    return order;
+    // Validate order data
+    if (!orderData.items || orderData.items.length === 0) {
+      error('Invalid order data: no items', { correlationId, context: 'orderService' });
+      throw new Error('Invalid order data: no items');
+    }
+
+    // Calculate totals
+    info('Calculating order totals', { 
+      correlationId, 
+      context: 'orderService',
+      data: {
+        items: orderData.items.map(item => ({
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        }))
+      }
+    });
+    const subtotal = orderData.items.reduce((sum: number, item: OrderItem) => {
+      const price = item.price ?? 0;
+      const quantity = item.quantity ?? 1;
+      return sum + (price * quantity);
+    }, 0);
+    const tax = subtotal * TAX_RATE;
+    const processingFee = (subtotal * PROCESSING_FEE_RATE) + PROCESSING_FEE_FIXED;
+    const total = subtotal + tax + processingFee;
+
+    info('Order totals calculated', {
+      correlationId,
+      context: 'orderService',
+      data: {
+        subtotal: subtotal.toFixed(2),
+        tax: tax.toFixed(2),
+        processingFee: processingFee.toFixed(2),
+        total: total.toFixed(2)
+      }
+    });
+
+    // Generate order number
+    info('Generating order number', { correlationId, context: 'orderService' });
+    const orderNumber = generateOrderNumber();
+
+    // Create order object
+    const order: Order = {
+      orderNumber,
+      restaurantId,
+      restaurantName,
+      customerName: customerInfo.name,
+      customerEmail: customerInfo.email,
+      customerPhone: customerInfo.phone,
+      items: orderData.items,
+      subtotal,
+      tax,
+      processingFee,
+      total,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      stateTax: tax,
+      orderTotal: total,
+      specialInstructions: ''
+    };
+
+    info('Saving order to database', { 
+      correlationId, 
+      context: 'orderService',
+      orderNumber,
+      data: { 
+        restaurantId,
+        restaurantName,
+        customerName: customerInfo.name,
+        customerEmail: customerInfo.email,
+        itemCount: orderData.items.length,
+        total: total.toFixed(2)
+      }
+    });
+
+    // Save to database
+    console.log('\n=== SAVING ORDER TO DATABASE ===');
+    const savedOrder = await saveOrderToDatabase(order);
+    
+    if (!savedOrder) {
+      console.error('\n=== DATABASE SAVE FAILED ===');
+      error('Failed to save order to database', { 
+        correlationId, 
+        context: 'orderService',
+        orderNumber,
+        data: order 
+      });
+      throw new Error('Failed to save order to database');
+    }
+
+    console.log('\n=== ORDER SAVED SUCCESSFULLY ===');
+    console.log(`Order Number: ${orderNumber}`);
+    console.log(`Database ID: ${savedOrder.dbOrderId}`);
+    console.log(`Total: $${total.toFixed(2)}`);
+
+    // Generate payment link
+    console.log('\n=== GENERATING PAYMENT LINK ===');
+    info('Generating payment link', { 
+      correlationId, 
+      context: 'orderService',
+      orderNumber,
+      data: {
+        orderId: savedOrder.dbOrderId,
+        amount: total.toFixed(2),
+        customerEmail: customerInfo.email
+      }
+    });
+    const paymentLinkResponse = await generatePaymentLink({
+      orderId: savedOrder.dbOrderId,
+      amount: total,
+      customerEmail: customerInfo.email,
+      customerName: customerInfo.name
+    });
+
+    if (!paymentLinkResponse) {
+      console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
+      warn('Failed to generate payment link', { 
+        correlationId, 
+        context: 'orderService',
+        orderNumber,
+        data: { orderId: savedOrder.dbOrderId }
+      });
+    } else {
+      console.log('\n=== PAYMENT LINK GENERATED SUCCESSFULLY ===');
+      console.log(`Payment Link ID: ${paymentLinkResponse.id}`);
+      console.log(`Payment Link URL: ${paymentLinkResponse.url}`);
+      info('Payment link generated successfully', {
+        correlationId,
+        context: 'orderService',
+        orderNumber,
+        data: {
+          orderId: savedOrder.dbOrderId,
+          paymentLinkId: paymentLinkResponse.id,
+          paymentLinkUrl: paymentLinkResponse.url
+        }
+      });
+    }
+
+    console.log('\n=== ORDER PLACEMENT COMPLETED ===\n');
+    return {
+      orderId: savedOrder.dbOrderId.toString(),
+      orderNumber,
+      total: total.toFixed(2),
+      paymentLink: paymentLinkResponse?.url
+    };
+  } catch (err) {
+    console.error('\n=== ORDER PLACEMENT FAILED ===');
+    console.error('Error:', err);
+    error('Error placing order', { 
+      correlationId, 
+      context: 'orderService',
+      error: err,
+      data: { 
+        restaurantId,
+        restaurantName,
+        customerName: customerInfo.name,
+        customerEmail: customerInfo.email
+      }
+    });
+    throw err;
   }
 }

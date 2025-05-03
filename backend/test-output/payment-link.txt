@@ -1,0 +1,32 @@
+RITT DRIVE-THRU
+ORDER PAYMENT
+
+Hello Test Customer,
+
+Thank you for your order from Test Restaurant. To complete your order, please use the payment link below.
+
+ORDER SUMMARY
+Order ID: TEST-ORDER-123
+Date: 5/2/2025, 10:11:08 PM
+
+- Burger (1) - $9.99
+- Fries (2) - $3.99
+- Drink (1) - $2.49
+
+Subtotal: $20.46
+Tax: $1.64
+Order Total: $22.10
+Processing Fee: $1.04
+Total with Fees: $23.14
+
+To complete your payment, please visit:
+https://example.com/pay/test-link
+
+IMPORTANT: This payment link will expire on 5/4/2025, 10:11:08 PM. Please complete your payment before then to ensure your order is processed.
+
+If you have any questions about your order, please contact the restaurant directly.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to 

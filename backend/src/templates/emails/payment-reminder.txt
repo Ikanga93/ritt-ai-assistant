@@ -1,0 +1,36 @@
+RITT DRIVE-THRU
+PAYMENT REMINDER
+
+Hello {{customerName}},
+
+{{#if hoursRemaining}}
+  {{#if (lt hoursRemaining 12)}}
+URGENT: YOUR PAYMENT LINK WILL EXPIRE SOON
+Your order from {{restaurantName}} is waiting for payment. The payment link will expire in {{hoursRemaining}} hours (on {{expirationDate}}).
+  {{else}}
+REMINDER: COMPLETE YOUR ORDER PAYMENT
+Your order from {{restaurantName}} is waiting for payment. The payment link will expire in {{hoursRemaining}} hours (on {{expirationDate}}).
+  {{/if}}
+{{else}}
+REMINDER: COMPLETE YOUR ORDER PAYMENT
+Your order from {{restaurantName}} is waiting for payment. Please complete your payment to ensure your order is processed.
+{{/if}}
+
+We noticed that you haven't completed the payment for your recent order. To ensure your order is processed, please use the payment link below.
+
+ORDER SUMMARY
+Order ID: {{orderId}}
+Restaurant: {{restaurantName}}
+
+To complete your payment, please visit:
+{{paymentLink}}
+
+If you've already completed the payment, please disregard this reminder.
+
+If you're experiencing any issues with the payment process or have any questions about your order, please contact our support team.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to {{customerEmail}}
+If you have any questions, please contact us at support@rittdrivethru.com

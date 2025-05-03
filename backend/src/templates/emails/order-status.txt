@@ -1,0 +1,32 @@
+RITT DRIVE-THRU
+ORDER STATUS UPDATE
+
+Hello {{customerName}},
+
+YOUR ORDER STATUS: {{statusText}}
+{{statusMessage}}
+{{#if estimatedTime}}
+Estimated Time: {{estimatedTime}}
+{{/if}}
+
+ORDER SUMMARY
+Order ID: {{orderId}}
+Restaurant: {{restaurantName}}
+Order Date: {{orderDate}}
+
+ORDER PROGRESS
+1. Order Placed & Paid - {{paidTime}}
+2. Preparing{{#if preparingTime}} - {{preparingTime}}{{/if}}
+3. Ready for Pickup{{#if readyTime}} - {{readyTime}}{{/if}}
+4. Completed{{#if completedTime}} - {{completedTime}}{{/if}}
+
+{{#if specialInstructions}}
+SPECIAL INSTRUCTIONS
+{{specialInstructions}}
+{{/if}}
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to {{customerEmail}}
+If you have any questions, please contact us at support@rittdrivethru.com

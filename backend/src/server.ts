@@ -11,6 +11,8 @@ import { WorkerOptions, cli } from '@livekit/agents';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import apiRoutes from './routes.js';
+import * as logger from './utils/logger.js';
+import { startOrderProcessor, stopOrderProcessor } from './workers/orderProcessor.js';
 
 
 // Create an Express app
@@ -22,6 +24,17 @@ app.use(cors());
 
 // Initialize database before registering routes
 import { initializeDatabase } from './database.js';
+
+// Initialize the database
+initializeDatabase().then(() => {
+  logger.info('Database initialized successfully', { context: 'server' });
+  
+  // Start the order processor worker after database is initialized
+  const orderProcessorInterval = startOrderProcessor();
+  logger.info('Order processor worker started', { context: 'server' });
+}).catch(error => {
+  logger.error('Failed to initialize database', { context: 'server', error });
+});
 
 // Use PORT environment variable provided by Render or default to 8081
 const port = process.env.PORT || 8081;
@@ -43,9 +56,14 @@ cli.runApp(new WorkerOptions({
 
 // Handle shutdown gracefully
 process.on('SIGINT', () => {
-  console.log('Shutting down server...');
+  logger.info('Shutting down server...', { context: 'server' });
+  
+  // Stop the order processor worker
+  stopOrderProcessor();
+  logger.info('Order processor worker stopped', { context: 'server' });
+  
   server.close(() => {
-    console.log('Express server closed');
+    logger.info('Express server closed', { context: 'server' });
     process.exit(0);
   });
 });

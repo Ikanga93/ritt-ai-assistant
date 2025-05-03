@@ -1,0 +1,35 @@
+RITT DRIVE-THRU
+ORDER RECEIPT
+
+Thank You, {{customerName}}!
+
+PAYMENT SUCCESSFUL
+Your payment has been processed successfully. Your order is now being prepared by {{restaurantName}}.
+
+RECEIPT INFORMATION
+Receipt Number: {{receiptNumber}}
+Order ID: {{orderId}}
+Payment Date: {{paidDate}}
+Payment ID: {{paymentId}}
+
+ORDER SUMMARY
+Restaurant: {{restaurantName}}
+Order Date: {{orderDate}}
+
+{{#each items}}
+- {{name}} ({{quantity}}) - ${{price}}
+{{/each}}
+
+Subtotal: ${{subtotal}}
+Tax: ${{tax}}
+Order Total: ${{total}}
+Processing Fee: ${{processingFee}}
+Total Paid: ${{totalWithFees}}
+
+We hope you enjoy your meal! If you have any questions about your order, please contact the restaurant directly.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to {{customerEmail}}
+If you have any questions, please contact us at support@rittdrivethru.com

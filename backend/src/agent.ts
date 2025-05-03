@@ -687,7 +687,16 @@ export default defineAgent({
                 console.log('Restaurant ID:', restaurantId);
                 console.log('Customer Name:', customerName);
                 console.log('Items:', JSON.stringify(itemsWithDetails));
-                console.log('Customer Email:', customerEmail);
+                
+                // Use email from Auth0 user data if available and customerEmail is not provided
+                const effectiveEmail = customerEmail || 
+                  (conversationState.auth0User ? conversationState.auth0User.email : undefined);
+                
+                console.log('Customer Email (original):', customerEmail);
+                console.log('Customer Email (from Auth0):', 
+                  conversationState.auth0User ? conversationState.auth0User.email : 'Not available');
+                console.log('Customer Email (effective):', effectiveEmail);
+                
                 console.log('Auth0 User from conversation state:', conversationState.auth0User ? 
                   JSON.stringify({
                     sub: conversationState.auth0User.sub,
@@ -699,7 +708,7 @@ export default defineAgent({
                   restaurantId, 
                   customerName, 
                   itemsWithDetails, 
-                  customerEmail, 
+                  effectiveEmail, // Use the effective email that includes Auth0 email if available
                   undefined, 
                   conversationState.auth0User // Use Auth0 user data from conversation state
                 );

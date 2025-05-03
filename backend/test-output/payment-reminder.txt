@@ -1,0 +1,26 @@
+RITT DRIVE-THRU
+PAYMENT REMINDER
+
+Hello Test Customer,
+
+REMINDER: COMPLETE YOUR ORDER PAYMENT
+Your order from Test Restaurant is waiting for payment. The payment link will expire in 24 hours (on 5/4/2025, 10:11:08 PM).
+
+We noticed that you haven't completed the payment for your recent order. To ensure your order is processed, please use the payment link below.
+
+ORDER SUMMARY
+Order ID: TEST-ORDER-123
+Restaurant: Test Restaurant
+
+To complete your payment, please visit:
+https://example.com/pay/test-link
+
+If you've already completed the payment, please disregard this reminder.
+
+If you're experiencing any issues with the payment process or have any questions about your order, please contact our support team.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to 
+If you have any questions, please contact us at support@rittdrivethru.com

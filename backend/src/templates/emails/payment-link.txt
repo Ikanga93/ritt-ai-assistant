@@ -1,0 +1,32 @@
+RITT DRIVE-THRU
+ORDER PAYMENT
+
+Hello {{customerName}},
+
+Thank you for your order from {{restaurantName}}. To complete your order, please use the payment link below.
+
+ORDER SUMMARY
+Order ID: {{orderId}}
+Date: {{orderDate}}
+
+{{#each items}}
+- {{name}} ({{quantity}}) - ${{price}}
+{{/each}}
+
+Subtotal: ${{subtotal}}
+Tax: ${{tax}}
+Order Total: ${{total}}
+Processing Fee: ${{processingFee}}
+Total with Fees: ${{totalWithFees}}
+
+To complete your payment, please visit:
+{{paymentLink}}
+
+IMPORTANT: This payment link will expire on {{expirationDate}}. Please complete your payment before then to ensure your order is processed.
+
+If you have any questions about your order, please contact the restaurant directly.
+
+Thank you for choosing Ritt Drive-Thru!
+
+© 2025 Ritt Drive-Thru. All rights reserved.
+This email was sent to {{customerEmail}}

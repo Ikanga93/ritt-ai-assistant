@@ -1,5 +1,5 @@
 import { Customer } from "../entities/Customer.js";
-import { AppDataSource, initializeDatabase } from "../database.js";
+import { AppDataSource, ensureDatabaseConnection, executeWithRetry } from "../database.js";
 
 /**
  * Synchronizes an Auth0 user with the Customer database entity
@@ -20,13 +20,11 @@ export async function syncCustomerWithAuth0(auth0User: any): Promise<Customer | 
       name: auth0User.name
     });
     
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      console.log('Database not initialized in syncCustomerWithAuth0, attempting to initialize...');
-      await initializeDatabase();
-      console.log('Database initialization completed');
-    } else {
-      console.log('Database already initialized');
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in syncCustomerWithAuth0...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in syncCustomerWithAuth0');
     }
     
     const customerRepository = AppDataSource.getRepository(Customer);
@@ -104,10 +102,11 @@ export async function findCustomerByAuth0Id(auth0Id: string): Promise<Customer |
   if (!auth0Id) return null;
   
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      console.log('Database not initialized in findCustomerByAuth0Id, attempting to initialize...');
-      await initializeDatabase();
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in findCustomerByAuth0Id...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in findCustomerByAuth0Id');
     }
     
     const customerRepository = AppDataSource.getRepository(Customer);
@@ -125,10 +124,11 @@ export async function findCustomerByEmail(email: string): Promise<Customer | nul
   if (!email) return null;
   
   try {
-    // Ensure database is initialized
-    if (!AppDataSource.isInitialized) {
-      console.log('Database not initialized in findCustomerByEmail, attempting to initialize...');
-      await initializeDatabase();
+    // Ensure database connection is healthy
+    console.log('Ensuring database connection is healthy in findCustomerByEmail...');
+    const connectionReady = await ensureDatabaseConnection();
+    if (!connectionReady) {
+      throw new Error('Failed to establish a healthy database connection in findCustomerByEmail');
     }
     
     const customerRepository = AppDataSource.getRepository(Customer);

@@ -5,9 +5,95 @@ import { Order } from './entities/Order.js';
 import { placeOrder } from './orderService.js';
 import { saveOrderToDatabase } from './services/orderDatabaseService.js';
 import { syncCustomerWithAuth0 } from './services/customerAuthService.js';
+import { isDatabaseHealthy } from './database.js';
+import * as logger from './utils/logger.js';
+import { addToQueue, getQueueStats } from './services/orderQueueService.js';
+import adminRoutes from './routes/admin.js';
+import webhookRoutes from './routes/webhooks.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
 // Create a router for our API routes
 const router = Router();
+
+// Mount admin routes
+router.use('/admin', adminRoutes);
+
+// Mount webhook routes
+router.use('/webhooks', webhookRoutes);
+
+// Mount payment routes
+router.use('/payments', paymentRoutes);
+
+/**
+ * Health check endpoint to monitor system status
+ * Returns database connection status and other system health information
+ */
+router.get('/health', async (req: Request, res: Response) => {
+  const correlationId = logger.createCorrelationId();
+  logger.info('Health check requested', { correlationId, context: 'healthCheck' });
+  
+  try {
+    // Check database connection health
+    const dbHealthy = await isDatabaseHealthy();
+    
+    // Get queue statistics
+    let queueStats = {
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      deadLetter: 0,
+      total: 0
+    };
+    
+    try {
+      queueStats = await getQueueStats();
+    } catch (error) {
+      logger.error('Error getting queue statistics', { correlationId, context: 'healthCheck', error });
+    }
+    
+    // Determine overall system status
+    const hasQueueIssues = queueStats.deadLetter > 0 || queueStats.failed > 0;
+    const status = !dbHealthy ? 'degraded' : hasQueueIssues ? 'warning' : 'healthy';
+    
+    // Return health check response
+    const healthData = {
+      status,
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: dbHealthy,
+        status: dbHealthy ? 'healthy' : 'error'
+      },
+      queue: {
+        pending: queueStats.pending,
+        processing: queueStats.processing,
+        completed: queueStats.completed,
+        failed: queueStats.failed,
+        deadLetter: queueStats.deadLetter,
+        total: queueStats.total,
+        status: hasQueueIssues ? 'warning' : 'healthy'
+      },
+      version: process.env.npm_package_version || '1.0.0'
+    };
+    
+    logger.info('Health check completed', { 
+      correlationId, 
+      context: 'healthCheck',
+      data: healthData
+    });
+    
+    // Set appropriate status code based on health
+    const statusCode = dbHealthy ? 200 : 503; // Service Unavailable if DB is down
+    res.status(statusCode).json(healthData);
+  } catch (error) {
+    logger.error('Health check failed', { correlationId, context: 'healthCheck', error });
+    res.status(500).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: 'Failed to complete health check'
+    });
+  }
+});
 
 // Customer update endpoint
 router.post('/update-customer', async (req: Request, res: Response) => {
@@ -97,36 +183,58 @@ router.post('/update-customer', async (req: Request, res: Response) => {
 
 // Submit order endpoint
 router.post('/submit-order', async (req: Request, res: Response) => {
+  // Create a correlation ID for tracking this request
+  const correlationId = logger.createCorrelationId();
+  
   try {
-    console.log('Received request to /api/submit-order');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    logger.info('Received order submission request', {
+      correlationId,
+      context: 'submitOrder'
+    });
     
     const orderData = req.body;
     const auth0User = orderData.auth0User;
     
-    console.log('Received order submission:', {
-      customerName: orderData.customerName,
-      restaurantId: orderData.restaurantId,
-      itemCount: orderData.items?.length || 0,
-      auth0User: auth0User ? JSON.stringify(auth0User) : 'not present'
+    logger.info('Processing order submission', {
+      correlationId,
+      orderNumber: String(orderData.orderNumber),
+      context: 'submitOrder',
+      data: {
+        customerName: orderData.customerName,
+        restaurantId: orderData.restaurantId,
+        hasAuth0User: !!auth0User,
+        itemCount: orderData.items?.length || 0
+      }
     });
     
-    // Save the order to the database
-    const result = await saveOrderToDatabase(orderData, auth0User);
+    // Add the order to the processing queue instead of processing directly
+    const queueId = await addToQueue(orderData, auth0User);
     
-    // Return success response
-    res.status(200).json({
+    logger.info('Order added to processing queue', {
+      correlationId,
+      orderNumber: String(orderData.orderNumber),
+      context: 'submitOrder',
+      data: { queueId }
+    });
+    
+    // Return immediate success response
+    res.status(202).json({
       success: true,
-      message: 'Order submitted successfully',
-      orderId: result.dbOrderId,
-      orderNumber: result.orderNumber
+      message: 'Order accepted for processing',
+      orderNumber: orderData.orderNumber,
+      queueId: queueId
     });
-  } catch (error) {
-    console.error('Error submitting order:', error);
+  } catch (error: any) {
+    logger.error('Error submitting order', {
+      correlationId,
+      context: 'submitOrder',
+      error
+    });
+    
     res.status(500).json({
       success: false,
       error: 'Failed to submit order',
-      message: (error as Error).message
+      message: error.message || 'Unknown error'
     });
   }
 });
