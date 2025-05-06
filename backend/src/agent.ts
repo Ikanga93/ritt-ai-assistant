@@ -16,7 +16,7 @@ import {
   import { fileURLToPath } from 'node:url';
   import { z } from 'zod';
   import express from 'express';
-  
+  import fetch from 'node-fetch';
   // Import API throttler and performance monitor
   import { apiThrottler } from './apiThrottler.js';
   import { performanceMonitor } from './performanceMonitor.js';
@@ -397,7 +397,10 @@ export default defineAgent({
             formatForVoice: z.boolean().optional().describe('Whether to format the response for voice readout')
           }),
           execute: async ({ restaurantId, items, customerName, customerEmail, auth0User, formatForVoice = true }) => {
-              console.debug(`placing order with coffee shop ${restaurantId} for customer: ${customerName}:`, items);
+              console.log('\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+              console.log('!!!!!!!!!!!!! PLACE ORDER EXECUTE FUNCTION CALLED !!!!!!!!!!!!!');
+              console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+              console.log(`placing order with coffee shop ${restaurantId} for customer: ${customerName}:`, items);
               
               // Validate restaurant ID first
               if (!restaurantId) {
@@ -643,23 +646,34 @@ export default defineAgent({
                       });
                     });
                     
-                    const bestMatch = findBestMatch(normalizeString(item.name), 
-                      allMenuItems.map(mi => normalizeString(mi.name)));
-                    
-                    if (bestMatch && bestMatch.similarity >= 0.6) {
-                      const matchedItem = allMenuItems[bestMatch.index];
-                      item.price = matchedItem.price;
-                      item.id = item.id || matchedItem.id;
-                      console.log(`Found fuzzy match for ${item.name}: ${matchedItem.name} at $${item.price} (similarity: ${bestMatch.similarity.toFixed(2)})`);
-                      foundItem = true;
+                    // Only attempt fuzzy matching if we have menu items to match against
+                    if (allMenuItems.length > 0) {
+                      try {
+                        const bestMatch = findBestMatch(normalizeString(item.name), 
+                          allMenuItems.map(mi => normalizeString(mi.name)));
+                        
+                        if (bestMatch && bestMatch.similarity >= 0.6 && bestMatch.index >= 0 && bestMatch.index < allMenuItems.length) {
+                          const matchedItem = allMenuItems[bestMatch.index];
+                          // Verify that matchedItem exists and has a price before using it
+                          if (matchedItem && typeof matchedItem.price === 'number') {
+                            item.price = matchedItem.price;
+                            item.id = item.id || matchedItem.id;
+                            console.log(`Found fuzzy match for "${item.name}": "${matchedItem.name}" at $${matchedItem.price} (similarity: ${bestMatch.similarity.toFixed(2)})`);
+                            foundItem = true;
+                          } else {
+                            console.log(`Found fuzzy match for "${item.name}" but the matched item doesn't have a valid price`);
+                          }
+                        }
+                      } catch (error) {
+                        console.error(`Error during fuzzy matching for ${item.name}:`, error);
+                      }
                     }
                   }
                   
                   if (!foundItem) {
-                    console.log(`Could not find price for ${item.name}`);
+                    console.log(`Could not find price for item: ${item.name}, using default price of 9.99`);
                     // Set a default price to avoid NaN in total
-                    item.price = 5.00; // Default price if not found
-                    console.log(`Setting default price of $5.00 for ${item.name}`);
+                    item.price = 9.99; // Default price if not found
                   }
                 }
               
@@ -667,9 +681,9 @@ export default defineAgent({
                   orderTotal += item.price * item.quantity;
                 } else {
                   // Ensure we always have a price
-                  item.price = 5.00; // Default price
+                  item.price = 9.99; // Default price
                   orderTotal += item.price * item.quantity;
-                  console.log(`Using default price of $5.00 for ${item.name}`);
+                  console.log(`Using default price of $9.99 for ${item.name}`);
                 }
                 
                 return item;
@@ -722,23 +736,52 @@ export default defineAgent({
                   name: coffeeShop.coffee_shop_name
                 }, null, 2));
 
-                const order = await placeOrder(
-                  orderData,
-                  customerInfo,
-                  restaurantId,
-                  coffeeShop.coffee_shop_name
-                );
-                
-                console.log('\n=== ORDER PLACEMENT RESULT ===');
-                console.log('Order placed successfully:', JSON.stringify({
-                  orderNumber: order.orderNumber,
-                  total: order.orderTotal,
-                  dbOrderId: order.dbOrderId,
-                  paymentLink: order.paymentLink
+                console.log('\n=== STARTING ORDER PLACEMENT ===');
+                console.log('Order Data:', JSON.stringify(orderData, null, 2));
+                console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
+                console.log('Restaurant:', JSON.stringify({
+                  id: restaurantId,
+                  name: coffeeShop.coffee_shop_name
                 }, null, 2));
+
+                // Call placeOrder directly instead of using the HTTP endpoint
+                console.log('\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                console.log('!!!!!!!!!!!!! ABOUT TO CALL PLACEORDER FUNCTION !!!!!!!!!!!!!');
+                console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+                console.log('Order Data:', JSON.stringify(orderData, null, 2));
+                console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
+                console.log('Restaurant ID:', restaurantId);
+                console.log('Restaurant Name:', coffeeShop.coffee_shop_name);
                 
-                // Update the order with restaurant name
-                order.restaurantName = coffeeShop.coffee_shop_name;
+                let order;
+                try {
+                  // Call the placeOrder function directly
+                  console.log('Calling placeOrder function now...');
+                  order = await placeOrder(
+                    orderData,
+                    customerInfo,
+                    restaurantId,
+                    coffeeShop.coffee_shop_name
+                  );
+                  console.log('placeOrder function call completed successfully');
+                  
+                  console.log('\n=== ORDER PLACEMENT RESULT ===');
+                  console.log('Order placed successfully:', JSON.stringify({
+                    orderNumber: order.orderNumber,
+                    total: order.orderTotal,
+                    dbOrderId: order.dbOrderId,
+                    paymentLink: order.paymentLink
+                  }, null, 2));
+                  
+                  // Update the order with restaurant name
+                  order.restaurantName = coffeeShop.coffee_shop_name;
+                } catch (error) {
+                  console.error('\n=== ORDER PLACEMENT FAILED ===');
+                  console.error('Error:', error);
+                  return formatForVoice
+                    ? `I'm sorry, but there was an error processing your order. Please try again later.`
+                    : JSON.stringify({ error: 'Failed to place order', message: error.message });
+                }
                 
                 // Create order object with more details
                 const orderDetails = {

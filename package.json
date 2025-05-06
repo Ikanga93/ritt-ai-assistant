@@ -17,6 +17,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^4.4.2"
+    "@auth0/nextjs-auth0": "^4.4.2",
+    "node-fetch": "2"
   }
 }

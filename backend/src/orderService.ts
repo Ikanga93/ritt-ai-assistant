@@ -113,11 +113,20 @@ export async function placeOrder(
   restaurantId: string,
   restaurantName: string
 ): Promise<OrderResult> {
+  // SUPER PROMINENT LOG MESSAGE
+  console.log('\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.log('!!!!!!!!!!!!! PLACE ORDER FUNCTION CALLED !!!!!!!!!!!!!');
+  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.log('Order Data:', JSON.stringify(orderData, null, 2));
+  console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
+  console.log('Restaurant ID:', restaurantId);
+  console.log('Restaurant Name:', restaurantName);
+  console.log(`Customer: ${customerInfo.name} (${customerInfo.email})`);
+  console.log('Items:', orderData.items.map(item => `${item.quantity}x ${item.name}`).join(', '));
+
   const correlationId = createCorrelationId();
   console.log('\n=== STARTING ORDER PLACEMENT ===');
   console.log(`Restaurant: ${restaurantName} (${restaurantId})`);
-  console.log(`Customer: ${customerInfo.name} (${customerInfo.email})`);
-  console.log('Items:', orderData.items.map(item => `${item.quantity}x ${item.name}`).join(', '));
   
   info('Starting order placement process', { 
     correlationId, 
