@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from "typeorm";
-import { Order } from "./Order.js";
+// Use type import to avoid circular dependency
+import type { Order } from "./Order.js";
 
 @Entity("customers")
 export class Customer {
@@ -28,6 +29,7 @@ export class Customer {
   updated_at: Date;
 
   // Relationships
-  @OneToMany(() => Order, order => order.customer)
+  // Use string reference to avoid circular dependency
+  @OneToMany('Order', 'customer')
   orders: Order[];
 } 

@@ -209,72 +209,150 @@ export async function placeOrder(
       }
     });
 
-    // Save to database
-    console.log('\n=== SAVING ORDER TO DATABASE ===');
-    const savedOrder = await saveOrderToDatabase(order);
+    // NEW FLOW: Store in temporary storage first
+    console.log('\n=== STORING ORDER IN TEMPORARY STORAGE ===');
     
-    if (!savedOrder) {
-      console.error('\n=== DATABASE SAVE FAILED ===');
-      error('Failed to save order to database', { 
-        correlationId, 
-        context: 'orderService',
-        orderNumber,
-        data: order 
-      });
-      throw new Error('Failed to save order to database');
-    }
-
-    console.log('\n=== ORDER SAVED SUCCESSFULLY ===');
-    console.log(`Order Number: ${orderNumber}`);
-    console.log(`Database ID: ${savedOrder.dbOrderId}`);
-    console.log(`Total: $${total.toFixed(2)}`);
-
-    // Generate payment link
-    console.log('\n=== GENERATING PAYMENT LINK ===');
-    info('Generating payment link', { 
-      correlationId, 
+    // Create order object for temporary storage
+    const tempOrderData = {
+      customerName: customerInfo.name,
+      customerEmail: customerInfo.email || '',
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
+      items: orderData.items.map(item => ({
+        id: item.id || `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        options: item.options || []
+      })),
+      subtotal: subtotal,
+      tax: tax,
+      total: total,
+      orderNumber: orderNumber
+    };
+    
+    info('Storing order in temporary storage', {
+      correlationId,
       context: 'orderService',
       orderNumber,
       data: {
-        orderId: savedOrder.dbOrderId,
-        amount: total.toFixed(2),
-        customerEmail: customerInfo.email
+        customerName: tempOrderData.customerName,
+        itemCount: tempOrderData.items.length,
+        total: tempOrderData.total
       }
     });
-    const paymentLinkResponse = await generatePaymentLink({
-      orderId: savedOrder.dbOrderId,
-      amount: total,
-      customerEmail: customerInfo.email,
-      customerName: customerInfo.name
+    
+    // Import the temporary order service
+    const { temporaryOrderService } = await import('./services/temporaryOrderService.js');
+    
+    // Store the order in temporary storage
+    const tempOrder = temporaryOrderService.storeOrder(tempOrderData);
+    
+    console.log('\n=== ORDER STORED IN TEMPORARY STORAGE ===');
+    console.log(`Temporary Order ID: ${tempOrder.id}`);
+    console.log(`Order Number: ${orderNumber}`);
+    console.log(`Expires At: ${new Date(tempOrder.expiresAt).toLocaleString()}`);
+    
+    info('Order stored in temporary storage', {
+      correlationId,
+      context: 'orderService',
+      orderNumber,
+      data: {
+        tempOrderId: tempOrder.id,
+        expiresAt: new Date(tempOrder.expiresAt).toISOString()
+      }
     });
+    
+    // Generate payment link
+    console.log('\n=== GENERATING PAYMENT LINK ===');
+    
+    let paymentLinkResponse = null;
+    let savedOrder = null;
+    
+    if (customerInfo.email) {
+      try {
+        console.log('Payment Link Parameters:', {
+          orderId: tempOrder.id,
+          customerEmail: customerInfo.email,
+          customerName: customerInfo.name
+        });
+        
+        info('Generating payment link', { 
+          correlationId, 
+          context: 'orderService',
+          orderNumber,
+          data: {
+            tempOrderId: tempOrder.id,
+            customerEmail: customerInfo.email
+          }
+        });
+        
+        // Import the order payment link service
+        const { generateOrderPaymentLink } = await import('./services/orderPaymentLinkService.js');
+        
+        // Generate payment link using the temporary order
+        const orderWithPayment = await generateOrderPaymentLink({
+          orderId: tempOrder.id,
+          customerEmail: customerInfo.email,
+          customerName: customerInfo.name,
+          description: `Order from ${restaurantName}`,
+          expirationHours: 48
+        });
+        
+        // Extract payment link information
+        paymentLinkResponse = orderWithPayment.metadata?.paymentLink || null;
+      } catch (error) {
+        console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
+        console.error('Error:', error);
+        warn('Failed to generate payment link', { 
+          correlationId, 
+          context: 'orderService',
+          orderNumber,
+          error,
+          data: { tempOrderId: tempOrder.id }
+        });
+      }
+    } else {
+      console.log('\n=== SKIPPING PAYMENT LINK GENERATION ===');
+      console.log('No customer email provided');
+      info('No customer email provided, skipping payment link generation', {
+        correlationId,
+        context: 'orderService',
+        orderNumber,
+        data: { tempOrderId: tempOrder.id }
+      });
+    }
 
     if (!paymentLinkResponse) {
       console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
+      console.error('No payment link response received');
       warn('Failed to generate payment link', { 
         correlationId, 
         context: 'orderService',
         orderNumber,
-        data: { orderId: savedOrder.dbOrderId }
+        data: { tempOrderId: tempOrder.id }
       });
     } else {
       console.log('\n=== PAYMENT LINK GENERATED SUCCESSFULLY ===');
       console.log(`Payment Link ID: ${paymentLinkResponse.id}`);
       console.log(`Payment Link URL: ${paymentLinkResponse.url}`);
+      console.log(`Payment Link Expires At: ${new Date(paymentLinkResponse.expiresAt * 1000).toISOString()}`);
       info('Payment link generated successfully', {
         correlationId,
         context: 'orderService',
         orderNumber,
         data: {
-          orderId: savedOrder.dbOrderId,
+          tempOrderId: tempOrder.id,
           paymentLinkId: paymentLinkResponse.id,
-          paymentLinkUrl: paymentLinkResponse.url
+          paymentLinkUrl: paymentLinkResponse.url,
+          expiresAt: new Date(paymentLinkResponse.expiresAt * 1000).toISOString()
         }
       });
     }
 
     console.log('\n=== ORDER PLACEMENT COMPLETED ===\n');
     return {
-      orderId: savedOrder.dbOrderId.toString(),
+      orderId: tempOrder.id,
       orderNumber,
       total: total.toFixed(2),
       paymentLink: paymentLinkResponse?.url

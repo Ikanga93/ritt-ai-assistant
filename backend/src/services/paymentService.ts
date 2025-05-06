@@ -129,6 +129,10 @@ export async function generatePaymentLink(
     params.customerEmail
   );
 
+  console.log('\n=== STARTING PAYMENT LINK GENERATION ===');
+  console.log('Parameters:', JSON.stringify(params, null, 2));
+  console.log('Stripe API Key configured:', !!process.env.STRIPE_SECRET_KEY);
+
   logger.info('Generating payment link', {
     correlationId,
     orderId: String(params.orderId),
@@ -138,6 +142,7 @@ export async function generatePaymentLink(
   try {
     // Ensure Stripe is properly configured
     if (!process.env.STRIPE_SECRET_KEY) {
+      console.error('Stripe secret key is not configured');
       throw new Error('Stripe secret key is not configured');
     }
 
@@ -147,10 +152,14 @@ export async function generatePaymentLink(
       typescript: true
     });
 
+    console.log('Stripe client initialized successfully');
+
     // Get the frontend URL from environment variables
     const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+    console.log('Frontend URL:', frontendUrl);
     
     // First create a product for the order
+    console.log('Creating Stripe product...');
     const product = await stripe.products.create({
       name: params.description || `Order #${params.orderId}`,
       metadata: {
@@ -158,38 +167,34 @@ export async function generatePaymentLink(
         customerEmail: params.customerEmail
       }
     });
+    console.log('Product created:', product.id);
     
     // Calculate processing fee (2.9% + $0.40 for online transactions)
-    // Note: params.amount is already in cents from orderPaymentLinkService.ts
     const processingFeePercentage = 0.029; // 2.9%
     const processingFeeFixed = 40; // $0.40 in cents
     
     // Calculate total with processing fee (all in cents)
     const amountWithFee = params.amount + (params.amount * processingFeePercentage) + processingFeeFixed;
     
-    // Log the amount calculation for debugging
-    logger.info('Payment amount calculation', {
-      correlationId,
-      orderId: String(params.orderId),
-      context: 'generatePaymentLink',
-      data: {
-        originalAmount: params.amount,
-        processingFee: params.amount * processingFeePercentage,
-        fixedFee: processingFeeFixed,
-        totalWithFee: amountWithFee,
-        amountInCents: Math.round(amountWithFee)
-      }
+    console.log('Amount calculation:', {
+      originalAmount: params.amount,
+      processingFee: params.amount * processingFeePercentage,
+      fixedFee: processingFeeFixed,
+      totalWithFee: amountWithFee,
+      amountInCents: Math.round(amountWithFee)
     });
     
     // Create a price for the product
+    console.log('Creating Stripe price...');
     const price = await stripe.prices.create({
       product: product.id,
       unit_amount: Math.round(amountWithFee), // Already in cents
       currency: defaultCurrency,
     });
+    console.log('Price created:', price.id);
     
     // Create the payment link with the price
-    // Use any type to allow for dynamic properties
+    console.log('Creating payment link...');
     const paymentLinkParams: any = {
       line_items: [
         {
@@ -198,55 +203,54 @@ export async function generatePaymentLink(
         },
       ],
       metadata: {
-        ...params.metadata,
         orderId: String(params.orderId),
         customerEmail: params.customerEmail,
-        expirationDays: String(params.expirationDays || paymentLinkExpirationDays)
-      }
-    };
-    
-    // Add success URL if frontend URL is available
-    if (frontendUrl) {
-      paymentLinkParams.after_completion = {
+        customerName: params.customerName || ''
+      },
+      after_completion: {
         type: 'redirect',
         redirect: {
-          url: `${frontendUrl}/order-confirmation?orderId=${params.orderId}`,
-        },
-      };
-    }
-    
-    // Create the payment link using the parameters
-    const paymentLink = await stripe.paymentLinks.create(paymentLinkParams);
-
-    logger.info('Payment link generated successfully', {
-      correlationId,
-      orderId: String(params.orderId),
-      context: 'generatePaymentLink',
-      data: {
-        paymentLinkId: paymentLink.id,
-        // We calculate expiresAt ourselves since it might not be directly accessible from the response
-        expiresAt: Math.floor(Date.now() / 1000) + (params.expirationDays || paymentLinkExpirationDays) * 24 * 60 * 60
+          url: `${frontendUrl}/order-confirmation?orderId=${params.orderId}`
+        }
       }
-    });
-
-    // Calculate expiration timestamp
-    const expiresAt = Math.floor(Date.now() / 1000) + (params.expirationDays || paymentLinkExpirationDays) * 24 * 60 * 60;
-
-    return {
-      id: paymentLink.id,
-      url: paymentLink.url,
-      expiresAt,
-      metadata: paymentLink.metadata as Record<string, string>
     };
-  } catch (error: any) {
+
+    console.log('Payment link parameters:', JSON.stringify(paymentLinkParams, null, 2));
+    
+    try {
+      const paymentLink = await stripe.paymentLinks.create(paymentLinkParams);
+      console.log('Payment link created:', paymentLink.id);
+      console.log('Payment link URL:', paymentLink.url);
+
+      return {
+        id: paymentLink.id,
+        url: paymentLink.url,
+        expiresAt: Math.floor(Date.now() / 1000) + (paymentLinkExpirationDays * 24 * 60 * 60),
+        metadata: {
+          orderId: String(params.orderId),
+          customerEmail: params.customerEmail
+        }
+      };
+    } catch (stripeError: any) {
+      console.error('\n=== STRIPE PAYMENT LINK CREATION FAILED ===');
+      console.error('Stripe Error:', {
+        type: stripeError.type,
+        code: stripeError.code,
+        message: stripeError.message,
+        raw: stripeError.raw
+      });
+      throw stripeError;
+    }
+  } catch (error) {
+    console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
+    console.error('Error details:', error);
     logger.error('Failed to generate payment link', {
       correlationId,
       orderId: String(params.orderId),
       context: 'generatePaymentLink',
-      error: error.message || 'Unknown error'
+      error
     });
-
-    throw new Error(`Failed to generate payment link: ${error.message}`);
+    throw error;
   }
 }
 

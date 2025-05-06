@@ -8,12 +8,14 @@ import { syncCustomerWithAuth0 } from './services/customerAuthService.js';
 import { isDatabaseHealthy } from './database.js';
 import * as logger from './utils/logger.js';
 import { addToQueue, getQueueStats } from './services/orderQueueService.js';
+import { temporaryOrderService } from './services/temporaryOrderService.js';
+import { generateOrderPaymentLink } from './services/orderPaymentLinkService.js';
 import adminRoutes from './routes/admin.js';
 import webhookRoutes from './routes/webhooks.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 
 // Create a router for our API routes
-const router = Router();
+const router: Router = Router();
 
 // Mount admin routes
 router.use('/admin', adminRoutes);
@@ -207,22 +209,110 @@ router.post('/submit-order', async (req: Request, res: Response) => {
       }
     });
     
-    // Add the order to the processing queue instead of processing directly
-    const queueId = await addToQueue(orderData, auth0User);
+    // NEW FLOW: Store the order in temporary storage first
+    // Create order object for temporary storage
+    const tempOrderData = {
+      customerName: orderData.customerName,
+      customerEmail: orderData.customerEmail || '',
+      restaurantId: orderData.restaurantId || 'default-restaurant',
+      restaurantName: orderData.restaurantName || 'Ritt Drive-Thru',
+      items: orderData.items.map((item: any) => ({
+        id: item.id || `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity || 1,
+        options: item.options || []
+      })),
+      subtotal: orderData.subtotal || orderData.items.reduce((sum: number, item: any) => sum + (item.price * (item.quantity || 1)), 0),
+      tax: orderData.tax || 0,
+      total: orderData.total || orderData.items.reduce((sum: number, item: any) => sum + (item.price * (item.quantity || 1)), 0) + (orderData.tax || 0),
+      orderNumber: orderData.orderNumber
+    };
     
-    logger.info('Order added to processing queue', {
+    // Store order in temporary storage
+    logger.info('Storing order in temporary storage', {
       correlationId,
-      orderNumber: String(orderData.orderNumber),
       context: 'submitOrder',
-      data: { queueId }
+      data: {
+        customerName: tempOrderData.customerName,
+        itemCount: tempOrderData.items.length,
+        total: tempOrderData.total
+      }
     });
     
-    // Return immediate success response
-    res.status(202).json({
+    const tempOrder = temporaryOrderService.storeOrder(tempOrderData);
+    
+    logger.info('Order stored in temporary storage', {
+      correlationId,
+      context: 'submitOrder',
+      data: {
+        tempOrderId: tempOrder.id,
+        expiresAt: new Date(tempOrder.expiresAt).toISOString()
+      }
+    });
+    
+    // Generate payment link if customer email is provided
+    let paymentLinkUrl = null;
+    
+    if (tempOrderData.customerEmail) {
+      try {
+        logger.info('Generating payment link', {
+          correlationId,
+          context: 'submitOrder',
+          data: {
+            tempOrderId: tempOrder.id,
+            customerEmail: tempOrderData.customerEmail
+          }
+        });
+        
+        // Generate payment link using the temporary order
+        const orderWithPayment = await generateOrderPaymentLink({
+          orderId: tempOrder.id,
+          customerEmail: tempOrderData.customerEmail,
+          customerName: tempOrderData.customerName,
+          description: `Order from ${tempOrderData.restaurantName}`,
+          expirationHours: 48
+        });
+        
+        // Extract payment link URL
+        paymentLinkUrl = orderWithPayment.metadata?.paymentLink?.url || null;
+        
+        logger.info('Payment link generated', {
+          correlationId,
+          context: 'submitOrder',
+          data: {
+            tempOrderId: tempOrder.id,
+            hasPaymentLink: !!paymentLinkUrl
+          }
+        });
+      } catch (error) {
+        logger.error('Failed to generate payment link', {
+          correlationId,
+          context: 'submitOrder',
+          error,
+          data: {
+            tempOrderId: tempOrder.id,
+            customerEmail: tempOrderData.customerEmail
+          }
+        });
+      }
+    } else {
+      logger.info('No customer email provided, skipping payment link generation', {
+        correlationId,
+        context: 'submitOrder',
+        data: {
+          tempOrderId: tempOrder.id
+        }
+      });
+    }
+    
+    // Return success response
+    res.status(200).json({
       success: true,
-      message: 'Order accepted for processing',
+      message: 'Order received successfully',
+      orderId: tempOrder.id,
       orderNumber: orderData.orderNumber,
-      queueId: queueId
+      paymentLink: paymentLinkUrl
     });
   } catch (error: any) {
     logger.error('Error submitting order', {

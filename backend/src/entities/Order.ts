@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, OneToOne, JoinColumn } from "typeorm";
-import { Customer } from "./Customer.js";
-// Import types only for type checking, not for runtime
+// Use type imports to avoid circular dependencies
+import type { Customer } from "./Customer.js";
 import type { Restaurant } from "./Restaurant.js";
 import type { OrderItem } from "./OrderItem.js";
 
@@ -71,7 +71,9 @@ export class Order {
   restaurant_id: number;
 
   // Relationships
-  @ManyToOne(() => Customer, customer => customer.orders)
+  // Use string reference to avoid circular dependency
+  @ManyToOne('Customer', 'orders')
+  @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
   // Use string reference to avoid circular dependency

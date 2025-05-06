@@ -704,20 +704,38 @@ export default defineAgent({
                     name: conversationState.auth0User.name
                   }) : 'Not available');
                 
+                const orderData = {
+                  items: itemsWithDetails
+                };
+
+                const customerInfo = {
+                  name: customerName,
+                  email: effectiveEmail,
+                  phone: undefined
+                };
+
+                console.log('\n=== STARTING ORDER PLACEMENT ===');
+                console.log('Order Data:', JSON.stringify(orderData, null, 2));
+                console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
+                console.log('Restaurant:', JSON.stringify({
+                  id: restaurantId,
+                  name: coffeeShop.coffee_shop_name
+                }, null, 2));
+
                 const order = await placeOrder(
-                  restaurantId, 
-                  customerName, 
-                  itemsWithDetails, 
-                  effectiveEmail, // Use the effective email that includes Auth0 email if available
-                  undefined, 
-                  conversationState.auth0User // Use Auth0 user data from conversation state
+                  orderData,
+                  customerInfo,
+                  restaurantId,
+                  coffeeShop.coffee_shop_name
                 );
                 
+                console.log('\n=== ORDER PLACEMENT RESULT ===');
                 console.log('Order placed successfully:', JSON.stringify({
                   orderNumber: order.orderNumber,
                   total: order.orderTotal,
-                  dbOrderId: order.dbOrderId
-                }));
+                  dbOrderId: order.dbOrderId,
+                  paymentLink: order.paymentLink
+                }, null, 2));
                 
                 // Update the order with restaurant name
                 order.restaurantName = coffeeShop.coffee_shop_name;
@@ -727,17 +745,20 @@ export default defineAgent({
                   orderNumber,
                   restaurantId,
                   restaurantName: coffeeShop.coffee_shop_name,
-                  customerName: customerName, // customerName is now required
-                  customerEmail: customerEmail,
+                  customerName: customerName,
+                  customerEmail: effectiveEmail,
                   items: itemsWithDetails,
                   subtotal: subtotal,
                   stateTax: stateTax,
-                  processingFee: processingFee, // Hidden from customer
+                  processingFee: processingFee,
                   orderTotal: finalTotal,
                   timestamp: new Date().toISOString(),
                   estimatedTime,
                   status: 'confirmed'
                 };
+                
+                console.log('\n=== ORDER DETAILS ===');
+                console.log('Order Details:', JSON.stringify(orderDetails, null, 2));
                 
                 // Store the order in conversation state
                 conversationState.orderDetails = orderDetails;
@@ -748,7 +769,8 @@ export default defineAgent({
                 
                 // Return a message confirming the order
                 const confirmationMessage = `Okay, your order #${orderDetails.orderNumber} is confirmed for a total of $${orderDetails.orderTotal.toFixed(2)}. Your order will be ready for pickup at the window. Thank you for choosing us!`;
-                console.log('Order confirmed, returning confirmation message to LLM:', confirmationMessage);
+                console.log('\n=== ORDER CONFIRMATION MESSAGE ===');
+                console.log('Confirmation Message:', confirmationMessage);
                 return confirmationMessage;
                 
               } catch (orderError) {

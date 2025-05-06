@@ -3,8 +3,7 @@
  * Handles incoming webhook events from Stripe and SendGrid
  */
 
-import express from 'express';
-import { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { verifyWebhookSignature, updateOrderPaymentStatus } from '../services/paymentService.js';
 import { PaymentStatus } from '../entities/Order.js';
 import * as logger from '../utils/logger.js';
@@ -114,7 +113,25 @@ router.post('/stripe', rawBodyParser, async (req: Request, res: Response) => {
             // Send payment receipt email to customer if email is available
             if (customerEmail) {
               try {
-                const emailResult = await sendPaymentReceiptEmail(updatedOrder, session.id);
+                // Convert Order to TemporaryOrder format for email sending
+                const orderForEmail = {
+                  id: updatedOrder.id.toString(),
+                  customerName: session.customer_details?.name || 'Customer',
+                  customerEmail: session.customer_email || session.metadata?.customerEmail || '',
+                  restaurantId: session.metadata?.restaurantId || '',
+                  restaurantName: session.metadata?.restaurantName || 'Restaurant',
+                  // Use empty array for items since Order doesn't have items property
+                  items: [],
+                  subtotal: updatedOrder.subtotal,
+                  tax: updatedOrder.tax,
+                  total: updatedOrder.total,
+                  createdAt: updatedOrder.created_at?.getTime() || Date.now(),
+                  // Add required expiresAt property
+                  expiresAt: Date.now() + (48 * 60 * 60 * 1000), // 48 hours from now
+                  metadata: {}
+                };
+                
+                const emailResult = await sendPaymentReceiptEmail(orderForEmail, session.id);
                 
                 if (emailResult.success) {
                   logger.info('Payment receipt email sent successfully', {
@@ -363,7 +380,7 @@ router.post('/stripe', rawBodyParser, async (req: Request, res: Response) => {
  * Receives and processes email event webhooks from SendGrid
  * Documentation: https://docs.sendgrid.com/for-developers/tracking-events/event
  */
-router.post('/sendgrid', express.json(), async (req: Request, res: Response) => {
+router.post('/sendgrid', express.json(), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   // Create a correlation ID for tracking this webhook event
   const correlationId = logger.createCorrelationId();
   
@@ -377,7 +394,8 @@ router.post('/sendgrid', express.json(), async (req: Request, res: Response) => 
         context: 'webhooks.sendgrid',
         data: { body: typeof req.body }
       });
-      return res.status(400).send('Invalid event payload');
+      res.status(400).send('Invalid event payload');
+      return;
     }
     
     logger.info(`Processing ${events.length} SendGrid events`, {
@@ -470,16 +488,15 @@ router.post('/sendgrid', express.json(), async (req: Request, res: Response) => 
       }
     }
     
-    // Return a 200 response to acknowledge receipt of the events
-    return res.status(200).send({ received: true });
+    // Send response
+    res.status(200).json({ success: true });
   } catch (error) {
     logger.error('Error processing SendGrid webhook', {
       correlationId,
-      context: 'webhooks.sendgrid',
       error
     });
     
-    return res.status(500).send('Internal server error');
+    res.status(500).json({ error: 'Internal server error' });
   } finally {
     // Remove the correlation ID from active tracking
     logger.removeCorrelationId(correlationId);

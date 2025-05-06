@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc && cp -r menu_data dist/",
+    "build": "tsc && cp -r menu_data dist/ && cp -r src/templates dist/",
     "lint": "eslint -f unix \"**/*.ts\"",
     "test": "jest",
     "typeorm": "typeorm-ts-node-esm",
