@@ -20,9 +20,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { OrderData, storePendingOrder } from "@/utils/orderStorage";
 import type { ConnectionDetails } from "./api/connection-details/route";
-import { CartIcon } from "@/components/CartIcon";
-import { CartModal } from "@/components/CartModal";
-import { useCart } from "@/hooks/useCart";
 
 export default function Page() {
   const [room] = useState(new Room());
@@ -160,8 +157,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
   const [shouldPromptAuth, setShouldPromptAuth] = useState(false);
   const [currentOrderData, setCurrentOrderData] = useState<OrderData | null>(null);
   
-  // Add cart hook
-  const { isOpen, orders, openCart, closeCart } = useCart(user?.email || null);
+  // Cart functionality removed
   
   // Update transcript based on messages from the voice assistant
   useEffect(() => {
@@ -345,18 +341,12 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
         <span className="text-sm text-gray-300 -mt-1">Drive-thru</span>
       </div>
       
-      {/* Add cart icon in top middle */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-10">
-        <CartIcon itemCount={orders.length} onClick={openCart} />
-      </div>
+      {/* Cart icon removed */}
       
       {/* Add user profile in top right */}
       <div className="fixed top-4 right-4 z-10">
         <UserProfile />
       </div>
-      
-      {/* Add cart modal */}
-      <CartModal isOpen={isOpen} onClose={closeCart} orders={orders} />
       
       <AnimatePresence>
         {agentState === "disconnected" && (

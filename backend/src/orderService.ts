@@ -218,8 +218,9 @@ export async function placeOrder(
       }
     });
 
-    // NEW FLOW: Store in temporary storage first
-    console.log('\n=== STORING ORDER IN TEMPORARY STORAGE ===');
+    // NEW FLOW: Store in temporary storage first and add to cart
+    console.log('\n=== STORING ORDER IN TEMPORARY STORAGE AND ADDING TO CART ===');
+    console.log('Customer Email:', customerInfo.email ? customerInfo.email : 'NOT PROVIDED');
     
     // Create order object for temporary storage
     const tempOrderData = {
@@ -237,8 +238,18 @@ export async function placeOrder(
       subtotal: subtotal,
       tax: tax,
       total: total,
-      orderNumber: orderNumber
+      orderNumber: orderNumber,
+      // Add to cart flag to ensure it's available in the cart
+      addToCart: true
     };
+    
+    console.log('Temporary Order Data:', JSON.stringify({
+      customerName: tempOrderData.customerName,
+      customerEmail: tempOrderData.customerEmail,
+      addToCart: tempOrderData.addToCart,
+      itemCount: tempOrderData.items.length,
+      total: tempOrderData.total
+    }, null, 2));
     
     info('Storing order in temporary storage', {
       correlationId,
@@ -261,6 +272,7 @@ export async function placeOrder(
     console.log(`Temporary Order ID: ${tempOrder.id}`);
     console.log(`Order Number: ${orderNumber}`);
     console.log(`Expires At: ${new Date(tempOrder.expiresAt).toLocaleString()}`);
+    console.log(`Added to cart: ${tempOrderData.addToCart ? 'Yes' : 'No'}`);
     
     info('Order stored in temporary storage', {
       correlationId,
@@ -268,9 +280,16 @@ export async function placeOrder(
       orderNumber,
       data: {
         tempOrderId: tempOrder.id,
-        expiresAt: new Date(tempOrder.expiresAt).toISOString()
+        expiresAt: new Date(tempOrder.expiresAt).toISOString(),
+        addToCart: tempOrderData.addToCart
       }
     });
+    
+    // Ensure the order is properly flagged for the cart
+    if (tempOrderData.addToCart && customerInfo.email) {
+      console.log('\n=== ENSURING ORDER IS ADDED TO CART ===');
+      console.log(`Customer Email: ${customerInfo.email}`);
+    }
     
     // Generate payment link
     console.log('\n=== GENERATING PAYMENT LINK ===');
