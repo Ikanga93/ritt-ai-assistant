@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="150" height="150" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="75" cy="75" r="75" fill="#3498db"/>
+  
+  <!-- Text "RITT" -->
+  <text x="75" y="85" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#ffffff">RITT</text>
+  
+  <!-- Drive-thru text -->
+  <text x="75" y="105" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#ffffff">DRIVE-THRU</text>
+  
+  <!-- Simple car icon -->
+  <path d="M30,60 L45,60 L50,50 L100,50 L105,60 L120,60 L120,80 L110,80 L110,90 L100,90 L100,80 L50,80 L50,90 L40,90 L40,80 L30,80 Z" fill="#ffffff" opacity="0.3"/>
+  
+  <!-- Wheels -->
+  <circle cx="45" cy="80" r="8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="105" cy="80" r="8" fill="#ffffff" opacity="0.3"/>
+</svg>
