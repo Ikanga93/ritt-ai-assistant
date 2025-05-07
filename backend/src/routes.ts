@@ -8,14 +8,16 @@ import { syncCustomerWithAuth0 } from './services/customerAuthService.js';
 import { isDatabaseHealthy } from './database.js';
 import * as logger from './utils/logger.js';
 import { addToQueue, getQueueStats } from './services/orderQueueService.js';
-import { temporaryOrderService } from './services/temporaryOrderService.js';
+import { temporaryOrderService, TemporaryOrder } from './services/temporaryOrderService.js';
 import { generateOrderPaymentLink } from './services/orderPaymentLinkService.js';
 import adminRoutes from './routes/admin.js';
 import webhookRoutes from './routes/webhooks.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import cartRoutes from './routes/cart.js';
+import express from 'express';
 
 // Create a router for our API routes
-const router: Router = Router();
+const router: Router = express.Router();
 
 // Mount admin routes
 router.use('/admin', adminRoutes);
@@ -25,6 +27,9 @@ router.use('/webhooks', webhookRoutes);
 
 // Mount payment routes
 router.use('/payments', paymentRoutes);
+
+// Mount cart routes
+router.use('/cart', cartRoutes);
 
 /**
  * Health check endpoint to monitor system status
@@ -377,6 +382,18 @@ router.post('/sync-user', async (req: Request, res: Response) => {
     });
     return;
   }
+});
+
+// Error handling middleware
+router.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+  
+  logger.error('Unhandled error in routes', {
+    context: 'routes',
+    error: errorMessage
+  });
+  
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 export default router;
