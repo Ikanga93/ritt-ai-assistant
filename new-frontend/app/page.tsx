@@ -388,18 +388,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
         </div>
       )}
       <div className="fixed bottom-0 w-full px-4 py-2">
-        <ControlBar 
-          onCheckout={() => {
-            // When user tries to checkout, check authentication
-            if (!user && !isLoading) {
-              setShowAuthModal(true);
-            } else {
-              // Process order with authenticated user
-              handleOrderSubmission(user);
-              setOrderConfirmed(false); // Reset after submission
-            }
-          }} 
-        />
+        <ControlBar />
       </div>
       
       {/* Add Auth Modal */}
@@ -454,11 +443,7 @@ async function handleOrderSubmission(user: any) {
   }
 }
 
-interface ControlBarProps {
-  onCheckout?: () => void;
-}
-
-function ControlBar({ onCheckout }: ControlBarProps) {
+function ControlBar() {
   /**
    * Use Krisp background noise reduction when available.
    * Note: This is only available on Scale plan, see {@link https://livekit.io/pricing | LiveKit Pricing} for more details.
@@ -515,15 +500,7 @@ function ControlBar({ onCheckout }: ControlBarProps) {
               options={{ minHeight: 12 }}
             />
             <div className="flex items-center">
-              {/* Add confirmation and checkout buttons */}
-              {onCheckout && (
-                <button
-                  onClick={onCheckout}
-                  className="mr-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-                >
-                  Complete Order
-                </button>
-              )}
+              {/* Control buttons */}
               <VoiceAssistantControlBar controls={{ leave: false }} />
               <DisconnectButton>
                 <CloseIcon />
