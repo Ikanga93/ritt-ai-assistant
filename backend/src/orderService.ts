@@ -148,43 +148,31 @@ export async function placeOrder(
     }
 
     // Calculate totals
-    info('Calculating order totals', { 
-      correlationId, 
-      context: 'orderService',
-      data: {
-        items: orderData.items.map(item => ({
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity
-        }))
-      }
-    });
-    const subtotal = orderData.items.reduce((sum: number, item: OrderItem) => {
-      const price = item.price ?? 0;
-      const quantity = item.quantity ?? 1;
-      return sum + (price * quantity);
-    }, 0);
-    const tax = subtotal * TAX_RATE;
-    const processingFee = (subtotal * PROCESSING_FEE_RATE) + PROCESSING_FEE_FIXED;
-    const total = subtotal + tax + processingFee;
+    let subtotal = 0;
+    for (const item of orderData.items) {
+      subtotal += item.price * item.quantity;
+    }
 
-    info('Order totals calculated', {
-      correlationId,
-      context: 'orderService',
-      data: {
-        subtotal: subtotal.toFixed(2),
-        tax: tax.toFixed(2),
-        processingFee: processingFee.toFixed(2),
-        total: total.toFixed(2)
-      }
-    });
+    // Calculate tax
+    const tax = subtotal * TAX_RATE;
+
+    // Calculate processing fee
+    const processingFee = subtotal * PROCESSING_FEE_RATE + PROCESSING_FEE_FIXED;
+
+    // Calculate total
+    const total = subtotal + tax;
 
     // Generate order number
-    info('Generating order number', { correlationId, context: 'orderService' });
     const orderNumber = generateOrderNumber();
 
-    // Create order object
-    const order: Order = {
+    console.log('\n=== ORDER DETAILS ===');
+    console.log(`Order Number: ${orderNumber}`);
+    console.log(`Subtotal: $${subtotal.toFixed(2)}`);
+    console.log(`Tax (${(TAX_RATE * 100).toFixed(2)}%): $${tax.toFixed(2)}`);
+    console.log(`Total: $${total.toFixed(2)}`);
+
+    // Create order details object
+    const orderDetails: OrderDetails = {
       orderNumber,
       restaurantId,
       restaurantName,
@@ -196,38 +184,19 @@ export async function placeOrder(
       tax,
       processingFee,
       total,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      stateTax: tax,
-      orderTotal: total,
       specialInstructions: ''
     };
 
-    info('Saving order to database', { 
-      correlationId, 
-      context: 'orderService',
-      orderNumber,
-      data: { 
-        restaurantId,
-        restaurantName,
-        customerName: customerInfo.name,
-        customerEmail: customerInfo.email,
-        itemCount: orderData.items.length,
-        total: total.toFixed(2)
-      }
-    });
-
-    // NEW FLOW: Store in temporary storage first and add to cart
-    console.log('\n=== STORING ORDER IN TEMPORARY STORAGE AND ADDING TO CART ===');
+    // Store in temporary storage
+    console.log('\n=== STORING ORDER IN TEMPORARY STORAGE ===');
     console.log('Customer Email:', customerInfo.email ? customerInfo.email : 'NOT PROVIDED');
     
     // Create order object for temporary storage
     const tempOrderData = {
       customerName: customerInfo.name,
       customerEmail: customerInfo.email || '',
-      restaurantId: restaurantId,
-      restaurantName: restaurantName,
+      restaurantId,
+      restaurantName,
       items: orderData.items.map(item => ({
         id: item.id || `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         name: item.name,
@@ -235,18 +204,15 @@ export async function placeOrder(
         quantity: item.quantity,
         options: item.options || []
       })),
-      subtotal: subtotal,
-      tax: tax,
-      total: total,
-      orderNumber: orderNumber,
-      // Add to cart flag to ensure it's available in the cart
-      addToCart: true
+      subtotal,
+      tax,
+      total,
+      orderNumber
     };
-    
+
     console.log('Temporary Order Data:', JSON.stringify({
       customerName: tempOrderData.customerName,
       customerEmail: tempOrderData.customerEmail,
-      addToCart: tempOrderData.addToCart,
       itemCount: tempOrderData.items.length,
       total: tempOrderData.total
     }, null, 2));
@@ -261,43 +227,36 @@ export async function placeOrder(
         total: tempOrderData.total
       }
     });
-    
+
     // Import the temporary order service
     const { temporaryOrderService } = await import('./services/temporaryOrderService.js');
     
     // Store the order in temporary storage
     const tempOrder = temporaryOrderService.storeOrder(tempOrderData);
-    
-    console.log('\n=== ORDER STORED IN TEMPORARY STORAGE ===');
     console.log(`Temporary Order ID: ${tempOrder.id}`);
     console.log(`Order Number: ${orderNumber}`);
     console.log(`Expires At: ${new Date(tempOrder.expiresAt).toLocaleString()}`);
-    console.log(`Added to cart: ${tempOrderData.addToCart ? 'Yes' : 'No'}`);
+    console.log('Order stored in temporary storage');
     
-    info('Order stored in temporary storage', {
+    info('Temporary order created', {
       correlationId,
       context: 'orderService',
       orderNumber,
       data: {
         tempOrderId: tempOrder.id,
-        expiresAt: new Date(tempOrder.expiresAt).toISOString(),
-        addToCart: tempOrderData.addToCart
+        expiresAt: new Date(tempOrder.expiresAt).toISOString()
       }
     });
-    
-    // Ensure the order is properly flagged for the cart
-    if (tempOrderData.addToCart && customerInfo.email) {
-      console.log('\n=== ENSURING ORDER IS ADDED TO CART ===');
-      console.log(`Customer Email: ${customerInfo.email}`);
-    }
-    
-    // Generate payment link
+
+    // Generate payment link for all orders with customer emails
     console.log('\n=== GENERATING PAYMENT LINK ===');
     
     let paymentLinkResponse = null;
-    let savedOrder = null;
     
     if (customerInfo.email) {
+      console.log('\n=== ORDER HAS CUSTOMER EMAIL, GENERATING PAYMENT LINK ===');
+      console.log(`Customer Email: ${customerInfo.email}`);
+      
       try {
         console.log('Payment Link Parameters:', {
           orderId: tempOrder.id,
@@ -327,6 +286,12 @@ export async function placeOrder(
           expirationHours: 48
         });
         
+        console.log('Order with payment:', JSON.stringify({
+          id: orderWithPayment.id,
+          paymentLink: orderWithPayment.metadata?.paymentLink?.url,
+          paymentStatus: orderWithPayment.metadata?.paymentStatus
+        }, null, 2));
+        
         // Extract payment link information
         paymentLinkResponse = orderWithPayment.metadata?.paymentLink || null;
       } catch (error) {
@@ -340,15 +305,6 @@ export async function placeOrder(
           data: { tempOrderId: tempOrder.id }
         });
       }
-    } else {
-      console.log('\n=== SKIPPING PAYMENT LINK GENERATION ===');
-      console.log('No customer email provided');
-      info('No customer email provided, skipping payment link generation', {
-        correlationId,
-        context: 'orderService',
-        orderNumber,
-        data: { tempOrderId: tempOrder.id }
-      });
     }
 
     if (!paymentLinkResponse) {
@@ -364,7 +320,7 @@ export async function placeOrder(
       console.log('\n=== PAYMENT LINK GENERATED SUCCESSFULLY ===');
       console.log(`Payment Link ID: ${paymentLinkResponse.id}`);
       console.log(`Payment Link URL: ${paymentLinkResponse.url}`);
-      console.log(`Payment Link Expires At: ${new Date(paymentLinkResponse.expiresAt * 1000).toISOString()}`);
+      console.log(`Payment Link Expires At: ${new Date(paymentLinkResponse.expiresAt).toISOString()}`);
       info('Payment link generated successfully', {
         correlationId,
         context: 'orderService',
@@ -373,7 +329,7 @@ export async function placeOrder(
           tempOrderId: tempOrder.id,
           paymentLinkId: paymentLinkResponse.id,
           paymentLinkUrl: paymentLinkResponse.url,
-          expiresAt: new Date(paymentLinkResponse.expiresAt * 1000).toISOString()
+          expiresAt: new Date(paymentLinkResponse.expiresAt).toISOString()
         }
       });
     }

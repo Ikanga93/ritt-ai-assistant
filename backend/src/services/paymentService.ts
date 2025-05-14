@@ -104,6 +104,7 @@ export interface PaymentLinkRequest {
   description?: string;
   metadata?: Record<string, string>;
   expirationDays?: number;
+  tempOrderId: string;
 }
 
 /**
@@ -204,15 +205,13 @@ export async function generatePaymentLink(
       ],
       metadata: {
         orderId: String(params.orderId),
+        orderNumber: params.tempOrderId, // Use tempOrderId as orderNumber
         customerEmail: params.customerEmail,
         customerName: params.customerName || ''
       },
-      after_completion: {
-        type: 'redirect',
-        redirect: {
-          url: `${frontendUrl}/order-confirmation?orderId=${params.orderId}`
-        }
-      }
+      // Customer email is stored in metadata instead of using customer_email parameter
+      // which is not supported by the Stripe Payment Links API
+      // Removed custom redirect to use Stripe's built-in confirmation page
     };
 
     console.log('Payment link parameters:', JSON.stringify(paymentLinkParams, null, 2));
@@ -228,6 +227,7 @@ export async function generatePaymentLink(
         expiresAt: Math.floor(Date.now() / 1000) + (paymentLinkExpirationDays * 24 * 60 * 60),
         metadata: {
           orderId: String(params.orderId),
+          tempOrderId: params.tempOrderId, // Use the existing temporary order ID
           customerEmail: params.customerEmail
         }
       };
@@ -333,12 +333,12 @@ export async function updateOrderWithPaymentLink(
 
 /**
  * Update order payment status based on webhook event
- * @param paymentLinkId The ID of the payment link
+ * @param orderNumber The order number
  * @param newStatus The new payment status
  * @returns {Promise<Order | null>} The updated order or null if not found
  */
 export async function updateOrderPaymentStatus(
-  paymentLinkId: string,
+  orderNumber: string,
   newStatus: PaymentStatus,
   paidAt?: Date
 ): Promise<Order | null> {
@@ -349,7 +349,7 @@ export async function updateOrderPaymentStatus(
       correlationId,
       context: 'paymentService.updateOrderPaymentStatus',
       data: {
-        paymentLinkId,
+        orderNumber,
         newStatus
       }
     });
@@ -357,16 +357,16 @@ export async function updateOrderPaymentStatus(
     // Get the order repository
     const orderRepository = AppDataSource.getRepository(Order);
     
-    // Find the order by payment link ID
+    // Find the order by order number
     const order = await orderRepository.findOne({
-      where: { payment_link_id: paymentLinkId }
+      where: { order_number: orderNumber }
     });
     
     if (!order) {
-      logger.warn('No order found with payment link ID', {
+      logger.warn('No order found with order number', {
         correlationId,
         context: 'paymentService.updateOrderPaymentStatus',
-        data: { paymentLinkId }
+        data: { orderNumber }
       });
       return null;
     }
@@ -387,7 +387,7 @@ export async function updateOrderPaymentStatus(
       context: 'paymentService.updateOrderPaymentStatus',
       data: {
         orderId: updatedOrder.id,
-        paymentLinkId,
+        orderNumber,
         newStatus,
         paidAt: updatedOrder.paid_at
       }
@@ -399,7 +399,7 @@ export async function updateOrderPaymentStatus(
       correlationId,
       context: 'paymentService.updateOrderPaymentStatus',
       error,
-      data: { paymentLinkId, newStatus }
+      data: { orderNumber, newStatus }
     });
     throw error;
   } finally {

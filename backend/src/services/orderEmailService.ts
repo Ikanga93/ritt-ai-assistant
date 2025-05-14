@@ -233,3 +233,73 @@ export async function sendPaymentReceiptEmail(
     };
   }
 }
+
+/**
+ * Send an order notification to a restaurant's printer via Epson Connect
+ * @param order The order details
+ * @param printerEmail The restaurant's Epson printer email address
+ * @returns {Promise<EmailResult>} The result of the email sending operation
+ */
+export async function sendOrderToPrinter(
+  order: TemporaryOrder,
+  printerEmail: string
+): Promise<EmailResult> {
+  const correlationId = logger.createCorrelationId(
+    order.id,
+    printerEmail
+  );
+  
+  try {
+    logger.info('Sending order to restaurant printer', {
+      correlationId,
+      context: 'orderEmailService.sendOrderToPrinter',
+      data: {
+        orderId: order.id,
+        restaurantName: order.restaurantName,
+        printerEmail
+      }
+    });
+    
+    // Format the current date and time
+    const orderDate = new Date().toLocaleString();
+    
+    // Send the email using the generic sendEmail function
+    return await sendEmail({
+      to: printerEmail,
+      subject: `ORDER #${order.orderNumber || order.id}`,
+      templateName: 'printer-receipt',
+      templateData: {
+        order,
+        orderId: order.id,
+        orderNumber: order.orderNumber || order.id,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        items: order.items,
+        total: order.total.toFixed(2),
+        tax: order.tax.toFixed(2),
+        subtotal: order.subtotal.toFixed(2),
+        orderDate: orderDate,
+        paidDate: orderDate,
+        restaurantName: order.restaurantName,
+        isPaid: true,
+        receiptType: 'PAID ORDER'
+      }
+    });
+  } catch (error: any) {
+    logger.error('Failed to send order to restaurant printer', {
+      correlationId,
+      context: 'orderEmailService.sendOrderToPrinter',
+      error: error.message,
+      data: {
+        orderId: order.id,
+        printerEmail
+      }
+    });
+    
+    return {
+      success: false,
+      error,
+      timestamp: Date.now()
+    };
+  }
+}

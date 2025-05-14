@@ -13,13 +13,13 @@ import cors from 'cors';
 import apiRoutes from './routes.js';
 import * as logger from './utils/logger.js';
 import { startOrderProcessor, stopOrderProcessor } from './workers/orderProcessor.js';
-
+import authRoutes from './routes/auth.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
 // Create an Express app
 const app = express();
 
 // Add middleware
-app.use(express.json());
 app.use(cors());
 
 // Initialize database before registering routes
@@ -39,8 +39,21 @@ initializeDatabase().then(() => {
 // Use PORT environment variable provided by Render or default to 8081
 const port = process.env.PORT || 8081;
 
+// Register Stripe webhook endpoint at root path for ngrok
+// This must be before any other middleware that parses the body
+app.post('/', express.raw({ type: 'application/json' }), async (req, res, next) => {
+  // Forward the raw request to the payment webhook handler
+  req.url = '/api/payments/webhook';
+  paymentRoutes(req, res, next);
+});
+
+// Add JSON body parser for all other routes
+app.use(express.json());
+
 // Register API routes
 app.use('/api', apiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Start the Express server
 const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {

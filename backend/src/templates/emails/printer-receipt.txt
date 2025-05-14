@@ -1,0 +1,23 @@
+==================================
+{{restaurantName}}
+ORDER #{{orderNumber}}
+{{receiptType}}
+==================================
+Date: {{orderDate}}
+
+CUSTOMER INFO:
+Name: {{customerName}}
+Email: {{customerEmail}}
+
+ITEMS:
+{{#each items}}
+{{quantity}}x {{name}} - ${{price}}
+{{/each}}
+
+----------------------------------
+Subtotal: ${{subtotal}}
+Tax: ${{tax}}
+TOTAL: ${{total}}
+==================================
+PAID ORDER - READY TO PREPARE
+==================================

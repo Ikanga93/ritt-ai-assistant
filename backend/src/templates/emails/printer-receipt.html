@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Order Receipt</title>
+  <style>
+    body {
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+    }
+    .receipt {
+      width: 300px;
+      margin: 0 auto;
+    }
+    .header, .footer {
+      text-align: center;
+      font-weight: bold;
+      border-top: 1px dashed #000;
+      border-bottom: 1px dashed #000;
+      padding: 5px 0;
+      margin: 10px 0;
+    }
+    .divider {
+      border-top: 1px dashed #000;
+      margin: 10px 0;
+    }
+    .bold {
+      font-weight: bold;
+    }
+    .center {
+      text-align: center;
+    }
+    .right {
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="header">
+      <div>{{restaurantName}}</div>
+      <div>ORDER #{{orderNumber}}</div>
+      <div>{{receiptType}}</div>
+    </div>
+    
+    <div>Date: {{orderDate}}</div>
+    
+    <div class="bold">CUSTOMER INFO:</div>
+    <div>Name: {{customerName}}</div>
+    <div>Email: {{customerEmail}}</div>
+    
+    <div class="divider"></div>
+    
+    <div class="bold">ITEMS:</div>
+    {{#each items}}
+    <div>{{quantity}}x {{name}} - ${{price}}</div>
+    {{/each}}
+    
+    <div class="divider"></div>
+    
+    <div>Subtotal: ${{subtotal}}</div>
+    <div>Tax: ${{tax}}</div>
+    <div class="bold">TOTAL: ${{total}}</div>
+    
+    <div class="footer">
+      PAID ORDER - READY TO PREPARE
+    </div>
+  </div>
+</body>
+</html>

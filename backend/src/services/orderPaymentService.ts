@@ -42,6 +42,7 @@ export async function generateOrderPaymentLink(
     // Create payment link request
     const paymentLinkRequest = {
       orderId,
+      tempOrderId: order.orderNumber,
       amount: order.total,
       customerEmail: order.customerEmail,
       customerName: order.customerName,
@@ -50,7 +51,8 @@ export async function generateOrderPaymentLink(
         orderId: String(orderId),
         orderNumber: String(order.orderNumber),
         restaurantId: order.restaurantId,
-        customerEmail: order.customerEmail || ''
+        customerEmail: order.customerEmail || '',
+        payment_link_id: order.orderNumber
       }
     };
     

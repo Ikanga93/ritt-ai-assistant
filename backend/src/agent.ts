@@ -21,6 +21,9 @@ import {
   import { apiThrottler } from './apiThrottler.js';
   import { performanceMonitor } from './performanceMonitor.js';
   
+  // Import payment routes for Stripe webhook handling
+  import paymentRoutes from './routes/paymentRoutes.js';
+  
   // Import conversation state management
   import {
     ConversationState,
@@ -963,9 +966,23 @@ export default defineAgent({
   // Use PORT environment variable provided by Render or default to 8081
   const port = process.env.PORT || 8081;
   
-  // Configure worker to listen on all interfaces (0.0.0.0) and use the PORT environment variable
+  // Create Express app for handling Stripe webhooks
+  const app = express();
+  
+  // Mount payment routes at the root path to receive Stripe webhook events
+  app.use('/', paymentRoutes);
+  
+  // Start the Express app
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`Express server with payment routes is listening on port ${port}`);
+  });
+  
+  // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT to avoid conflicts
+  const liveKitPort = parseInt(port.toString(), 10) + 1; // Use port+1 for LiveKit
   cli.runApp(new WorkerOptions({
     agent: fileURLToPath(import.meta.url),
-    port: parseInt(port.toString(), 10),
+    port: liveKitPort,
     host: '0.0.0.0'
   }));
+  
+  console.log(`LiveKit worker is listening on port ${liveKitPort}`);

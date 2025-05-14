@@ -23,7 +23,6 @@ export interface TemporaryOrder {
   expiresAt: number;
   metadata?: Record<string, any>;
   orderNumber?: string;
-  addToCart?: boolean;
 }
 
 // In-memory storage for temporary orders
@@ -156,91 +155,66 @@ export const temporaryOrderService = {
    * Stores a temporary order
    */
   storeOrder(orderData: Omit<TemporaryOrder, 'id' | 'createdAt' | 'expiresAt'>): TemporaryOrder {
-    console.log('\n=== TEMPORARY ORDER SERVICE - STORE ORDER CALLED ===');
-    console.log('Order Data:', JSON.stringify(orderData, null, 2));
-    console.log('Add To Cart Flag:', orderData.addToCart ? 'YES' : 'NO');
-    console.log('Customer Email:', orderData.customerEmail);
-    
-    const tempId = generateTempOrderId();
-    const now = Date.now();
-    
-    const tempOrder: TemporaryOrder = {
-      ...orderData,
-      id: tempId,
-      createdAt: now,
-      expiresAt: now + DEFAULT_EXPIRATION_MS
-    };
-    
-    console.log('Created Temporary Order:', JSON.stringify({
-      id: tempOrder.id,
-      customerEmail: tempOrder.customerEmail,
-      addToCart: tempOrder.addToCart,
-      itemCount: tempOrder.items.length
-    }, null, 2));
-    
-    // Store in memory
-    tempOrdersMap.set(tempId, tempOrder);
-    
-    // Save to disk immediately for this new order
     try {
-      const orderFilePath = path.join(TEMP_ORDERS_DIR, `${tempId}.json`);
-      fs.writeFileSync(orderFilePath, JSON.stringify(tempOrder), 'utf8');
+      // Generate a unique ID for the temporary order
+      const tempOrderId = generateTempOrderId();
       
-      // Update the index
+      // Set creation and expiration timestamps
+      const now = Date.now();
+      const expiresAt = now + DEFAULT_EXPIRATION_MS;
+      
+      // Create the temporary order object
+      const tempOrder: TemporaryOrder = {
+        ...orderData,
+        id: tempOrderId,
+        createdAt: now,
+        expiresAt,
+        metadata: orderData.metadata || {}
+      };
+      
+      console.log('Storing temporary order:', tempOrderId);
+      
+      // Store the order in memory
+      tempOrdersMap.set(tempOrderId, tempOrder);
+      
+      // Save to disk
+      const orderFilePath = path.join(TEMP_ORDERS_DIR, `${tempOrderId}.json`);
+      fs.writeFileSync(orderFilePath, JSON.stringify({
+        ...orderData,
+        id: tempOrderId,
+        createdAt: now,
+        expiresAt,
+        metadata: tempOrder.metadata
+      }), 'utf8');
+      
+      // Update the index file
       const orderIds = Array.from(tempOrdersMap.keys());
       fs.writeFileSync(TEMP_ORDERS_INDEX, JSON.stringify(orderIds), 'utf8');
       
-      // If this order should be added to the cart, set the necessary flags
-      if (orderData.addToCart && orderData.customerEmail) {
-        console.log('\n=== ORDER MARKED FOR CART ===');
-        console.log(`Customer Email: ${orderData.customerEmail}`);
-        console.log(`Order ID: ${tempId}`);
-        
-        // Set a flag in the metadata to indicate this order should be in the cart
-        tempOrder.metadata = tempOrder.metadata || {};
-        tempOrder.metadata.addToCart = true;
-        tempOrder.metadata.paymentStatus = 'pending';
-        
-        // Make sure the addToCart flag is explicitly set to true at the top level as well
-        tempOrder.addToCart = true;
-        
-        // Update the order in memory with the cart flag
-        tempOrdersMap.set(tempId, tempOrder);
-        
-        // Save the updated order to disk
-        fs.writeFileSync(orderFilePath, JSON.stringify(tempOrder), 'utf8');
-        
-        logger.info('Order marked for cart', {
-          context: 'temporaryOrderService',
-          data: { tempOrderId: tempId, customerEmail: orderData.customerEmail }
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to save new temporary order to disk', {
+      logger.info('Temporary order stored successfully', {
         context: 'temporaryOrderService',
-        data: { tempOrderId: tempId },
+        data: { tempOrderId }
+      });
+      
+      return tempOrder;
+    } catch (error) {
+      logger.error('Failed to store temporary order', {
+        context: 'temporaryOrderService',
         error
       });
+      throw error;
     }
-    
-    logger.info('Temporary order created', {
-      context: 'temporaryOrderService',
-      data: { tempOrderId: tempId }
-    });
-    
-    return tempOrder;
   },
   
   /**
-   * Saves an order to the database for cart retrieval
-   * This ensures orders placed through the voice assistant are immediately available in the cart
+   * Saves an order to the database
+   * This moves a temporary order to the permanent database after payment
    */
   async saveOrderToDatabase(order: TemporaryOrder): Promise<void> {
     console.log('\n=== SAVE ORDER TO DATABASE CALLED ===');
     console.log('Order:', JSON.stringify({
       id: order.id,
       customerEmail: order.customerEmail,
-      addToCart: order.addToCart,
       metadata: order.metadata,
       itemCount: order.items.length
     }, null, 2));
@@ -456,14 +430,18 @@ export const temporaryOrderService = {
     
     const orders = Array.from(tempOrdersMap.values());
     
-    const cartOrders = orders.filter(order => order.addToCart === true);
-    console.log('Orders with addToCart flag:', cartOrders.length);
+    // Log payment status information
+    const pendingPaymentOrders = orders.filter(order => order.metadata?.paymentStatus === 'pending');
+    const paidOrders = orders.filter(order => order.metadata?.paymentStatus === 'paid');
     
-    if (cartOrders.length > 0) {
-      console.log('Cart Orders:', cartOrders.map(order => ({
+    console.log('Orders with pending payment:', pendingPaymentOrders.length);
+    console.log('Orders with paid status:', paidOrders.length);
+    
+    if (pendingPaymentOrders.length > 0) {
+      console.log('Pending Payment Orders:', pendingPaymentOrders.map(order => ({
         id: order.id,
         customerEmail: order.customerEmail,
-        addToCart: order.addToCart,
+        paymentStatus: order.metadata?.paymentStatus,
         itemCount: order.items.length,
         total: order.total
       })));
