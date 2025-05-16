@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
-// Import types only for type checking, not for runtime
+// Import types only to avoid circular dependencies
 import type { Order } from "./Order.js";
 import type { MenuItem } from "./MenuItem.js";
 
@@ -24,13 +24,11 @@ export class OrderItem {
   @Column({ type: "integer" })
   menu_item_id: number;
 
-  // Relationships
-  // Use a string reference to Order to avoid circular dependency
+  // Relationships - use string references to avoid circular dependencies
   @ManyToOne('Order', 'order_items')
   @JoinColumn({ name: 'order_id' })
   order: Order;
 
-  // Use string reference to avoid circular dependency
   @ManyToOne('MenuItem', 'order_items')
   @JoinColumn({ name: 'menu_item_id' })
   menu_item: MenuItem;

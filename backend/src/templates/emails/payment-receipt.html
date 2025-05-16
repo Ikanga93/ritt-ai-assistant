@@ -131,7 +131,12 @@
           <tbody>
             {{#each items}}
             <tr>
-              <td>{{name}}</td>
+              <td>
+                {{name}}
+                {{#if specialInstructions}}
+                <div style="color: #666; font-style: italic; font-size: 0.9em; margin-top: 5px;">* {{specialInstructions}}</div>
+                {{/if}}
+              </td>
               <td>{{quantity}}</td>
               <td>${{price}}</td>
             </tr>

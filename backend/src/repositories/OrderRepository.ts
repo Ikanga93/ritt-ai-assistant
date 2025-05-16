@@ -4,6 +4,8 @@ import { OrderItem } from "../entities/OrderItem.js";
 import { BaseRepository } from "./BaseRepository.js";
 import { OrderStatus } from "../types/order.js";
 import { AppDataSource } from "../database.js";
+import { priceCalculator } from '../services/priceCalculator.js';
+import { generateOrderNumber } from '../utils/orderUtils.js';
 
 export interface CreateOrderData {
   customerId: number;
@@ -31,7 +33,7 @@ export class OrderRepository extends BaseRepository<Order> {
       order.customer_id = orderData.customerId;
       order.restaurant_id = orderData.restaurantId;
       order.status = OrderStatus.PENDING;
-      order.order_number = `ORD-${Date.now()}`;
+      order.order_number = generateOrderNumber(); // Use the imported function directly
 
       // Calculate initial totals (will be updated with actual menu item prices)
       const { subtotal, tax, processingFee, total } = await this.calculateOrderTotals(orderData.items);
@@ -180,24 +182,14 @@ export class OrderRepository extends BaseRepository<Order> {
       return total + (menuItem ? menuItem.price * item.quantity : 0);
     }, 0);
 
-    // Calculate tax (9% tax rate)
-    const taxRate = 0.09;
-    const tax = subtotal * taxRate;
-    
-    // Calculate subtotal + tax
-    const subtotalPlusTax = subtotal + tax;
-    
-    // Calculate processing fee (2.9% + $0.40) based on subtotal + tax
-    const processingFee = (subtotalPlusTax * 0.029) + 0.40;
-    
-    // Calculate total (subtotal + tax + processing fee)
-    const total = subtotal + tax + processingFee;
-    
+    // Use price calculator for consistent calculations
+    const priceBreakdown = priceCalculator.calculateOrderPrices(subtotal);
+
     return { 
-      subtotal: parseFloat(subtotal.toFixed(2)), 
-      tax: parseFloat(tax.toFixed(2)), 
-      processingFee: parseFloat(processingFee.toFixed(2)), 
-      total: parseFloat(total.toFixed(2)) 
+      subtotal: priceBreakdown.subtotal,
+      tax: priceBreakdown.tax,
+      processingFee: priceBreakdown.processingFee,
+      total: priceBreakdown.totalWithFees
     };
   }
-} 
+}

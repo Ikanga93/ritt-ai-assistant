@@ -60,7 +60,8 @@ This repository contains both the frontend and backend components of the Ritt AI
 
 2. Install dependencies:
    ```
-   
+   pnpm install
+   pnpm dev
    ```
 
 3. Start the development server:

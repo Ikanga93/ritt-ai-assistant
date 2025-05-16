@@ -1,0 +1,36 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250515-79029",
+    "restaurantId": "niros_gyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Mary",
+    "customerEmail": "ikanga93@gmail.com",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "niros_gyros_single_gyro_0",
+        "name": "Single Gyro",
+        "price": 7.99,
+        "quantity": 1,
+        "specialInstructions": ""
+      },
+      {
+        "id": "item-1747353912212-331",
+        "name": "Napkins and Silverware Set",
+        "price": 9.99,
+        "quantity": 1,
+        "specialInstructions": ""
+      }
+    ],
+    "subtotal": 17.98,
+    "stateTax": 1.4833500000000002,
+    "orderTotal": 19.463350000000002,
+    "processingFee": 0,
+    "tax": 1.4833500000000002,
+    "total": 19.463350000000002
+  },
+  "correlationId": "corr-08680fe4-5b6e-47c6-99eb-69b70931889f",
+  "failureReason": "No metadata for \"order_item\" was found.",
+  "retryCount": 0,
+  "createdAt": "2025-05-16T00:05:49.611Z"
+}

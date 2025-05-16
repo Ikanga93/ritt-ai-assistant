@@ -6,6 +6,7 @@
 import * as logger from '../utils/logger.js';
 import { sendEmail, EmailResult } from './emailService.js';
 import { TemporaryOrder } from './temporaryOrderService.js';
+import { generateReceiptNumber } from '../utils/orderUtils.js';
 
 /**
  * Send a payment link email for a temporary order
@@ -189,29 +190,33 @@ export async function sendPaymentReceiptEmail(
     const processingFeePercentage = 0.029; // 2.9%
     const processingFeeFixed = 0.40; // $0.40
     const processingFeeAmount = (order.total * processingFeePercentage);
-    const totalProcessingFee = processingFeeAmount + processingFeeFixed;
-    const totalWithFees = order.total + totalProcessingFee;
+    const totalProcessingFee = processingFeeAmount;
+    
+    // Calculate processing fee (2.9% + $0.40)
+    const processingFee = (order.total * 0.029) + 0.40;
+    
+    // Generate receipt number using the new utility function
+    const receiptNumber = generateReceiptNumber();
     
     // Send the email using the generic sendEmail function
     return await sendEmail({
       to: order.customerEmail,
-      subject: `Your Ritt Drive-Thru Order Receipt`,
+      subject: `Payment Receipt - Order #${order.orderNumber}`,
       templateName: 'payment-receipt',
       templateData: {
-        order,
-        orderId: order.id,
         customerName: order.customerName,
-        items: order.items,
-        total: order.total.toFixed(2),
-        tax: order.tax.toFixed(2),
-        subtotal: order.subtotal.toFixed(2),
-        processingFee: totalProcessingFee.toFixed(2),
-        totalWithFees: totalWithFees.toFixed(2),
-        orderDate: new Date(order.createdAt).toLocaleString(),
-        paidDate: new Date().toLocaleString(),
+        customerEmail: order.customerEmail,
         restaurantName: order.restaurantName,
+        paidDate: new Date().toLocaleString(),
         paymentId,
-        receiptNumber: `RCPT-${Date.now().toString().slice(-6)}-${order.id.slice(-4)}`
+        receiptNumber,
+        orderNumber: order.orderNumber,
+        items: order.items,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        total: order.total,
+        processingFee: parseFloat(processingFee.toFixed(2)),
+        totalWithFees: parseFloat((order.total + processingFee).toFixed(2))
       }
     });
   } catch (error: any) {
@@ -263,6 +268,13 @@ export async function sendOrderToPrinter(
     // Format the current date and time
     const orderDate = new Date().toLocaleString();
     
+    // Calculate processing fee for printer receipt
+    const processingFee = (order.total * 0.029) + 0.40;
+    const totalWithFees = order.total + processingFee;
+    
+    // Generate receipt number using the new utility function
+    const receiptNumber = generateReceiptNumber();
+    
     // Send the email using the generic sendEmail function
     return await sendEmail({
       to: printerEmail,
@@ -278,6 +290,8 @@ export async function sendOrderToPrinter(
         total: order.total.toFixed(2),
         tax: order.tax.toFixed(2),
         subtotal: order.subtotal.toFixed(2),
+        processingFee: processingFee.toFixed(2),
+        totalWithFees: totalWithFees.toFixed(2),
         orderDate: orderDate,
         paidDate: orderDate,
         restaurantName: order.restaurantName,

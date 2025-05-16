@@ -15,6 +15,7 @@ export interface TemporaryOrder {
     price: number;
     quantity: number;
     options?: any[];
+    specialInstructions?: string;
   }>;
   total: number;
   subtotal: number;

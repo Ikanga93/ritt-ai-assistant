@@ -365,8 +365,39 @@ export function verifyOrderItems(
   requestedItems: Array<{name: string; quantity: number; [key: string]: any}>,
   menuItems: FuzzyMenuItem[],
   threshold = 0.5 // Lower threshold for better matching
-): Array<{name: string; quantity: number; verified: boolean; suggestion?: string; [key: string]: any}> {
+): Array<{name: string; quantity: number; verified: boolean; isSpecialInstruction?: boolean; suggestion?: string; [key: string]: any}> {
+  // List of keywords that suggest the item is a special instruction rather than a menu item
+  const specialInstructionKeywords = [
+    'napkin', 'silverware', 'utensil', 'straw', 'condiment', 'sauce', 'ketchup', 'mustard',
+    'salt', 'pepper', 'sugar', 'cream', 'milk', 'please', 'extra', 'without', 'no ', 'add ',
+    'include', 'bring', 'need', 'want', 'put', 'give', 'provide', 'make sure', 'ensure',
+    'don\'t forget', 'remember', 'include', 'request', 'instruction', 'note', 'special'
+  ];
+
   return requestedItems.map(item => {
+    // Check if this is likely a special instruction rather than a menu item
+    const itemNameLower = item.name.toLowerCase();
+    const isLikelySpecialInstruction = specialInstructionKeywords.some(keyword => 
+      itemNameLower.includes(keyword.toLowerCase())
+    );
+
+    // If it looks like a special instruction and not in the menu, mark it as such
+    if (isLikelySpecialInstruction) {
+      const matchedItem = findMenuItemByName(item.name, menuItems, threshold + 0.2); // Higher threshold for special instructions
+      
+      if (!matchedItem) {
+        console.log(`Identified "${item.name}" as a special instruction, not a menu item`);
+        return {
+          ...item,
+          verified: false,
+          isSpecialInstruction: true,
+          price: 0, // Special instructions should not have a price
+          specialInstructions: item.name // Move the item name to special instructions
+        };
+      }
+    }
+
+    // Regular menu item verification
     const matchedItem = findMenuItemByName(item.name, menuItems, threshold);
     
     if (matchedItem) {
@@ -375,7 +406,8 @@ export function verifyOrderItems(
         name: matchedItem.name, // Use the correct name from the menu
         price: matchedItem.price || item.price,
         id: matchedItem.id || item.id,
-        verified: true
+        verified: true,
+        isSpecialInstruction: false
       };
     } else {
       // If no match found, try to find a suggestion
@@ -385,6 +417,7 @@ export function verifyOrderItems(
       return {
         ...item,
         verified: false,
+        isSpecialInstruction: false,
         suggestion: potentialMatches.length > 0 ? potentialMatches[0].match : undefined
       };
     }

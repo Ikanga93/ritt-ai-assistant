@@ -228,11 +228,11 @@ export async function saveOrderToDatabase(
           `findOrCreateMenuItem-${item.name}`
         );
         
-        const orderItem = queryRunner.manager.create('order_item', {
+        const orderItem = AppDataSource.manager.create("OrderItem", {
           order: { id: savedOrder.id },
           menu_item: { id: menuItemId },
           quantity: item.quantity,
-          price: item.price,
+          price_at_time: item.price || 0, // Use price_at_time instead of price to match the database schema
           special_instructions: item.specialInstructions || null,
           created_at: new Date(),
           updated_at: new Date()
@@ -244,7 +244,7 @@ export async function saveOrderToDatabase(
       // Save all order items
       console.log(`Saving ${orderItemsToSave.length} order items with retry logic...`);
       await executeWithRetry(
-        () => queryRunner.manager.save('order_item', orderItemsToSave),
+        () => queryRunner.manager.save('OrderItem', orderItemsToSave),
         'saveOrderItems'
       );
       console.log(`Saved ${orderItemsToSave.length} order items successfully`);
@@ -285,7 +285,10 @@ export async function saveOrderToDatabase(
         email: orderDetails.customerEmail
       });
       
-      if (orderDetails.customerEmail) {
+      // Check if the order is already paid
+      const isPaid = savedOrder.payment_status === 'PAID';
+      
+      if (orderDetails.customerEmail && !isPaid) {
         try {
           logger.info('Generating payment link for order', {
             correlationId,
@@ -294,6 +297,7 @@ export async function saveOrderToDatabase(
             context: 'saveOrderToDatabase'
           });
           
+          // Generate a payment link for the order
           paymentLinkUrl = await generateOrderPaymentLink(orderDetails, completedOrder.id);
           
           logger.info('Payment link generated successfully', {
@@ -315,12 +319,21 @@ export async function saveOrderToDatabase(
           // We'll continue without a payment link
         }
       } else {
-        logger.info('No customer email provided, skipping payment link generation', {
-          correlationId,
-          orderNumber: String(orderDetails.orderNumber),
-          orderId: String(completedOrder.id),
-          context: 'saveOrderToDatabase'
-        });
+        if (isPaid) {
+          logger.info('Order is already paid, skipping payment link generation', {
+            correlationId,
+            orderNumber: String(orderDetails.orderNumber),
+            orderId: String(completedOrder.id),
+            context: 'saveOrderToDatabase'
+          });
+        } else {
+          logger.info('No customer email provided, skipping payment link generation', {
+            correlationId,
+            orderNumber: String(orderDetails.orderNumber),
+            orderId: String(completedOrder.id),
+            context: 'saveOrderToDatabase'
+          });
+        }
       }
       
       logger.info('Order saved successfully', {

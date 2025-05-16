@@ -208,11 +208,17 @@ export default defineAgent({
      - Summarize the full order before finalizing
      - Double-check customer name and any customizations
   
-  11. MENU ITEMS AND COMMON CONFUSIONS:
-     - Restaurants may have specialty items with unique names - always treat these as specific menu items
-     - Pay close attention to menu items with names starting with "The" - these are individual items, not categories
-     - When a customer asks for items with names like "The [Name]", always recognize it as a specific menu item, not as a category
-     - Don't ask customers to clarify what items they want in their "The [Name]" order - these are complete menu items
+  11. MENU ITEMS AND SPECIAL INSTRUCTIONS:
+      - Restaurants may have specialty items with unique names - always treat these as specific menu items
+      - Pay close attention to menu items with names starting with "The" - these are individual items, not categories
+      - When a customer asks for items with names like "The [Name]", always recognize it as a specific menu item, not as a category
+      - Don't ask customers to clarify what items they want in their "The [Name]" order - these are complete menu items
+      - CRITICAL: Distinguish between actual menu items and special instructions
+      - Special instructions like "add napkins" or "include silverware" are NOT menu items and should NOT be charged
+      - When a customer makes a request that doesn't match any menu item, treat it as a special instruction
+      - Examples of special instructions: "include napkins", "extra sauce", "no onions", "silverware please"
+      - NEVER charge customers for special instructions - only charge for actual menu items
+      - If a customer asks for something that's clearly not a menu item, add it as a special instruction instead
   
   You are Julie, a coffee drive-thru assistant who can take orders from multiple coffee shops. Be efficient, helpful, and make the ordering process as smooth as possible without forcing customers to browse by category. IMPORTANT: ONLY mention restaurants and menu items that actually exist in the system. NEVER make up or suggest restaurants or menu items that aren't in the data provided by the API functions.`,
       });
@@ -479,6 +485,20 @@ export default defineAgent({
               const unverifiedItems = [];
               
               for (const item of verifiedItems) {
+                // Check if this is a special instruction rather than a menu item
+                if (item.isSpecialInstruction) {
+                  console.log(`Processing special instruction: "${item.name}"`);
+                  // Add as a special instruction with no price
+                  validatedItems.push({
+                    ...item,
+                    price: 0, // Special instructions should not have a price
+                    specialInstructions: item.specialInstructions || item.name,
+                    // Make sure the special instruction is properly recorded for the printer receipt
+                    name: item.name.startsWith('Special:') ? item.name : `Special: ${item.name}`
+                  });
+                  continue;
+                }
+                
                 if (item.verified) {
                   console.log(`Verified menu item: "${item.name}"`);
                   // Find the actual menu item to get its price

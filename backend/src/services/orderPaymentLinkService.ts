@@ -9,7 +9,7 @@ import { generatePaymentLink, PaymentLinkRequest, PaymentLinkResponse } from './
 
 // Import the order storage service
 import { temporaryOrderService, TemporaryOrder } from './temporaryOrderService.js';
-import { sendPaymentLinkEmail, sendOrderToPrinter } from './orderEmailService.js';
+import { sendPaymentLinkEmail, sendOrderToPrinter, sendPaymentReceiptEmail } from './orderEmailService.js';
 import { saveOrderToDatabase } from './orderDatabaseService.js';
 import { OrderDetails } from '../orderService.js';
 
@@ -122,11 +122,14 @@ export async function generateOrderPaymentLink(
       metadata.restaurantName = order.restaurantName;
     }
     
+    // Calculate total with processing fee
+    const processingFee = order.total * 0.029 + 0.40;
+    const totalWithFees = order.total + processingFee;
     // Create the payment link request
     const paymentLinkRequest: PaymentLinkRequest = {
       orderId: parseInt(order.id.split('-')[1], 10), // Use timestamp part of ID as numeric ID
       tempOrderId: order.id, // Include the full temporary order ID
-      amount: order.total * 100, // Convert to cents for Stripe
+      amount: totalWithFees, // Pass in total including processing fee
       customerEmail,
       customerName: customerName || order.customerName,
       description: description || `Order from ${order.restaurantName || 'Ritt Drive-Thru'}`,
@@ -336,7 +339,7 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        specialInstructions: item.options?.join(', ')
+        specialInstructions: item.specialInstructions || (item.options?.length ? item.options.join(', ') : undefined)
       })),
       subtotal: order.subtotal,
       stateTax: order.tax,
@@ -615,7 +618,57 @@ export async function updateOrderPaymentStatus(
         });
       }
       
-      // Step 2: After printer notification is sent (or attempted), move to database
+      // Step 2: Send payment receipt email to customer
+      try {
+        if (updatedOrder.customerEmail) {
+          logger.info('Sending payment receipt email to customer', {
+            correlationId,
+            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
+            data: {
+              orderId: updatedOrder.id,
+              customerEmail: updatedOrder.customerEmail
+            }
+          });
+          
+          const paymentId = stripePaymentIntentId || stripeSessionId || `payment-${Date.now()}`;
+          const receiptResult = await sendPaymentReceiptEmail(updatedOrder, paymentId);
+          
+          if (receiptResult.success) {
+            logger.info('Payment receipt email sent successfully', {
+              correlationId,
+              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
+              data: {
+                orderId: updatedOrder.id,
+                customerEmail: updatedOrder.customerEmail,
+                messageId: receiptResult.messageId
+              }
+            });
+          } else {
+            logger.warn('Failed to send payment receipt email', {
+              correlationId,
+              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
+              data: {
+                orderId: updatedOrder.id,
+                customerEmail: updatedOrder.customerEmail,
+                error: receiptResult.error?.message
+              }
+            });
+          }
+        }
+      } catch (emailError: any) {
+        // Log email error but don't fail the overall operation
+        logger.error('Error sending payment receipt email', {
+          correlationId,
+          context: 'orderPaymentLinkService.updateOrderPaymentStatus',
+          error: emailError.message,
+          data: {
+            orderId: updatedOrder.id,
+            customerEmail: updatedOrder.customerEmail
+          }
+        });
+      }
+      
+      // Step 3: After notifications are sent, move to database
       try {
         // Check if order has already been moved to database
         const metadata = getPaymentMetadata(updatedOrder);

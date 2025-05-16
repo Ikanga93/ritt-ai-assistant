@@ -7,6 +7,7 @@ import Stripe from 'stripe';
 import * as logger from '../utils/logger.js';
 import { AppDataSource } from '../database.js';
 import { Order, PaymentStatus } from '../entities/Order.js';
+import { priceCalculator } from './priceCalculator.js';
 
 // Initialize Stripe with API key from environment variables
 const stripeApiKey = process.env.STRIPE_SECRET_KEY || '';
@@ -170,27 +171,32 @@ export async function generatePaymentLink(
     });
     console.log('Product created:', product.id);
     
-    // Calculate processing fee (2.9% + $0.40 for online transactions)
-    const processingFeePercentage = 0.029; // 2.9%
-    const processingFeeFixed = 40; // $0.40 in cents
+    // Use price calculator to get consistent price breakdown
+    const priceBreakdown = priceCalculator.calculateOrderPrices(params.amount);
     
-    // Calculate total with processing fee (all in cents)
-    const amountWithFee = params.amount + (params.amount * processingFeePercentage) + processingFeeFixed;
+    // Convert to cents for Stripe
+    // Ensure proper decimal handling by using toFixed(2) before converting to cents
+    const totalWithFeesFixed = parseFloat(priceBreakdown.totalWithFees.toFixed(2));
+    const amountInCents = Math.round(totalWithFeesFixed * 100);
     
     console.log('Amount calculation:', {
       originalAmount: params.amount,
-      processingFee: params.amount * processingFeePercentage,
-      fixedFee: processingFeeFixed,
-      totalWithFee: amountWithFee,
-      amountInCents: Math.round(amountWithFee)
+      subtotal: priceBreakdown.subtotal,
+      tax: priceBreakdown.tax,
+      processingFee: priceBreakdown.processingFee,
+      total: priceBreakdown.total,
+      totalWithFees: priceBreakdown.totalWithFees,
+      totalWithFeesFixed,
+      amountInCents,
+      formattedAmount: `$${totalWithFeesFixed.toFixed(2)}`
     });
     
     // Create a price for the product
     console.log('Creating Stripe price...');
     const price = await stripe.prices.create({
       product: product.id,
-      unit_amount: Math.round(amountWithFee), // Already in cents
-      currency: defaultCurrency,
+      unit_amount: Math.round(params.amount * 100), // Use original amount directly
+      currency: defaultCurrency
     });
     console.log('Price created:', price.id);
     

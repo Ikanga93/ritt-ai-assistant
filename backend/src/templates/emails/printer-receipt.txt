@@ -12,11 +12,14 @@ Email: {{customerEmail}}
 ITEMS:
 {{#each items}}
 {{quantity}}x {{name}} - ${{price}}
+{{#if specialInstructions}}* SPECIAL: {{specialInstructions}}{{/if}}
 {{/each}}
 
 ----------------------------------
 Subtotal: ${{subtotal}}
 Tax: ${{tax}}
+Processing Fee: ${{processingFee}}
+Total with Fees: ${{totalWithFees}}
 TOTAL: ${{total}}
 ==================================
 PAID ORDER - READY TO PREPARE
