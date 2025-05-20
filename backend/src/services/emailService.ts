@@ -215,7 +215,7 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
     const msg = {
       to: options.to,
       from: {
-        email: process.env.FROM_EMAIL || 'gekuke1@ritt.ai',
+        email: process.env.FROM_EMAIL || 'noreply@sendgrid.net',
         name: process.env.SENDGRID_FROM_NAME || 'Ritt Drive-Thru'
       },
       subject: options.subject,

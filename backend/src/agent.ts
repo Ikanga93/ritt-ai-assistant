@@ -739,8 +739,23 @@ export default defineAgent({
                     name: conversationState.auth0User.name
                   }) : 'Not available');
                 
+                // Ensure special instructions are properly included in each item
+                const itemsWithSpecialInstructions = itemsWithDetails.map(item => {
+                  if (!item.specialInstructions && item.specialInstructions !== '') {
+                    // Check if there's a matching item in the cart with special instructions
+                    const cartItem = conversationState.cartItems.find(ci => 
+                      ci.name.toLowerCase() === item.name.toLowerCase() && ci.specialInstructions);
+                    
+                    if (cartItem && cartItem.specialInstructions) {
+                      console.log(`Found special instructions for ${item.name} in cart: ${cartItem.specialInstructions}`);
+                      return { ...item, specialInstructions: cartItem.specialInstructions };
+                    }
+                  }
+                  return item;
+                });
+                
                 const orderData = {
-                  items: itemsWithDetails
+                  items: itemsWithSpecialInstructions
                 };
 
                 const customerInfo = {

@@ -171,6 +171,14 @@ export async function placeOrder(
     console.log(`Tax (${(TAX_RATE * 100).toFixed(2)}%): $${tax.toFixed(2)}`);
     console.log(`Total: $${total.toFixed(2)}`);
 
+    // Collect special instructions from items
+    const allSpecialInstructions = orderData.items
+      .filter(item => item.specialInstructions && item.specialInstructions.trim() !== '')
+      .map(item => `${item.name}: ${item.specialInstructions}`)
+      .join('; ');
+    
+    console.log('Special instructions collected:', allSpecialInstructions);
+    
     // Create order details object
     const orderDetails: OrderDetails = {
       orderNumber,
@@ -184,7 +192,7 @@ export async function placeOrder(
       tax,
       processingFee,
       total,
-      specialInstructions: ''
+      specialInstructions: allSpecialInstructions
     };
 
     // Store in temporary storage
