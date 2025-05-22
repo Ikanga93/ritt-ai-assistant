@@ -1096,6 +1096,8 @@ export default defineAgent({
   const port = 10001; // Fixed port for webhook server
   let server;
   let isServerStarting = false;
+  let serverStartAttempts = 0;
+  const MAX_START_ATTEMPTS = 3;
 
   // Function to start the webhook server
   const startWebhookServer = () => {
@@ -1110,9 +1112,17 @@ export default defineAgent({
         return resolve(server);
       }
 
+      // Check if we've exceeded max attempts
+      if (serverStartAttempts >= MAX_START_ATTEMPTS) {
+        monitor.log('WebhookServer', 'Max server start attempts reached, using existing server');
+        return resolve(server);
+      }
+
       isServerStarting = true;
+      serverStartAttempts++;
+      
       try {
-        monitor.log('WebhookServer', 'Starting webhook server', { port });
+        monitor.log('WebhookServer', `Starting webhook server (attempt ${serverStartAttempts}/${MAX_START_ATTEMPTS})`, { port });
         
         server = app.listen(port, '0.0.0.0', () => {
           isServerStarting = false;
@@ -1126,9 +1136,14 @@ export default defineAgent({
         // Handle server errors
         server.on('error', (error) => {
           isServerStarting = false;
-          monitor.webhookServer.errorCount++;
-          monitor.error('WebhookServer', 'Server error', error);
-          reject(error);
+          if (error.code === 'EADDRINUSE') {
+            monitor.log('WebhookServer', 'Port in use, server may already be running');
+            resolve(server); // Resolve instead of reject for EADDRINUSE
+          } else {
+            monitor.webhookServer.errorCount++;
+            monitor.error('WebhookServer', 'Server error', error);
+            reject(error);
+          }
         });
       } catch (error) {
         isServerStarting = false;
