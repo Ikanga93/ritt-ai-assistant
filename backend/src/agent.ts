@@ -998,14 +998,33 @@ export default defineAgent({
     },
   });
   
-  // Use PORT environment variable provided by Render or default to 8081
-  const port = process.env.PORT || 8081;
-  
-  // Create Express app for handling Stripe webhooks
+  // Create Express app for webhook handling
   const app = express();
 
-  // Register Stripe webhook endpoint first, before any other middleware
-  app.post('/api/payments', express.raw({ type: 'application/json' }), paymentRoutes);
+  // Register Stripe webhook endpoint at root path
+  // This must be before any other middleware that parses the body
+  app.post('/', express.raw({ type: 'application/json' }), (req, res, next) => {
+    try {
+      const sig = req.headers['stripe-signature'];
+      if (!sig) {
+        res.status(400).json({ error: 'No Stripe signature found' });
+        return;
+      }
+
+      // Ensure the body is a Buffer
+      if (!Buffer.isBuffer(req.body)) {
+        res.status(400).json({ error: 'Invalid request body format' });
+        return;
+      }
+
+      // Forward the raw request to the payment webhook handler
+      req.url = '/api/payments/webhook';
+      paymentRoutes(req, res, next);
+    } catch (err) {
+      console.error('Webhook error:', err);
+      res.status(400).json({ error: 'Webhook error' });
+    }
+  });
 
   // Add JSON body parser for all other routes
   app.use(express.json());
@@ -1013,9 +1032,10 @@ export default defineAgent({
   // Mount payment routes for non-webhook endpoints
   app.use('/api/payments', paymentRoutes);
   
-  // Start the Express app
-  const server = app.listen(port, '0.0.0.0', () => {
-    console.log(`Express server with payment routes is listening on port ${port}`);
+  // Start the Express server for webhook handling
+  const port = process.env.PORT || 8081;
+  app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
+    console.log(`Webhook server is running on port ${port}`);
   });
   
   // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT to avoid conflicts
