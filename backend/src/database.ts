@@ -19,12 +19,8 @@ if (process.env.NODE_ENV !== "production") {
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  host: process.env.POSTGRES_HOST || "localhost",
-  port: parseInt(process.env.POSTGRES_PORT || "5432"),
-  username: process.env.POSTGRES_USER,
-  password: process.env.POSTGRES_PASSWORD,
-  database: process.env.POSTGRES_DB || "ritt_drive_thru",
-  schema: process.env.POSTGRES_SCHEMA || "public",
+  url: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production",
   synchronize: false, // Disable schema synchronization
   logging: process.env.NODE_ENV !== "production", // Only log in development
   entities: [Customer, Restaurant, MenuItem, Order, OrderItem, OrderQueue],
