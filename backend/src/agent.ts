@@ -1068,9 +1068,12 @@ export default defineAgent({
     });
   };
 
-  // Start the webhook server first
-  startWebhookServer()
-    .then(() => {
+  // Start both servers asynchronously
+  (async () => {
+    try {
+      // Start webhook server
+      await startWebhookServer();
+      
       // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT
       const liveKitPort = parseInt(port.toString(), 10) + 2; // Use port+2 for LiveKit to avoid conflicts
       cli.runApp(new WorkerOptions({
@@ -1080,11 +1083,11 @@ export default defineAgent({
       }));
 
       console.log(`LiveKit worker is listening on port ${liveKitPort}`);
-    })
-    .catch((error) => {
-      console.error('Failed to start webhook server:', error);
+    } catch (error) {
+      console.error('Failed to start servers:', error);
       process.exit(1);
-    });
+    }
+  })();
 
   // Handle process termination
   process.on('SIGTERM', () => {
