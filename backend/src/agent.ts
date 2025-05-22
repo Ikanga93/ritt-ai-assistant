@@ -169,7 +169,7 @@ export default defineAgent({
      - Summarize the complete order with all items, quantities, and the total price
      - Ask the customer to confirm if everything is correct
      - CRITICAL: When the customer confirms their order, you MUST IMMEDIATELY call the placeOrder function with all order details
-     - After calling placeOrder, tell them: "Thanks for confirming your order! You'll receive a payment link via the email you used to sign in. Once payment is confirmed, your order will be sent to the kitchen for preparation. Your order will be ready for pickup shortly after payment is processed."
+     - After calling placeOrder, tell them: "Thanks for confirming your order! IMPORTANT: Please check your email right away - I've sent you a payment link to complete your order. You must click the payment link in your email to process the payment. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after. Don't forget to check your email for the payment link!"
      - If they want changes, go back to the appropriate step
      - NEVER skip calling the placeOrder function when an order is confirmed
 
