@@ -1007,12 +1007,14 @@ export default defineAgent({
     try {
       const sig = req.headers['stripe-signature'];
       if (!sig) {
+        console.error('No Stripe signature found in webhook request');
         res.status(400).json({ error: 'No Stripe signature found' });
         return;
       }
 
       // Ensure the body is a Buffer
       if (!Buffer.isBuffer(req.body)) {
+        console.error('Invalid request body format - not a Buffer');
         res.status(400).json({ error: 'Invalid request body format' });
         return;
       }
@@ -1034,10 +1036,19 @@ export default defineAgent({
   
   // Start the Express server for webhook handling
   const port = process.env.PORT || 8081;
-  app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
+  const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
     console.log(`Webhook server is running on port ${port}`);
   });
-  
+
+  // Handle server errors
+  server.on('error', (error) => {
+    console.error('Webhook server error:', error);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Please choose a different port.`);
+      process.exit(1);
+    }
+  });
+
   // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT to avoid conflicts
   const liveKitPort = parseInt(port.toString(), 10) + 1; // Use port+1 for LiveKit
   cli.runApp(new WorkerOptions({
@@ -1047,3 +1058,20 @@ export default defineAgent({
   }));
   
   console.log(`LiveKit worker is listening on port ${liveKitPort}`);
+
+  // Handle process termination
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Closing webhook server...');
+    server.close(() => {
+      console.log('Webhook server closed');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received. Closing webhook server...');
+    server.close(() => {
+      console.log('Webhook server closed');
+      process.exit(0);
+    });
+  });
