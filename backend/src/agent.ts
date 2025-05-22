@@ -474,9 +474,9 @@ export default defineAgent({
                   specialInstructions: item.specialInstructions
                 });
               });
-              
+            
               console.log('Items added to cart:', conversationState.cartItems);
-              
+            
               // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
               const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);
               
@@ -998,32 +998,71 @@ export default defineAgent({
     },
   });
   
+  // Add monitoring utilities at the top of the file
+  const monitor = {
+    webhookServer: {
+      status: 'initializing',
+      port: null,
+      startTime: null,
+      lastRequest: null,
+      errorCount: 0,
+      requestCount: 0
+    },
+    liveKitWorker: {
+      status: 'initializing',
+      port: null,
+      startTime: null,
+      errorCount: 0
+    },
+    log: (component: string, message: string, data?: any) => {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [${component}] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+    },
+    error: (component: string, message: string, error?: any) => {
+      const timestamp = new Date().toISOString();
+      console.error(`[${timestamp}] [${component}] ERROR: ${message}`, error ? JSON.stringify(error, null, 2) : '');
+    }
+  };
+
   // Create Express app for webhook handling
   const app = express();
 
+  // Add request logging middleware
+  app.use((req, res, next) => {
+    monitor.webhookServer.lastRequest = new Date().toISOString();
+    monitor.webhookServer.requestCount++;
+    monitor.log('WebhookServer', `Incoming request: ${req.method} ${req.url}`);
+    next();
+  });
+
   // Register Stripe webhook endpoint at root path
-  // This must be before any other middleware that parses the body
   app.post('/', express.raw({ type: 'application/json' }), (req, res, next) => {
     try {
       const sig = req.headers['stripe-signature'];
       if (!sig) {
-        console.error('No Stripe signature found in webhook request');
+        monitor.error('WebhookServer', 'No Stripe signature found in webhook request');
         res.status(400).json({ error: 'No Stripe signature found' });
         return;
       }
 
       // Ensure the body is a Buffer
       if (!Buffer.isBuffer(req.body)) {
-        console.error('Invalid request body format - not a Buffer');
+        monitor.error('WebhookServer', 'Invalid request body format - not a Buffer');
         res.status(400).json({ error: 'Invalid request body format' });
         return;
       }
+
+      monitor.log('WebhookServer', 'Processing webhook request', {
+        type: req.headers['stripe-event-type'],
+        signature: sig.substring(0, 10) + '...'
+      });
 
       // Forward the raw request to the payment webhook handler
       req.url = '/api/payments/webhook';
       paymentRoutes(req, res, next);
     } catch (err) {
-      console.error('Webhook error:', err);
+      monitor.webhookServer.errorCount++;
+      monitor.error('WebhookServer', 'Webhook processing error', err);
       res.status(400).json({ error: 'Webhook error' });
     }
   });
@@ -1034,35 +1073,52 @@ export default defineAgent({
   // Mount payment routes for non-webhook endpoints
   app.use('/api/payments', paymentRoutes);
   
+  // Add health check endpoint
+  app.get('/health', (req, res) => {
+    const health = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      webhookServer: {
+        ...monitor.webhookServer,
+        uptime: monitor.webhookServer.startTime ? 
+          (Date.now() - new Date(monitor.webhookServer.startTime).getTime()) / 1000 : 0
+      },
+      liveKitWorker: {
+        ...monitor.liveKitWorker,
+        uptime: monitor.liveKitWorker.startTime ? 
+          (Date.now() - new Date(monitor.liveKitWorker.startTime).getTime()) / 1000 : 0
+      }
+    };
+    res.json(health);
+  });
+
   // Start the Express server for webhook handling
-  const port = process.env.PORT || 8081;
+  const port = 10001; // Fixed port for webhook server
   let server;
 
   // Function to start the webhook server
   const startWebhookServer = () => {
     return new Promise((resolve, reject) => {
       try {
-        server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
-          console.log(`Webhook server is running on port ${port}`);
+        monitor.log('WebhookServer', 'Starting webhook server', { port });
+        
+        server = app.listen(port, '0.0.0.0', () => {
+          monitor.webhookServer.status = 'running';
+          monitor.webhookServer.port = port;
+          monitor.webhookServer.startTime = new Date().toISOString();
+          monitor.log('WebhookServer', 'Server started successfully', { port });
           resolve(server);
         });
 
         // Handle server errors
         server.on('error', (error) => {
-          if (error.code === 'EADDRINUSE') {
-            console.error(`Port ${port} is already in use. Trying port ${port + 1}...`);
-            server.close();
-            // Try the next port
-            server = app.listen(parseInt(port.toString(), 10) + 1, '0.0.0.0', () => {
-              console.log(`Webhook server is running on port ${parseInt(port.toString(), 10) + 1}`);
-              resolve(server);
-            });
-          } else {
-            console.error('Webhook server error:', error);
-            reject(error);
-          }
+          monitor.webhookServer.errorCount++;
+          monitor.error('WebhookServer', 'Server error', error);
+          reject(error);
         });
       } catch (error) {
+        monitor.webhookServer.errorCount++;
+        monitor.error('WebhookServer', 'Failed to start server', error);
         reject(error);
       }
     });
@@ -1075,26 +1131,31 @@ export default defineAgent({
       await startWebhookServer();
       
       // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT
-      const liveKitPort = parseInt(port.toString(), 10) + 2; // Use port+2 for LiveKit to avoid conflicts
+      const liveKitPort = parseInt(port.toString(), 10) + 2;
+      monitor.log('LiveKitWorker', 'Starting LiveKit worker', { port: liveKitPort });
+      
       cli.runApp(new WorkerOptions({
         agent: fileURLToPath(import.meta.url),
         port: liveKitPort,
         host: '0.0.0.0'
       }));
 
-      console.log(`LiveKit worker is listening on port ${liveKitPort}`);
+      monitor.liveKitWorker.status = 'running';
+      monitor.liveKitWorker.port = liveKitPort;
+      monitor.liveKitWorker.startTime = new Date().toISOString();
+      monitor.log('LiveKitWorker', 'Worker started successfully', { port: liveKitPort });
     } catch (error) {
-      console.error('Failed to start servers:', error);
+      monitor.error('System', 'Failed to start servers', error);
       process.exit(1);
     }
   })();
 
   // Handle process termination
   process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Closing webhook server...');
+    monitor.log('System', 'SIGTERM received. Closing webhook server...');
     if (server) {
       server.close(() => {
-        console.log('Webhook server closed');
+        monitor.log('System', 'Webhook server closed');
         process.exit(0);
       });
     } else {
@@ -1103,13 +1164,27 @@ export default defineAgent({
   });
 
   process.on('SIGINT', () => {
-    console.log('SIGINT received. Closing webhook server...');
+    monitor.log('System', 'SIGINT received. Closing webhook server...');
     if (server) {
       server.close(() => {
-        console.log('Webhook server closed');
+        monitor.log('System', 'Webhook server closed');
         process.exit(0);
       });
     } else {
       process.exit(0);
     }
+  });
+
+  // Add uncaught exception handler
+  process.on('uncaughtException', (error) => {
+    monitor.error('System', 'Uncaught exception', error);
+    // Don't exit immediately, allow the error to be logged
+    setTimeout(() => {
+      process.exit(1);
+    }, 1000);
+  });
+
+  // Add unhandled rejection handler
+  process.on('unhandledRejection', (reason, promise) => {
+    monitor.error('System', 'Unhandled promise rejection', { reason, promise });
   });
