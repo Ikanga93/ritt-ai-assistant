@@ -1093,7 +1093,7 @@ export default defineAgent({
   });
 
   // Start the Express server for webhook handling
-  const port = 10001; // Fixed port for webhook server
+  const port = process.env.PORT || 10001; // Use Render's PORT or fallback to 10001
   let server;
   let isServerStarting = false;
   let serverStartAttempts = 0;
@@ -1124,6 +1124,7 @@ export default defineAgent({
       try {
         monitor.log('WebhookServer', `Starting webhook server (attempt ${serverStartAttempts}/${MAX_START_ATTEMPTS})`, { port });
         
+        // Configure server to handle both webhook and regular requests
         server = app.listen(port, '0.0.0.0', () => {
           isServerStarting = false;
           monitor.webhookServer.status = 'running';
@@ -1160,7 +1161,7 @@ export default defineAgent({
       // Start webhook server
       await startWebhookServer();
       
-      // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT
+      // Configure worker to listen on a different port
       const liveKitPort = parseInt(port.toString(), 10) + 2;
       monitor.log('LiveKitWorker', 'Starting LiveKit worker', { port: liveKitPort });
       
