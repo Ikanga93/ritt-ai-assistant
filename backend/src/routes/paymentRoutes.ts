@@ -218,20 +218,19 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
   if (!endpointSecret) {
     console.error('Webhook secret not configured');
-    res.status(500).json({ error: 'Webhook secret not configured' });
+    res.status(500).send('Webhook Error: Server configuration error (missing webhook secret).');
     return;
   }
 
   if (!sig) {
     console.error('No Stripe signature found in request headers');
-    res.status(400).json({ error: 'No Stripe signature found' });
+    res.status(400).send('Webhook Error: Missing stripe-signature header.');
     return;
   }
 
   try {
-    // Make sure we have the raw body
-    const rawBody = req.body instanceof Buffer ? req.body : Buffer.from(JSON.stringify(req.body));
-    event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
+    // req.body should already be raw due to express.raw() middleware
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     console.log(' Webhook signature verified. Event ID:', event.id, 'Event Type:', event.type);
   } catch (err: any) {
     console.error(' Webhook signature verification failed:', err.message);

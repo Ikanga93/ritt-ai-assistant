@@ -1003,6 +1003,15 @@ export default defineAgent({
   
   // Create Express app for handling Stripe webhooks
   const app = express();
+
+  // Configure Express to handle raw bodies for Stripe webhooks
+  app.use((req, res, next) => {
+    if (req.originalUrl === '/api/payments' && req.method === 'POST') {
+      express.raw({ type: 'application/json' })(req, res, next);
+    } else {
+      express.json()(req, res, next);
+    }
+  });
   
   // Mount payment routes at /api/payments to receive Stripe webhook events
   app.use('/api/payments', paymentRoutes);
