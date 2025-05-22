@@ -1036,42 +1036,77 @@ export default defineAgent({
   
   // Start the Express server for webhook handling
   const port = process.env.PORT || 8081;
-  const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
-    console.log(`Webhook server is running on port ${port}`);
-  });
+  let server;
 
-  // Handle server errors
-  server.on('error', (error) => {
-    console.error('Webhook server error:', error);
-    if (error.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Please choose a different port.`);
+  // Function to start the webhook server
+  const startWebhookServer = () => {
+    return new Promise((resolve, reject) => {
+      try {
+        server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
+          console.log(`Webhook server is running on port ${port}`);
+          resolve(server);
+        });
+
+        // Handle server errors
+        server.on('error', (error) => {
+          if (error.code === 'EADDRINUSE') {
+            console.error(`Port ${port} is already in use. Trying port ${port + 1}...`);
+            server.close();
+            // Try the next port
+            server = app.listen(parseInt(port.toString(), 10) + 1, '0.0.0.0', () => {
+              console.log(`Webhook server is running on port ${parseInt(port.toString(), 10) + 1}`);
+              resolve(server);
+            });
+          } else {
+            console.error('Webhook server error:', error);
+            reject(error);
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  // Start the webhook server first
+  startWebhookServer()
+    .then(() => {
+      // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT
+      const liveKitPort = parseInt(port.toString(), 10) + 2; // Use port+2 for LiveKit to avoid conflicts
+      cli.runApp(new WorkerOptions({
+        agent: fileURLToPath(import.meta.url),
+        port: liveKitPort,
+        host: '0.0.0.0'
+      }));
+
+      console.log(`LiveKit worker is listening on port ${liveKitPort}`);
+    })
+    .catch((error) => {
+      console.error('Failed to start webhook server:', error);
       process.exit(1);
-    }
-  });
-
-  // Configure worker to listen on all interfaces (0.0.0.0) and use a different PORT to avoid conflicts
-  const liveKitPort = parseInt(port.toString(), 10) + 1; // Use port+1 for LiveKit
-  cli.runApp(new WorkerOptions({
-    agent: fileURLToPath(import.meta.url),
-    port: liveKitPort,
-    host: '0.0.0.0'
-  }));
-  
-  console.log(`LiveKit worker is listening on port ${liveKitPort}`);
+    });
 
   // Handle process termination
   process.on('SIGTERM', () => {
     console.log('SIGTERM received. Closing webhook server...');
-    server.close(() => {
-      console.log('Webhook server closed');
+    if (server) {
+      server.close(() => {
+        console.log('Webhook server closed');
+        process.exit(0);
+      });
+    } else {
       process.exit(0);
-    });
+    }
   });
 
   process.on('SIGINT', () => {
     console.log('SIGINT received. Closing webhook server...');
-    server.close(() => {
-      console.log('Webhook server closed');
+    if (server) {
+      server.close(() => {
+        console.log('Webhook server closed');
+        process.exit(0);
+      });
+    } else {
       process.exit(0);
-    });
+    }
   });
