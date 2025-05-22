@@ -20,7 +20,9 @@ if (process.env.NODE_ENV !== "production") {
 export const AppDataSource = new DataSource({
   type: "postgres",
   url: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production",
+  ssl: process.env.NODE_ENV === "production" ? {
+    rejectUnauthorized: false
+  } : false,
   synchronize: false, // Disable schema synchronization
   logging: process.env.NODE_ENV !== "production", // Only log in development
   entities: [Customer, Restaurant, MenuItem, Order, OrderItem, OrderQueue],
