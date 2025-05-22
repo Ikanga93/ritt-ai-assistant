@@ -209,31 +209,29 @@ router.post('/generate-link', async (req: any, res: Response) => {
  * Handles Stripe payment events
  */
 // Webhook handler
-router.post('/', express.raw({type: 'application/json'}), async (req: Request, res: Response): Promise<void> => {
+router.post('/', async (req: Request, res: Response): Promise<void> => {
   console.log('>>> Webhook endpoint / hit by a POST request at', new Date().toISOString());
-  const sig = req.headers['stripe-signature'] as string;
 
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim(); // Trim any whitespace
+  let event: Stripe.Event;
+  const sig = req.headers['stripe-signature'];
 
   if (!endpointSecret) {
-    console.error(' STRIPE_WEBHOOK_SECRET is not set in environment variables.');
-    // It's crucial that this secret is configured for signature verification.
-    // Sending a 500 to indicate a server-side configuration issue.
-    res.status(500).send('Webhook Error: Server configuration error (missing webhook secret).');
+    console.error('Webhook secret not configured');
+    res.status(500).json({ error: 'Webhook secret not configured' });
     return;
   }
 
   if (!sig) {
-    console.error(' Missing stripe-signature header. Stripe SDK cannot verify the event.');
-    res.status(400).send('Webhook Error: Missing stripe-signature header.');
+    console.error('No Stripe signature found in request headers');
+    res.status(400).json({ error: 'No Stripe signature found' });
     return;
   }
 
-  let event: Stripe.Event;
-
   try {
-    // The req.body needs to be the raw buffer from express.raw()
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    // Make sure we have the raw body
+    const rawBody = req.body instanceof Buffer ? req.body : Buffer.from(JSON.stringify(req.body));
+    event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
     console.log(' Webhook signature verified. Event ID:', event.id, 'Event Type:', event.type);
   } catch (err: any) {
     console.error(' Webhook signature verification failed:', err.message);
