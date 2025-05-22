@@ -1004,8 +1004,8 @@ export default defineAgent({
   // Create Express app for handling Stripe webhooks
   const app = express();
   
-  // Mount payment routes at the root path to receive Stripe webhook events
-  app.use('/', paymentRoutes);
+  // Mount payment routes at /api/payments to receive Stripe webhook events
+  app.use('/api/payments', paymentRoutes);
   
   // Start the Express app
   const server = app.listen(port, '0.0.0.0', () => {
