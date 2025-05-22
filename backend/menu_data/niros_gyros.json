@@ -4,13 +4,58 @@
   "location": {
     "address": "2001 W Springfield Ave, Champaign, IL 61821",
     "phone": "(217) 355-6760",
-    "hours": "7am - 7pm"
+    "hours": "9am - 11pm"
   },
   "coffee_shop_id": "niros_gyros",
   "coffee_shop_name": "Niro's Gyros",
   "email": "pofaraorder@gmail.com",
   "printer_email": "pmn0880nuqri73@print.epsonconnect.com",
   "menu_categories": [
+    {
+      "category": "Best Sellers",
+      "items": [
+        {
+          "name": "French Fries",
+          "description": "Crispy, golden-brown fries served with a side of homemade sauce.",
+          "price": 2.99,
+          "calories": null,
+          "id": "niros_gyros_french_fries_0"
+        },
+        {
+          "name": "Pizza Puffs",
+          "description": "Beef, real mozzarella cheese and pizza sauce wrapped in a flaky pocket.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_pizza_puff_1"
+        }
+      ]
+    },
+    {
+      "category": "Drinks",
+      "items": [
+        {
+          "name": "Soft Drinks",
+          "description": "Coke, Diet Coke, Sprite, and more.",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_soft_drinks_0"
+        },
+        {
+          "name": "20 oz drink",
+          "description": "20 oz drink",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_20_oz_drink_1"
+        },
+        {
+          "name": "32 oz drink",
+          "description": "32 oz drink",
+          "price": 2.19,
+          "calories": null,
+          "id": "niros_gyros_32_oz_drink_2"
+        }
+      ]
+    },
     {
       "category": "Salads",
       "items": [
@@ -85,7 +130,7 @@
       ]
     },
     {
-      "category": "Gyros",
+      "category": "Gyros Buy 2 at $16.99 get 1 free",
       "items": [
         {
           "name": "Single Gyro",
@@ -154,6 +199,331 @@
           "price": 6.49,
           "calories": null,
           "id": "niros_gyros_italian_sausage_sandwich_2"
+        }
+      ]
+    },
+    {
+      "category": "Chicago Style",
+      "items": [
+        {
+          "name": "Chicago Hot Dog",
+          "description": "100% beef hot dog with mustard, relish, pickle spear, sport peppers, onions, celery salt and tomatoes.",
+          "price": 3.99,
+          "calories": null,
+          "id": "niros_gyros_chicago_hot_dog_0"
+        },
+        {
+          "name": "Maxwell Street Polish",
+          "description": "Grilled onions, mustard, sport peppers and pickle spear.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_maxwell_street_polish_1"
+        },
+        {
+          "name": "Chili Dog",
+          "description": "Chili, mustard, onion and pickle spear.",
+          "price": 4.99,
+          "calories": null,
+          "id": "niros_gyros_chili_dog_2"
+        }
+      ]
+    },
+    {
+      "category": "Beef Patties",
+      "items": [
+        {
+          "name": "Burger",
+          "description": "100% beef with grilled onions, mustard, ketchup and pickles. Choose a size. 1/4 lb. 4.29 / 1/2 lb. 5.29",
+          "price": 4.29,
+          "calories": null,
+          "id": "niros_gyros_burger_0"
+        },
+        {
+          "name": "Chili Cheeseburger",
+          "description": "100% beef with chili and American cheese. Choose a size. 1/4 lb. 3.99 / 1/2 lb. 4.69",
+          "price": 3.99,
+          "calories": null,
+          "id": "niros_gyros_chili_cheeseburger_1"
+        },
+        {
+          "name": "Gyro Burger",
+          "description": "100% beef hamburger topped with gyro meat and served with gyro sauce on the side. Choose a size. 1/4 lb. 4.29 / 1/2 lb. 5.79",
+          "price": 4.29,
+          "calories": null,
+          "id": "niros_gyros_gyro_burger_2"
+        }
+      ]
+    },
+    {
+      "category": "Chicken Sandwiches",
+      "items": [
+        {
+          "name": "6 Piece Chicken Wings",
+          "description": "Deep-fried breaded chicken wings with Louisiana hot sauce on the side.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_6_piece_chicken_wings_0"
+        },
+        {
+          "name": "Chicken Breast Sandwich",
+          "description": "Breaded chicken breast on a toasted bun with mayo, pickles, tomatoes and onions.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_chicken_breast_sandwich_1"
+        },
+        {
+          "name": "Chicken Strips",
+          "description": "Four pieces of deep-fried chicken breast tenderloin strips with your choice of ranch, honey mustard or BBQ sauce on the side.",
+          "price": 6.99,
+          "calories": null,
+          "id": "niros_gyros_chicken_strips_2"
+        },
+        {
+          "name": "Chicken Philly Sandwich",
+          "description": "Chicken breast fillet strips grilled with onions, green peppers, melted mozzarella cheese and mayo topped with fresh lettuce, tomatoes and banana peppers. ",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_chicken_philly_sandwich_3"
+        },
+        {
+          "name": "Grilled Chicken Pita Sandwich",
+          "description": "Grilled chicken breast fillet strips on a pita with lettuce, tomatoes and a choice of gyro sauce, honey mustard or ranch.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_grilled_chicken_pita_sandwich_4"
+        },
+        {
+          "name": "Chicken Parmesan Sandwich",
+          "description": "Deep-fried chicken breast on a toasted bun with red sauce and mozzarella cheese.",
+          "price": 6.99,
+          "calories": null,
+          "id": "niros_gyros_chicken_parmesan_sandwich_5"
+        }
+      ]
+    },
+    {
+      "category": "Niro's One of Kind",
+      "items": [
+        {
+          "name": "Philly steak",
+          "description": "Thinly-sliced roast beef with grilled onions and green peppers, topped with mozzarella cheese, mayo and banana peppers on French bread.",
+          "price": 7.99,
+          "calories": null,
+          "id": "niros_gyros_philly_steak_0"
+        },
+        {
+          "name": "Cold Fish Sandwich",
+          "description": "Batter-dipped fish fillets deep fried and served on a toasted bun with onions, pickles and tartar sauce on the side.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_cold_fish_sandwich_1"
+        },
+        {
+          "name": "Pizza Puff",
+          "description": "Beef, real mozzarella cheese and pizza sauce wrapped in a flaky pocket.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_pizza_puff_2"
+        }
+      ]
+    },
+    {
+      "category": "Roast Beef",
+      "items": [
+        {
+          "name": "Beef and Cheddar",
+          "description": "Roast beef coated with cheddar cheese on a toasted bun.",
+          "price": 4.49,
+          "calories": null,
+          "id": "niros_gyros_beef_and_cheddar_0"
+        },
+        {
+          "name": "BBQ Beef",
+          "description": "Roast beef coated with BBQ sauce on a toasted bun.",
+          "price": 4.49,
+          "calories": null,
+          "id": "niros_gyros_bbq_beef_1"
+        }
+      ]
+    },
+    {
+      "category": "Side Orders",
+      "items": [
+        {
+          "name": "Fried Mushrooms",
+          "description": "Fried mushrooms with a side of homemade sauce.",
+          "price": 4.29,
+          "calories": null,
+          "id": "niros_gyros_fried_mushrooms_0"
+        },
+        {
+          "name": "Cheese Fries",
+          "description": "Cheese fries with a side of homemade sauce.",
+          "price": 2.99,
+          "calories": null,
+          "id": "niros_gyros_cheese_fries_1"
+        },
+        {
+          "name": "Onion Rings",
+          "description": "Onion rings with a side of homemade sauce.",
+          "price": 2.99,
+          "calories": null,
+          "id": "niros_gyros_onion_rings_2"
+        },
+        {
+          "name": "Chili with Beans",
+          "description": "Chili with beans.",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_chili_with_beans_3"
+        },
+        {
+          "name": "French Fries",
+          "description": "French fries.",
+          "price": 2.69,
+          "calories": null,
+          "id": "niros_gyros_french_fries_4"
+        },
+        {
+          "name": "Chili Cheese Fries",
+          "description": "Chili cheese fries.",
+          "price": 3.99,
+          "calories": null,
+          "id": "niros_gyros_chili_cheese_fries_5"
+        },
+        {
+          "name": "Mozzarella Cheese Sticks",
+          "description": "Mozzarella cheese sticks.",
+          "price": 4.49,
+          "calories": null,
+          "id": "niros_gyros_mozzarella_cheese_sticks_6"
+        },
+        {
+          "name": "BBQ Sauce",
+          "description": "BBQ sauce.",
+          "price": 0.69,
+          "calories": null,
+          "id": "niros_gyros_bbq_sauce_7"
+        },
+        {
+          "name": "Cheese Sauce",
+          "description": "Cheese sauce.",
+          "price": 0.60,
+          "calories": null,
+          "id": "niros_gyros_cheese_sauce_8"
+        } 
+      ]
+    },
+    {
+      "category": "Extras",
+      "items": [
+        {
+          "name": "Hot Peppers",
+          "description": "Hot peppers.",
+          "price": 0.69,
+          "calories": null,
+          "id": "niros_gyros_hot_peppers_0"
+        },
+        {
+          "name": "Feta Cheese",
+          "description": "Feta cheese.",
+          "price": 0.99,
+          "calories": null,
+          "id": "niros_gyros_feta_cheese_1"
+        },
+        {
+          "name": "Gyro Sauce",
+          "description": "Gyro sauce.",
+          "price": 0.99,
+          "calories": null,
+          "id": "niros_gyros_gyro_sauce_2"
+        },
+        {
+          "name": "Gyro Meat",
+          "description": "Gyro meat.",
+          "price": 2.36,
+          "calories": null,
+          "id": "niros_gyros_gyro_meat_3"
+        },
+        {
+          "name": "Sweet Peppers",
+          "description": "Sweet peppers.",
+          "price": 0.49,
+          "calories": null,
+          "id": "niros_gyros_sweet_peppers_4"
+        },
+        {
+          "name": "Cheese",
+          "description": "Cheese.",
+          "price": 0.69,
+          "calories": null,
+          "id": "niros_gyros_cheese_5"
+        },
+        {
+          "name": "Extra Pita",
+          "description": "Extra pita.",
+          "price": 1.29,
+          "calories": null,
+          "id": "niros_gyros_extra_pita_6"
+        },
+        {
+          "name": "BBQ Sauce",
+          "description": "BBQ sauce.",
+          "price": 0.69,
+          "calories": null,
+          "id": "niros_gyros_bbq_sauce_7"
+        }
+      ]
+    },
+    {
+      "category": "Kid's Meal",
+      "items": [
+        {
+          "name": "Kid's Hot Dog Meal",
+          "description": "Includes fries and a drink.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_kids_hot_dog_meal_0"
+        },
+        {
+          "name": "Kid's Hamburger Meal",
+          "description": "Includes fries and a drink.",
+          "price": 5.49,
+          "calories": null,
+          "id": "niros_gyros_kids_hamburger_meal_1"
+        },
+        {
+          "name": "Kid's Chicken Strips Meal",
+          "description": "Includes fries and a drink.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_kids_chicken_strips_meal_2"
+        },
+        {
+          "name": "Kid's Chili Dog Meal",
+          "description": "Includes fries and a drink.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_kids_chili_dog_meal_3"
+        },
+        {
+          "name": "Kid's Cheeseburger Meal",
+          "description": "Includes fries and a drink.",
+          "price": 5.99,
+          "calories": null,
+          "id": "niros_gyros_kids_cheeseburger_meal_4"
+        }
+      ]
+    },
+    {
+      "category": "Desserts",
+      "items": [
+        {
+          "name": "Homemade Baklava",
+          "description": "Homemade baklava.",
+          "price": 1.39,
+          "calories": null,
+          "id": "niros_gyros_homemade_baklava_0"
         }
       ]
     }

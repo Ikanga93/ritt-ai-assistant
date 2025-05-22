@@ -1,0 +1,46 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250520-54219",
+    "restaurantId": "niros_gyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Chris",
+    "customerEmail": "ikanga93@gmail.com",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "niros_gyros_chicken_philly_sandwich_3",
+        "name": "Chicken Philly Sandwich",
+        "price": 7.99,
+        "quantity": 1
+      },
+      {
+        "id": "niros_gyros_french_fries_0",
+        "name": "French Fries",
+        "price": 2.99,
+        "quantity": 1
+      },
+      {
+        "id": "item-1747800760998-35",
+        "name": "Coke",
+        "price": 9.99,
+        "quantity": 1
+      },
+      {
+        "id": "niros_gyros_kids_hot_dog_meal_0",
+        "name": "Kid's Hot Dog Meal",
+        "price": 5.99,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 26.96,
+    "stateTax": 2.2242,
+    "orderTotal": 29.1842,
+    "processingFee": 0,
+    "tax": 2.2242,
+    "total": 29.1842
+  },
+  "correlationId": "corr-2568ce54-e87a-469a-99de-302b1b043ee2",
+  "failureReason": "column \"customer_email\" of relation \"orders\" does not exist",
+  "retryCount": 0,
+  "createdAt": "2025-05-21T04:14:21.452Z"
+}

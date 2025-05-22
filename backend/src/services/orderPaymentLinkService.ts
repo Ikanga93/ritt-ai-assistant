@@ -510,6 +510,7 @@ export async function updateOrderPaymentStatus(
         let restaurantPrinterEmail;
         
         // Try to load the restaurant's menu data file
+        let menuData: any = null;
         try {
           const fs = await import('fs/promises');
           const path = await import('path');
@@ -519,7 +520,7 @@ export async function updateOrderPaymentStatus(
           
           // Read the menu data file
           const menuDataContent = await fs.readFile(menuDataPath, 'utf-8');
-          const menuData = JSON.parse(menuDataContent);
+          menuData = JSON.parse(menuDataContent);
           
           // Get the printer email from the menu data
           restaurantPrinterEmail = menuData.printer_email;
@@ -542,8 +543,13 @@ export async function updateOrderPaymentStatus(
             }
           });
           
-          // Fall back to environment variable
-          restaurantPrinterEmail = process.env.DEFAULT_RESTAURANT_EMAIL || process.env.CENTRAL_ORDER_EMAIL;
+          // Try to get the email from the menu data first
+          restaurantPrinterEmail = menuData.printer_email || menuData.email;
+          
+          // If still no email, fall back to environment variable
+          if (!restaurantPrinterEmail) {
+            restaurantPrinterEmail = process.env.DEFAULT_RESTAURANT_EMAIL || process.env.CENTRAL_ORDER_EMAIL;
+          }
         }
         
         if (restaurantPrinterEmail) {

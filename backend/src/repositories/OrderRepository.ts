@@ -10,6 +10,9 @@ import { generateOrderNumber } from '../utils/orderUtils.js';
 export interface CreateOrderData {
   customerId: number;
   restaurantId: number;
+  customer_email?: string;
+  customer_name?: string;
+  status?: string;
   items: Array<{
     menuItemId: number;
     quantity: number;
@@ -32,8 +35,16 @@ export class OrderRepository extends BaseRepository<Order> {
       const order = new Order();
       order.customer_id = orderData.customerId;
       order.restaurant_id = orderData.restaurantId;
-      order.status = OrderStatus.PENDING;
-      order.order_number = generateOrderNumber(); // Use the imported function directly
+      order.status = orderData.status || OrderStatus.PENDING;
+      order.order_number = generateOrderNumber();
+      
+      // Set customer information if provided
+      if (orderData.customer_email) {
+        order.customer_email = orderData.customer_email;
+      }
+      if (orderData.customer_name) {
+        order.customer_name = orderData.customer_name;
+      }
 
       // Calculate initial totals (will be updated with actual menu item prices)
       const { subtotal, tax, processingFee, total } = await this.calculateOrderTotals(orderData.items);
@@ -93,6 +104,46 @@ export class OrderRepository extends BaseRepository<Order> {
       } as FindOptionsWhere<Order>,
       relations: ['items', 'items.menuItem']
     });
+  }
+
+  async findActiveOrdersLast24Hours(): Promise<Order[]> {
+    return this.repository.find({
+      where: {
+        status: OrderStatus.PAID,
+        created_at: MoreThanOrEqual(new Date(Date.now() - 24 * 60 * 60 * 1000)) // Last 24 hours
+      },
+      order: {
+        created_at: 'DESC'
+      },
+      relations: ['items', 'items.menuItem']
+    });
+  }
+
+  /**
+   * Update an order with payment information and status
+   * @param orderId The order ID
+   * @param status The new status
+   * @param paymentIntentId The Stripe payment intent ID
+   * @returns The updated order or null if not found
+   */
+  async updateOrderWithPayment(
+    orderId: number,
+    status: OrderStatus,
+    paymentIntentId: string
+  ): Promise<Order | null> {
+    const order = await this.repository.findOne({
+      where: { id: orderId },
+      relations: ['items', 'items.menuItem']
+    });
+
+    if (!order) {
+      return null;
+    }
+
+    order.status = status;
+    order.paid_at = new Date();
+
+    return this.repository.save(order);
   }
 
   async updateStatus(id: number, status: OrderStatus): Promise<Order | null> {
@@ -189,7 +240,7 @@ export class OrderRepository extends BaseRepository<Order> {
       subtotal: priceBreakdown.subtotal,
       tax: priceBreakdown.tax,
       processingFee: priceBreakdown.processingFee,
-      total: priceBreakdown.totalWithFees
+      total: priceBreakdown.total  // This is subtotal + tax, without processing fee
     };
   }
 }

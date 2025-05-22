@@ -19,8 +19,11 @@ export default function AuthModal({ onClose, onLogin, customerName = 'there', or
         <p className="mb-4">
           Hi {customerName}! Your order has been confirmed. To proceed with payment and send your order to the kitchen, please sign in or create an account.
         </p>
-        <p className="mb-6 text-gray-700">
+        <p className="mb-4 text-gray-700">
           After signing in, you'll receive a secure payment link. Once payment is confirmed, your order will be sent to the kitchen for preparation.
+        </p>
+        <p className="mb-6 text-blue-600 font-medium">
+          📧 Important: Please use a Gmail address for the best experience with our payment system.
         </p>
         <div className="flex flex-col space-y-4">
           <button

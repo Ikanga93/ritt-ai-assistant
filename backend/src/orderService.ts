@@ -13,9 +13,7 @@ import { generatePaymentLink } from './services/paymentService.js';
 import { generateOrderNumber } from './utils/orderUtils.js';
 
 // Constants
-const TAX_RATE = 0.0825; // 8.25%
-const PROCESSING_FEE_RATE = 0.029; // 2.9%
-const PROCESSING_FEE_FIXED = 0.30; // $0.30
+// Tax rate and processing fees are now handled by priceCalculator service
 
 export interface OrderItem {
   id: string;
@@ -147,20 +145,15 @@ export async function placeOrder(
       throw new Error('Invalid order data: no items');
     }
 
-    // Calculate totals
-    let subtotal = 0;
-    for (const item of orderData.items) {
-      subtotal += item.price * item.quantity;
-    }
+    // Calculate order totals
+    const subtotal = orderData.items.reduce((total, item) => {
+      return total + (item.price * item.quantity);
+    }, 0);
 
-    // Calculate tax
-    const tax = subtotal * TAX_RATE;
-
-    // Calculate processing fee
-    const processingFee = subtotal * PROCESSING_FEE_RATE + PROCESSING_FEE_FIXED;
-
-    // Calculate total
-    const total = subtotal + tax;
+    // Use priceCalculator service for consistent calculations
+    const { priceCalculator } = await import('./services/priceCalculator.js');
+    const priceBreakdown = priceCalculator.calculateOrderPrices(subtotal);
+    const { tax, processingFee, totalWithFees: total } = priceBreakdown;
 
     // Generate order number
     const orderNumber = generateOrderNumber();
@@ -168,7 +161,9 @@ export async function placeOrder(
     console.log('\n=== ORDER DETAILS ===');
     console.log(`Order Number: ${orderNumber}`);
     console.log(`Subtotal: $${subtotal.toFixed(2)}`);
-    console.log(`Tax (${(TAX_RATE * 100).toFixed(2)}%): $${tax.toFixed(2)}`);
+    console.log(`Tax: $${tax.toFixed(2)}`);
+    console.log(`Processing Fee: $${processingFee.toFixed(2)}`);
+
     console.log(`Total: $${total.toFixed(2)}`);
 
     // Collect special instructions from items

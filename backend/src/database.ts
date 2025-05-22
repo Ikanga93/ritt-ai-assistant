@@ -28,7 +28,7 @@ export const AppDataSource = new DataSource({
   synchronize: false, // Disable schema synchronization
   logging: process.env.NODE_ENV !== "production", // Only log in development
   entities: [Customer, Restaurant, MenuItem, Order, OrderItem, OrderQueue],
-  migrations: ["./migrations/*.js"], // Include our migrations
+  migrations: ["dist/migrations/*.js"], // Include our migrations
   migrationsRun: false, // Don't run migrations automatically
   migrationsTableName: "migrations",
   subscribers: ["dist/subscribers/**/*.js"] // Use compiled subscribers

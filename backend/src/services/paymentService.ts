@@ -174,28 +174,20 @@ export async function generatePaymentLink(
     // Use price calculator to get consistent price breakdown
     const priceBreakdown = priceCalculator.calculateOrderPrices(params.amount);
     
-    // Convert to cents for Stripe
-    // Ensure proper decimal handling by using toFixed(2) before converting to cents
-    const totalWithFeesFixed = parseFloat(priceBreakdown.totalWithFees.toFixed(2));
-    const amountInCents = Math.round(totalWithFeesFixed * 100);
-    
-    console.log('Amount calculation:', {
-      originalAmount: params.amount,
-      subtotal: priceBreakdown.subtotal,
-      tax: priceBreakdown.tax,
-      processingFee: priceBreakdown.processingFee,
-      total: priceBreakdown.total,
-      totalWithFees: priceBreakdown.totalWithFees,
-      totalWithFeesFixed,
+    // Use the amount directly from params since this is a temporary order
+    const amountInCents = Math.round(params.amount * 100); // Convert to cents
+
+    console.log('Price breakdown:', {
+      amount: params.amount,
       amountInCents,
-      formattedAmount: `$${totalWithFeesFixed.toFixed(2)}`
+      formattedAmount: `$${params.amount.toFixed(2)}`
     });
     
     // Create a price for the product
-    console.log('Creating Stripe price...');
+    console.log('Creating price with amount:', amountInCents);
     const price = await stripe.prices.create({
       product: product.id,
-      unit_amount: Math.round(params.amount * 100), // Use original amount directly
+      unit_amount: amountInCents,
       currency: defaultCurrency
     });
     console.log('Price created:', price.id);

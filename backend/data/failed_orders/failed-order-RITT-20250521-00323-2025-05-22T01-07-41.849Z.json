@@ -1,0 +1,28 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250521-00323",
+    "restaurantId": "niros_gyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Chris",
+    "customerEmail": "ikanga93@gmail.com",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "niros_gyros_single_gyro_0",
+        "name": "Single Gyro",
+        "price": 7.99,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 7.99,
+    "stateTax": 0.6591750000000001,
+    "orderTotal": 8.649175,
+    "processingFee": 0,
+    "tax": 0.6591750000000001,
+    "total": 8.649175
+  },
+  "correlationId": "corr-64d1f3ae-d560-4856-a45d-ffd14928ea9e",
+  "failureReason": "column \"customer_email\" of relation \"orders\" does not exist",
+  "retryCount": 0,
+  "createdAt": "2025-05-22T01:07:41.849Z"
+}

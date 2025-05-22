@@ -19,6 +19,102 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 });
 
 /**
+ * Create a PaymentIntent for embedded checkout
+ * 
+ * POST /api/payments/create-payment-intent
+ * 
+ * Request Body:
+ * {
+ *   orderId: string,
+ *   amount: number,
+ *   customerEmail: string,
+ *   metadata?: Record<string, string>,
+ *   currency?: string
+ * }
+ * 
+ * Response:
+ * {
+ *   clientSecret: string,
+ *   amount: number,
+ *   currency: string,
+ *   status: string
+ * }
+ */
+router.post('/create-payment-intent', async (req: Request, res: Response): Promise<void> => {
+  const correlationId = logger.createCorrelationId();
+  
+  try {
+    const { orderId, amount, customerEmail, metadata = {}, currency = 'usd' } = req.body;
+
+    // Validate required fields
+    if (!orderId || amount === undefined || !customerEmail) {
+      logger.warn('Missing required fields for payment intent', {
+        correlationId,
+        context: 'payments.createPaymentIntent',
+        data: { orderId, hasAmount: amount !== undefined, customerEmail: !!customerEmail }
+      });
+      res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: orderId, amount, and customerEmail are required' 
+      });
+      return;
+    }
+
+    // Convert amount to cents for Stripe
+    const amountInCents = Math.round(amount * 100);
+    
+    // Create a PaymentIntent with the order amount and currency
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: currency.toLowerCase(),
+      metadata: {
+        orderId,
+        customerEmail,
+        ...metadata
+      },
+      // In the latest version of the API, the automatic_payment_methods parameter is optional
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+
+    logger.info('Created payment intent', {
+      correlationId,
+      context: 'payments.createPaymentIntent',
+      data: {
+        paymentIntentId: paymentIntent.id,
+        orderId,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        status: paymentIntent.status
+      }
+    });
+
+    // Send publishable key and PaymentIntent details to client
+    res.status(200).json({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      status: paymentIntent.status,
+      id: paymentIntent.id
+    });
+  } catch (error) {
+    logger.error('Failed to create payment intent', {
+      correlationId,
+      context: 'payments.createPaymentIntent',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create payment intent',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * Generate a payment link for an order
  * 
  * POST /api/payments/generate-link
@@ -258,18 +354,28 @@ router.post('/', express.raw({type: 'application/json'}), async (req: Request, r
         data: {
           paymentIntentId: paymentIntent.id,
           metadata: paymentIntent.metadata,
-          status: paymentIntent.status
+          status: paymentIntent.status,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency
         }
       });
       
-      // For payment intents created through payment links, find the payment link ID
+      // Check for order ID in metadata (used by embedded checkout)
+      const orderId = paymentIntent.metadata?.orderId;
+      // Also check for payment link ID (used by payment links)
       const paymentLinkId = paymentIntent.metadata?.payment_link_id;
-      if (paymentLinkId) {
+      
+      const identifier = orderId || paymentLinkId;
+      const identifierType = orderId ? 'orderId' : 'paymentLinkId';
+      
+      if (identifier) {
         try {
           // Update order payment status to paid
           const updatedOrder = await updateOrderPaymentStatus(
-            paymentLinkId,
-            PaymentStatus.PAID
+            identifier,
+            PaymentStatus.PAID,
+            undefined, // No session ID for direct payment intents
+            paymentIntent.id
           );
           
           if (updatedOrder) {
@@ -277,30 +383,52 @@ router.post('/', express.raw({type: 'application/json'}), async (req: Request, r
               context: 'payments.webhook',
               data: {
                 orderId: updatedOrder.id,
-                paymentLinkId,
+                orderNumber: updatedOrder.orderNumber,
+                [identifierType]: identifier,
                 paymentStatus: 'PAID',
-                paidAt: updatedOrder.paidAt
+                paymentIntentId: paymentIntent.id,
+                paidAt: updatedOrder.paidAt,
+                amount: paymentIntent.amount,
+                currency: paymentIntent.currency
               }
             });
+            
+            // Check if this was a new order (not from a payment link)
+            if (orderId) {
+              logger.info('Processing successful payment for order', {
+                context: 'payments.webhook',
+                data: {
+                  orderId: updatedOrder.id,
+                  orderNumber: updatedOrder.orderNumber,
+                  paymentIntentId: paymentIntent.id
+                }
+              });
+              
+              // Here you could add additional logic for orders that were just paid
+              // For example, sending order confirmation emails, etc.
+            }
           } else {
-            logger.warn('Order not found for payment link', {
+            logger.warn('Order not found for payment', {
               context: 'payments.webhook',
               data: {
-                paymentLinkId
+                [identifierType]: identifier,
+                paymentIntentId: paymentIntent.id
               }
             });
           }
         } catch (error) {
           logger.error('Failed to update order payment status', {
             context: 'payments.webhook',
-            error,
+            error: error instanceof Error ? error.message : 'Unknown error',
             data: {
-              paymentLinkId
+              [identifierType]: identifier,
+              paymentIntentId: paymentIntent.id,
+              errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
             }
           });
         }
       } else {
-        logger.warn('No payment link ID found in payment intent metadata', {
+        logger.warn('No order ID or payment link ID found in payment intent metadata', {
           context: 'payments.webhook',
           data: {
             paymentIntentId: paymentIntent.id,

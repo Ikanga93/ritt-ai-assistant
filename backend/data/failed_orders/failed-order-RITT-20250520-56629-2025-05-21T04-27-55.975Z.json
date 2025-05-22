@@ -1,0 +1,28 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250520-56629",
+    "restaurantId": "niros_gyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Mary",
+    "customerEmail": "ikanga93@gmail.com",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "item-1747801599890-933",
+        "name": "Chicken Sandwich",
+        "price": 9.99,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 9.99,
+    "stateTax": 0.8241750000000001,
+    "orderTotal": 10.814175,
+    "processingFee": 0,
+    "tax": 0.8241750000000001,
+    "total": 10.814175
+  },
+  "correlationId": "corr-54c84598-381f-403b-b818-a3cba6b18e36",
+  "failureReason": "column \"customer_email\" of relation \"orders\" does not exist",
+  "retryCount": 0,
+  "createdAt": "2025-05-21T04:27:55.975Z"
+}

@@ -712,9 +712,9 @@ export default defineAgent({
             
               // Calculate subtotal, tax, and processing fee
               const subtotal = parseFloat(orderTotal.toFixed(2));
-              const stateTax = parseFloat((subtotal * 0.09).toFixed(2));
-              const processingFee = parseFloat((subtotal * 0.035 + 0.30).toFixed(2));
-              const finalTotal = parseFloat((subtotal + stateTax + processingFee).toFixed(2));
+              const { priceCalculator } = await import('./services/priceCalculator.js');
+              const priceBreakdown = priceCalculator.calculateOrderPrices(subtotal);
+              const { tax, processingFee, totalWithFees: finalTotal } = priceBreakdown;
               try {
                 // Place the order using the items with prices
                 // Pass auth0User data from conversation state if available
@@ -828,7 +828,7 @@ export default defineAgent({
                   customerEmail: effectiveEmail,
                   items: itemsWithDetails,
                   subtotal: subtotal,
-                  stateTax: stateTax,
+                  tax: tax,
                   processingFee: processingFee,
                   orderTotal: finalTotal,
                   timestamp: new Date().toISOString(),

@@ -48,6 +48,12 @@ export class Order {
   @Column({ type: "varchar", length: 1000, nullable: true })
   payment_link_url: string;
   
+  @Column({ type: "varchar", length: 255, nullable: true })
+  customer_email: string;
+  
+  @Column({ type: "varchar", length: 255, nullable: true })
+  customer_name: string;
+  
   @Column({ type: "timestamp", nullable: true })
   payment_link_created_at: Date;
   

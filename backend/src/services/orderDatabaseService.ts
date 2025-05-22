@@ -9,7 +9,8 @@
 
 import { OrderRepository } from '../repositories/OrderRepository.js';
 
-import { OrderDetails, OrderItem } from '../orderService.js';
+import { OrderDetails } from '../orderService.js';
+import { OrderItem } from '../entities/OrderItem.js';
 import { OrderStatus } from '../types/order.js';
 
 import { Customer } from '../entities/Customer.js';
@@ -20,6 +21,8 @@ import * as logger from '../utils/logger.js';
 import * as orderRetryQueue from '../utils/orderRetryQueue.js';
 import { generateOrderPaymentLink } from './orderPaymentService.js';
 import { PaymentStatus } from '../entities/Order.js';
+import { generateOrderNumber } from '../utils/orderUtils.js';
+import { priceCalculator } from './priceCalculator.js';
 
 // Initialize repository
 const orderRepository = new OrderRepository();
@@ -164,7 +167,8 @@ export async function saveOrderToDatabase(
         return {
           menuItemId,
           quantity: item.quantity,
-          specialInstructions: item.specialInstructions
+          specialInstructions: item.specialInstructions,
+          price_at_time: item.price || 9.99
         };
       }));
       
@@ -173,24 +177,25 @@ export async function saveOrderToDatabase(
       }
       
       console.log('Creating order in database...');
+      // Calculate price breakdown
+      const priceBreakdown = priceCalculator.calculateOrderPrices(orderDetails.subtotal);
+
       const newOrder = new Order();
-      newOrder.customer = { id: customerId } as Customer;
-      newOrder.restaurant = { id: restaurantId } as any;
+      newOrder.order_number = orderDetails.orderNumber;
       newOrder.status = OrderStatus.PENDING;
-      
-      // Use existing subtotal from orderDetails or calculate it
-      let subtotal = orderDetails.subtotal;
-      if (subtotal === undefined || subtotal === null) {
-        // Calculate subtotal from items if not provided
-        subtotal = orderDetails.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
-      }
-      newOrder.subtotal = subtotal;
-      
+      newOrder.customer_id = customerId;
+      newOrder.restaurant_id = restaurantId;
+      newOrder.subtotal = orderDetails.subtotal;
+      newOrder.tax = priceBreakdown.tax;
+      newOrder.total = priceBreakdown.totalWithFees;  // This is subtotal + tax + processing fee
+      newOrder.processing_fee = priceBreakdown.processingFee;
+      newOrder.customer_email = orderDetails.customerEmail;
+      newOrder.customer_name = orderDetails.customerName;
       // Use existing tax or calculate it
       let tax = orderDetails.stateTax;
       if (tax === undefined || tax === null) {
         // Calculate tax (assuming 8% tax rate)
-        tax = parseFloat((subtotal * 0.08).toFixed(2));
+        tax = parseFloat((orderDetails.subtotal * 0.08).toFixed(2));
       }
       newOrder.tax = tax;
       
@@ -202,7 +207,7 @@ export async function saveOrderToDatabase(
       let total = orderDetails.orderTotal;
       if (total === undefined || total === null) {
         // Calculate total (subtotal + tax + processing fee)
-        total = subtotal + tax + processingFee;
+        total = orderDetails.subtotal + tax + processingFee;
       }
       newOrder.total = parseFloat(total.toFixed(2));
       
@@ -211,171 +216,75 @@ export async function saveOrderToDatabase(
       newOrder.created_at = new Date();
       newOrder.updated_at = new Date();
       
-      console.log(`Order details: subtotal=${subtotal}, tax=${tax}, processingFee=${processingFee}, total=${total}`);
+      console.log(`Order details: subtotal=${orderDetails.subtotal}, tax=${tax}, processingFee=${processingFee}, total=${total}`);
       
-      // Save the order to get an ID
-      const savedOrder = await queryRunner.manager.save(newOrder);
+      // Save the order
+      const savedOrder = await queryRunner.manager.save(Order, newOrder);
       console.log(`Order saved with ID: ${savedOrder.id}`);
       
       // Create order items
-      const orderItemsToSave: any[] = [];
-      for (const item of orderDetails.items) {
-        console.log(`Processing order item: ${item.name}`);
-        
-        // Find or create the menu item with retry logic
-        const menuItemId = await executeWithRetry(
-          () => findOrCreateMenuItem(item.name, item.price || 0, restaurantId),
-          `findOrCreateMenuItem-${item.name}`
-        );
-        
-        const orderItem = AppDataSource.manager.create("OrderItem", {
-          order: { id: savedOrder.id },
-          menu_item: { id: menuItemId },
-          quantity: item.quantity,
-          price_at_time: item.price || 0, // Use price_at_time instead of price to match the database schema
-          special_instructions: item.specialInstructions || null,
-          created_at: new Date(),
-          updated_at: new Date()
-        });
-        
-        orderItemsToSave.push(orderItem);
-      }
-      
+      const orderItemEntities = orderItems.map(item => {
+        const orderItem = new OrderItem();
+        orderItem.order_id = savedOrder.id;
+        orderItem.menu_item_id = item.menuItemId;
+        orderItem.quantity = item.quantity;
+        orderItem.special_instructions = item.specialInstructions || null;
+        orderItem.price_at_time = item.price_at_time;
+        return orderItem;
+      });
+
       // Save all order items
-      console.log(`Saving ${orderItemsToSave.length} order items with retry logic...`);
+      console.log(`Saving ${orderItemEntities.length} order items with retry logic...`);
       await executeWithRetry(
-        () => queryRunner.manager.save('OrderItem', orderItemsToSave),
+        () => queryRunner.manager.save('OrderItem', orderItemEntities),
         'saveOrderItems'
       );
-      console.log(`Saved ${orderItemsToSave.length} order items successfully`);
+      console.log(`Saved ${orderItemEntities.length} order items successfully`);
       
       // Get the complete order with items
       const completedOrder = await executeWithRetry(
         () => queryRunner.manager
           .createQueryBuilder(Order, 'order')
           .where('order.id = :id', { id: savedOrder.id })
-          .leftJoinAndSelect('order.order_items', 'order_items')
           .getOne(),
-        'getCompleteOrder'
-      ) as Order; // Add type assertion to fix TypeScript errors
-      
+        'getCompletedOrder'
+      );
+
       if (!completedOrder) {
-        throw new Error(`Failed to retrieve complete order with ID: ${savedOrder.id}`);
+        throw new Error('Failed to retrieve completed order');
       }
-      
-      console.log(`Order created successfully with ID: ${(completedOrder as Order).id}`);
-      
+
       // Commit the transaction
-      logger.info('Committing transaction', {
-        correlationId,
-        orderNumber: String(orderDetails.orderNumber),
-        orderId: String(completedOrder.id),
-        context: 'saveOrderToDatabase'
-      });
-      
       await queryRunner.commitTransaction();
-      
-      // Generate payment link if customer email is available
-      let paymentLinkUrl = null;
-      
-      console.log('Order saved to database, checking for customer email to generate payment link', {
-        orderId: completedOrder.id,
-        orderNumber: orderDetails.orderNumber,
-        hasEmail: !!orderDetails.customerEmail,
-        email: orderDetails.customerEmail
-      });
-      
-      // Check if the order is already paid
-      const isPaid = savedOrder.payment_status === 'PAID';
-      
-      if (orderDetails.customerEmail && !isPaid) {
+
+      // Generate payment link if needed
+      if (orderDetails.customerEmail) {
         try {
-          logger.info('Generating payment link for order', {
-            correlationId,
-            orderNumber: String(orderDetails.orderNumber),
-            orderId: String(completedOrder.id),
-            context: 'saveOrderToDatabase'
-          });
-          
-          // Generate a payment link for the order
-          paymentLinkUrl = await generateOrderPaymentLink(orderDetails, completedOrder.id);
-          
-          logger.info('Payment link generated successfully', {
-            correlationId,
-            orderNumber: String(orderDetails.orderNumber),
-            orderId: String(completedOrder.id),
-            context: 'saveOrderToDatabase',
-            data: { paymentLinkUrl }
-          });
-        } catch (paymentError) {
-          // Log the error but don't fail the order creation
+          const paymentLink = await generateOrderPaymentLink(orderDetails, completedOrder.id);
+          if (paymentLink) {
+            completedOrder.payment_link_url = paymentLink;
+            await queryRunner.manager.save(Order, completedOrder);
+          }
+        } catch (error) {
           logger.error('Failed to generate payment link', {
             correlationId,
             orderNumber: String(orderDetails.orderNumber),
-            orderId: String(completedOrder.id),
             context: 'saveOrderToDatabase',
-            error: paymentError
+            error
           });
-          // We'll continue without a payment link
-        }
-      } else {
-        if (isPaid) {
-          logger.info('Order is already paid, skipping payment link generation', {
-            correlationId,
-            orderNumber: String(orderDetails.orderNumber),
-            orderId: String(completedOrder.id),
-            context: 'saveOrderToDatabase'
-          });
-        } else {
-          logger.info('No customer email provided, skipping payment link generation', {
-            correlationId,
-            orderNumber: String(orderDetails.orderNumber),
-            orderId: String(completedOrder.id),
-            context: 'saveOrderToDatabase'
-          });
+          // Don't throw here - we still want to return the order even if payment link generation fails
         }
       }
-      
-      logger.info('Order saved successfully', {
-        correlationId,
-        orderNumber: String(orderDetails.orderNumber),
-        orderId: String(completedOrder.id),
-        context: 'saveOrderToDatabase',
-        data: {
-          customerId: completedOrder.customer_id,
-          restaurantId: completedOrder.restaurant_id,
-          itemCount: orderDetails.items.length
-        }
-      });
-      
-      // Remove the correlation ID from active tracking since the operation is complete
-      logger.removeCorrelationId(correlationId);
-      
+
       return {
         ...orderDetails,
-        dbOrderId: completedOrder.id,
-        paymentUrl: paymentLinkUrl || undefined // Using paymentUrl to match OrderDetails interface, convert null to undefined
+        dbOrderId: completedOrder.id
       };
-    } catch (error: any) {
+
+    } catch (error) {
       // Rollback the transaction on error
       await queryRunner.rollbackTransaction();
-      
-      logger.error('Failed to save order to database', {
-        correlationId,
-        orderNumber: String(orderDetails.orderNumber),
-        context: 'saveOrderToDatabase',
-        error
-      });
-      
-      // Add to retry queue
-      orderRetryQueue.addFailedOrder(
-        orderDetails,
-        auth0User,
-        correlationId,
-        error.message || 'Unknown error in saveOrderToDatabase'
-      );
-      
-      throw error; // Re-throw the error to be handled by the caller
+      throw error;
     } finally {
       // Release the query runner
       await queryRunner.release();
@@ -385,18 +294,9 @@ export async function saveOrderToDatabase(
       correlationId,
       orderNumber: String(orderDetails.orderNumber),
       context: 'saveOrderToDatabase',
-      error
+      error: error.message
     });
-    
-    // Add to retry queue
-    orderRetryQueue.addFailedOrder(
-      orderDetails,
-      auth0User,
-      correlationId,
-      error.message || 'Unknown error in saveOrderToDatabase'
-    );
-    
-    throw error; // Re-throw the error to be handled by the caller
+    throw error;
   }
 }
 

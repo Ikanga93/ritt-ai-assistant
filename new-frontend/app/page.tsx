@@ -68,13 +68,20 @@ export default function Page() {
 
   // User is authenticated (middleware ensures this), show the voice assistant
   return (
-    <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)]">
-      <RoomContext.Provider value={room}>
-        <div className="lk-room-container max-h-[90vh]">
-          <SimpleVoiceAssistant onConnectButtonClicked={onConnectButtonClicked} user={user} />
+    <div className="relative h-full">
+      <div className="fixed top-8 left-0 right-0 z-50">
+        <div className="text-red-600 text-center text-sm py-1">
+          Please check your order; AI might err.
         </div>
-      </RoomContext.Provider>
-    </main>
+      </div>
+      <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)] pt-16">
+        <RoomContext.Provider value={room}>
+          <div className="lk-room-container max-h-[90vh]">
+            <SimpleVoiceAssistant onConnectButtonClicked={onConnectButtonClicked} user={user} />
+          </div>
+        </RoomContext.Provider>
+      </main>
+    </div>
   );
 }
 
