@@ -1095,14 +1095,27 @@ export default defineAgent({
   // Start the Express server for webhook handling
   const port = 10001; // Fixed port for webhook server
   let server;
+  let isServerStarting = false;
 
   // Function to start the webhook server
   const startWebhookServer = () => {
     return new Promise((resolve, reject) => {
+      // Prevent multiple server starts
+      if (isServerStarting) {
+        monitor.log('WebhookServer', 'Server start already in progress');
+        return resolve(server);
+      }
+      if (server) {
+        monitor.log('WebhookServer', 'Server already running');
+        return resolve(server);
+      }
+
+      isServerStarting = true;
       try {
         monitor.log('WebhookServer', 'Starting webhook server', { port });
         
         server = app.listen(port, '0.0.0.0', () => {
+          isServerStarting = false;
           monitor.webhookServer.status = 'running';
           monitor.webhookServer.port = port;
           monitor.webhookServer.startTime = new Date().toISOString();
@@ -1112,11 +1125,13 @@ export default defineAgent({
 
         // Handle server errors
         server.on('error', (error) => {
+          isServerStarting = false;
           monitor.webhookServer.errorCount++;
           monitor.error('WebhookServer', 'Server error', error);
           reject(error);
         });
       } catch (error) {
+        isServerStarting = false;
         monitor.webhookServer.errorCount++;
         monitor.error('WebhookServer', 'Failed to start server', error);
         reject(error);
