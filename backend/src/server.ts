@@ -36,11 +36,7 @@ initializeDatabase().then(() => {
   logger.error('Failed to initialize database', { context: 'server', error });
 });
 
-// Use PORT environment variable provided by Render or default to 8081
-const port = process.env.PORT || 8081;
-
-// Register Stripe webhook endpoint at root path for ngrok
-// This must be before any other middleware that parses the body
+// Server is started in agent.ts to handle both webhook and regular requests
 app.post('/', express.raw({ type: 'application/json' }), (req, res, next) => {
   try {
     const sig = req.headers['stripe-signature'];
@@ -80,20 +76,18 @@ const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
 // Configure and start the LiveKit worker
 cli.runApp(new WorkerOptions({
   agent: fileURLToPath(new URL('./agent.js', import.meta.url)),
-  port: parseInt(port.toString(), 10) + 1, // Use a different port for the LiveKit worker
   host: '0.0.0.0'
 }));
 
-// Handle shutdown gracefully
-process.on('SIGINT', () => {
-  logger.info('Shutting down server...', { context: 'server' });
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('Received SIGTERM signal', { context: 'server' });
   
   // Stop the order processor worker
   stopOrderProcessor();
   logger.info('Order processor worker stopped', { context: 'server' });
-  
-  server.close(() => {
-    logger.info('Express server closed', { context: 'server' });
-    process.exit(0);
-  });
+  process.exit(0);
 });
+
+// Export the app for use in agent.ts
+export { app };
