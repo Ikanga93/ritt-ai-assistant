@@ -1035,37 +1035,81 @@ export default defineAgent({
     next();
   });
 
-  // Register Stripe webhook endpoint at root path
-  app.post('/', express.raw({ type: 'application/json' }), (req, res, next) => {
+  // Configure timeout for webhook requests
+  app.use((req, res, next) => {
+    // Set timeout to 30 seconds
+    req.setTimeout(30000);
+    res.setTimeout(30000);
+    next();
+  });
+
+  // Register Stripe webhook endpoint at /stripe-webhook path
+  // This path should match what you configure in your Stripe Dashboard
+  app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res, next) => {
+    const startTime = Date.now();
     try {
       const sig = req.headers['stripe-signature'];
       if (!sig) {
         monitor.error('WebhookServer', 'No Stripe signature found in webhook request');
-        res.status(400).json({ error: 'No Stripe signature found' });
-        return;
+        return res.sendStatus(400);
       }
 
       // Ensure the body is a Buffer
       if (!Buffer.isBuffer(req.body)) {
         monitor.error('WebhookServer', 'Invalid request body format - not a Buffer');
-        res.status(400).json({ error: 'Invalid request body format' });
-        return;
+        return res.status(400).send('Invalid request body format');
       }
 
-      monitor.log('WebhookServer', 'Processing webhook request', {
-        type: req.headers['stripe-event-type'],
-        signature: sig.substring(0, 10) + '...'
-      });
+      // Verify Stripe webhook signature
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        monitor.error('WebhookServer', 'STRIPE_WEBHOOK_SECRET not configured');
+        return res.sendStatus(500);
+      }
 
-      // Forward the raw request to the payment webhook handler
-      req.url = '/api/payments/webhook';
-      paymentRoutes(req, res, next);
+      try {
+        const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        monitor.log('WebhookServer', 'Processing webhook request', {
+          type: event.type,
+          signature: sig,
+          bodySize: req.body.length
+        });
+
+        // Quickly acknowledge receipt of the webhook
+        res.sendStatus(200);
+      } catch (err) {
+        monitor.error('WebhookServer', 'Invalid webhook signature', err);
+        return res.sendStatus(400);
+      }
+
+      // Process the webhook asynchronously
+      try {
+        // Forward the raw request to the payment webhook handler
+        req.url = '/api/payments/webhook';
+        await new Promise((resolve, reject) => {
+          paymentRoutes(req, { ...res, end: resolve }, (error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+
+        const duration = Date.now() - startTime;
+        monitor.log('WebhookServer', 'Webhook processing completed', { duration });
+      } catch (error) {
+        monitor.webhookServer.errorCount++;
+        monitor.error('WebhookServer', 'Async webhook processing error', error);
+      }
     } catch (err) {
       monitor.webhookServer.errorCount++;
       monitor.error('WebhookServer', 'Webhook processing error', err);
-      res.status(400).json({ error: 'Webhook error' });
+      if (!res.headersSent) {
+        res.status(500).send('Internal server error');
+      }
     }
   });
+
+  // Add JSON parsing for non-webhook routes
+  app.use(express.json());
 
   // Add JSON body parser for all other routes
   app.use(express.json());
@@ -1093,61 +1137,44 @@ export default defineAgent({
   });
 
   // Start the Express server for webhook handling
-  const port = process.env.PORT || 10001; // Use Render's PORT or fallback to 10001
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   let server;
-  let isServerStarting = false;
-  let serverStartAttempts = 0;
-  const MAX_START_ATTEMPTS = 3;
 
   // Function to start the webhook server
   const startWebhookServer = () => {
     return new Promise((resolve, reject) => {
-      // Prevent multiple server starts
-      if (isServerStarting) {
-        monitor.log('WebhookServer', 'Server start already in progress');
-        return resolve(server);
-      }
       if (server) {
         monitor.log('WebhookServer', 'Server already running');
         return resolve(server);
       }
 
-      // Check if we've exceeded max attempts
-      if (serverStartAttempts >= MAX_START_ATTEMPTS) {
-        monitor.log('WebhookServer', 'Max server start attempts reached, using existing server');
-        return resolve(server);
-      }
-
-      isServerStarting = true;
-      serverStartAttempts++;
-      
       try {
-        monitor.log('WebhookServer', `Starting webhook server (attempt ${serverStartAttempts}/${MAX_START_ATTEMPTS})`, { port });
+        monitor.log('WebhookServer', 'Starting webhook server', { port });
         
-        // Configure server to handle both webhook and regular requests
-        server = app.listen(port, '0.0.0.0', () => {
-          isServerStarting = false;
+        // Configure server with timeouts
+        server = app.listen(port, '0.0.0.0');
+        server.keepAliveTimeout = 65000; // Slightly higher than 60 seconds
+        server.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
+
+        server.on('listening', () => {
           monitor.webhookServer.status = 'running';
           monitor.webhookServer.port = port;
           monitor.webhookServer.startTime = new Date().toISOString();
-          monitor.log('WebhookServer', 'Server started successfully', { port });
+          monitor.log('WebhookServer', 'Server started successfully', { 
+            port,
+            keepAliveTimeout: server.keepAliveTimeout,
+            headersTimeout: server.headersTimeout
+          });
           resolve(server);
         });
 
         // Handle server errors
         server.on('error', (error) => {
-          isServerStarting = false;
-          if (error.code === 'EADDRINUSE') {
-            monitor.log('WebhookServer', 'Port in use, server may already be running');
-            resolve(server); // Resolve instead of reject for EADDRINUSE
-          } else {
-            monitor.webhookServer.errorCount++;
-            monitor.error('WebhookServer', 'Server error', error);
-            reject(error);
-          }
+          monitor.webhookServer.errorCount++;
+          monitor.error('WebhookServer', 'Server error', error);
+          reject(error);
         });
       } catch (error) {
-        isServerStarting = false;
         monitor.webhookServer.errorCount++;
         monitor.error('WebhookServer', 'Failed to start server', error);
         reject(error);
@@ -1162,7 +1189,7 @@ export default defineAgent({
       await startWebhookServer();
       
       // Configure worker to listen on a different port
-      const liveKitPort = parseInt(port.toString(), 10) + 2;
+      const liveKitPort = port + 2; // Use the same port offset logic
       monitor.log('LiveKitWorker', 'Starting LiveKit worker', { port: liveKitPort });
       
       cli.runApp(new WorkerOptions({
