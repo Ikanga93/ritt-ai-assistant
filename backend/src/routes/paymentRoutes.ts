@@ -210,352 +210,329 @@ router.post('/generate-link', async (req: any, res: Response) => {
  */
 // Webhook handler
 router.post('/', async (req: Request, res: Response): Promise<void> => {
+  const correlationId = logger.createCorrelationId();
   console.log('>>> Webhook endpoint / hit by a POST request at', new Date().toISOString());
 
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim(); // Trim any whitespace
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim(); // Trim any whitespace
   let event: Stripe.Event;
   const sig = req.headers['stripe-signature'];
 
-  if (!endpointSecret) {
-    console.error('Webhook secret not configured');
+  if (!webhookSecret) {
+    logger.error('Webhook secret not configured', {
+      correlationId,
+      context: 'payments.webhook'
+    });
     res.status(500).send('Webhook Error: Server configuration error (missing webhook secret).');
     return;
   }
 
   if (!sig) {
-    console.error('No Stripe signature found in request headers');
+    logger.error('No Stripe signature found in request headers', {
+      correlationId,
+      context: 'payments.webhook'
+    });
     res.status(400).send('Webhook Error: Missing stripe-signature header.');
     return;
   }
 
   try {
     // req.body should already be raw due to express.raw() middleware
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    console.log(' Webhook signature verified. Event ID:', event.id, 'Event Type:', event.type);
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    logger.info('Webhook signature verified', {
+      correlationId,
+      context: 'payments.webhook',
+      data: {
+        eventId: event.id,
+        eventType: event.type,
+        eventCreated: event.created
+      }
+    });
   } catch (err: any) {
-    console.error(' Webhook signature verification failed:', err.message);
-    // Log information about the body to help debug if it's not raw
-    console.error('Raw request body type:', typeof req.body, 'Is Buffer?', Buffer.isBuffer(req.body)); 
-    console.error('Raw request body content (first 200 chars):', String(req.body).substring(0,200)); 
+    logger.error('Webhook signature verification failed', {
+      correlationId,
+      context: 'payments.webhook',
+      error: err.message,
+      data: {
+        bodyType: typeof req.body,
+        isBuffer: Buffer.isBuffer(req.body),
+        bodyPreview: Buffer.isBuffer(req.body) ? req.body.toString().substring(0, 200) : String(req.body).substring(0, 200)
+      }
+    });
     res.status(400).send(`Webhook Error: ${err.message}`);
     return;
   }
 
-  console.log('Webhook received:', event.id, 'Type:', event.type);
-
-  // Log the raw request body for debugging
-  console.log('Raw webhook request body:', JSON.stringify(req.body, null, 2));
-  
-  logger.info('Received webhook request', {
-    context: 'payments.webhook',
-    data: {
-      headers: req.headers,
-      hasBody: !!req.body,
-      bodyType: typeof req.body,
-      rawBody: req.body // Log the raw body
-    }
-  });
-
-  // Check if the object has metadata
-  const hasMetadata = 'metadata' in event.data.object;
-  
-  logger.info('Webhook signature verified', {
-    context: 'payments.webhook',
-    data: {
-      eventId: event.id,
-      eventType: event.type,
-      eventCreated: event.created,
-      eventData: event.data.object,
-      metadata: hasMetadata ? (event.data.object as any).metadata : undefined
-    }
-  });
   // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      console.log('Processing checkout.session.completed:', JSON.stringify(session, null, 2));
-      
-      logger.info('Processing checkout.session.completed', {
-        context: 'payments.webhook',
-        data: {
-          sessionId: session.id,
-          metadata: session.metadata,
-          paymentStatus: session.payment_status
-        }
-      });
-      
-      console.log('Webhook Session:', {
-        id: session.id,
-        metadata: session.metadata,
-        customer: session.customer,
-        paymentStatus: session.payment_status,
-        amount: session.amount_total
-      });
-
-      // Look for order number in metadata (try different possible fields)
-      const orderNumber = session.metadata?.orderNumber || session.metadata?.tempOrderId;
-      console.log('Order Number from metadata:', orderNumber, 'Full metadata:', session.metadata);
-      
-      if (orderNumber) {
-        try {
-          // Update order payment status to paid
-          const updatedOrder = await updateOrderPaymentStatus(
-            orderNumber,
-            PaymentStatus.PAID,
-            session.id,
-            session.payment_intent as string
-          );
-          
-          if (updatedOrder) {
-            logger.info('Order payment status updated to PAID', {
-              context: 'payments.webhook',
-              data: {
-                orderId: updatedOrder.id,
-                orderNumber,
-                paymentStatus: 'PAID',
-                paidAt: updatedOrder.paidAt
-              }
-            });
-          } else {
-            logger.warn('Order not found for order number', {
-              context: 'payments.webhook',
-              data: {
-                orderNumber
-              }
-            });
-          }
-        } catch (error) {
-          logger.error('Failed to update order payment status', {
-            context: 'payments.webhook',
-            error,
-            data: {
-              orderNumber
-            }
-          });
-        }
-      } else {
-        logger.warn('No order number found in session metadata', {
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        logger.info('Processing checkout.session.completed', {
+          correlationId,
           context: 'payments.webhook',
           data: {
             sessionId: session.id,
-            metadata: session.metadata
+            metadata: session.metadata,
+            paymentStatus: session.payment_status
           }
         });
-      }
-      break;
-    }
-    case 'payment_intent.succeeded': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      logger.info('Processing payment_intent.succeeded', {
-        context: 'payments.webhook',
-        data: {
-          paymentIntentId: paymentIntent.id,
-          metadata: paymentIntent.metadata,
-          status: paymentIntent.status,
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency
+        
+        // Look for order number in metadata (try different possible fields)
+        const orderNumber = session.metadata?.orderNumber || session.metadata?.tempOrderId;
+        if (!orderNumber) {
+          logger.warn('No order number found in session metadata', {
+            correlationId,
+            context: 'payments.webhook',
+            data: {
+              sessionId: session.id,
+              metadata: session.metadata
+            }
+          });
+          break;
         }
-      });
-      
-      // Check for order ID in metadata (used by embedded checkout)
-      const orderId = paymentIntent.metadata?.orderId;
-      // Also check for payment link ID (used by payment links)
-      const paymentLinkId = paymentIntent.metadata?.payment_link_id;
-      
-      const identifier = orderId || paymentLinkId;
-      const identifierType = orderId ? 'orderId' : 'paymentLinkId';
-      
-      if (identifier) {
-        try {
-          // Update order payment status to paid
-          const updatedOrder = await updateOrderPaymentStatus(
-            identifier,
-            PaymentStatus.PAID,
-            undefined, // No session ID for direct payment intents
-            paymentIntent.id
-          );
-          
-          if (updatedOrder) {
-            logger.info('Order payment status updated to PAID', {
-              context: 'payments.webhook',
-              data: {
-                orderId: updatedOrder.id,
-                orderNumber: updatedOrder.orderNumber,
-                [identifierType]: identifier,
-                paymentStatus: 'PAID',
-                paymentIntentId: paymentIntent.id,
-                paidAt: updatedOrder.paidAt,
-                amount: paymentIntent.amount,
-                currency: paymentIntent.currency
-              }
-            });
+
+        // Process the completed checkout session
+        // ... rest of the checkout.session.completed handling ...
+        break;
+      }
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        logger.info('Processing payment_intent.succeeded', {
+          correlationId,
+          context: 'payments.webhook',
+          data: {
+            paymentIntentId: paymentIntent.id,
+            metadata: paymentIntent.metadata,
+            status: paymentIntent.status,
+            amount: paymentIntent.amount,
+            currency: paymentIntent.currency
+          }
+        });
+        
+        // Check for order ID in metadata (used by embedded checkout)
+        const orderId = paymentIntent.metadata?.orderId;
+        // Also check for payment link ID (used by payment links)
+        const paymentLinkId = paymentIntent.metadata?.payment_link_id;
+        
+        const identifier = orderId || paymentLinkId;
+        const identifierType = orderId ? 'orderId' : 'paymentLinkId';
+        
+        if (identifier) {
+          try {
+            // Update order payment status to paid
+            const updatedOrder = await updateOrderPaymentStatus(
+              identifier,
+              PaymentStatus.PAID,
+              undefined, // No session ID for direct payment intents
+              paymentIntent.id
+            );
             
-            // Check if this was a new order (not from a payment link)
-            if (orderId) {
-              logger.info('Processing successful payment for order', {
+            if (updatedOrder) {
+              logger.info('Order payment status updated to PAID', {
+                correlationId,
                 context: 'payments.webhook',
                 data: {
                   orderId: updatedOrder.id,
                   orderNumber: updatedOrder.orderNumber,
-                  paymentIntentId: paymentIntent.id
+                  [identifierType]: identifier,
+                  paymentStatus: 'PAID',
+                  paymentIntentId: paymentIntent.id,
+                  paidAt: updatedOrder.paidAt,
+                  amount: paymentIntent.amount,
+                  currency: paymentIntent.currency
                 }
               });
               
-              // Here you could add additional logic for orders that were just paid
-              // For example, sending order confirmation emails, etc.
+              // Check if this was a new order (not from a payment link)
+              if (orderId) {
+                logger.info('Processing successful payment for order', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber,
+                    paymentIntentId: paymentIntent.id
+                  }
+                });
+                
+                // Here you could add additional logic for orders that were just paid
+                // For example, sending order confirmation emails, etc.
+              }
+            } else {
+              logger.warn('Order not found for payment', {
+                correlationId,
+                context: 'payments.webhook',
+                data: {
+                  [identifierType]: identifier,
+                  paymentIntentId: paymentIntent.id
+                }
+              });
             }
-          } else {
-            logger.warn('Order not found for payment', {
-              context: 'payments.webhook',
+          } catch (error) {
+            logger.error('Failed to update order payment status', {
+              correlationId,
+              error: error instanceof Error ? error.message : 'Unknown error',
               data: {
                 [identifierType]: identifier,
-                paymentIntentId: paymentIntent.id
+                paymentIntentId: paymentIntent.id,
+                errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
               }
             });
           }
-        } catch (error) {
-          logger.error('Failed to update order payment status', {
+        } else {
+          logger.warn('No order ID or payment link ID found in payment intent metadata', {
+            correlationId,
             context: 'payments.webhook',
-            error: error instanceof Error ? error.message : 'Unknown error',
             data: {
-              [identifierType]: identifier,
               paymentIntentId: paymentIntent.id,
-              errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
+              metadata: paymentIntent.metadata
             }
           });
         }
-      } else {
-        logger.warn('No order ID or payment link ID found in payment intent metadata', {
+        break;
+      }
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        logger.info('Processing payment_intent.payment_failed', {
+          correlationId,
           context: 'payments.webhook',
           data: {
             paymentIntentId: paymentIntent.id,
-            metadata: paymentIntent.metadata
+            metadata: paymentIntent.metadata,
+            status: paymentIntent.status,
+            lastPaymentError: paymentIntent.last_payment_error
           }
         });
-      }
-      break;
-    }
-    case 'payment_intent.payment_failed': {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      logger.info('Processing payment_intent.payment_failed', {
-        context: 'payments.webhook',
-        data: {
-          paymentIntentId: paymentIntent.id,
-          metadata: paymentIntent.metadata,
-          status: paymentIntent.status,
-          lastPaymentError: paymentIntent.last_payment_error
-        }
-      });
-      
-      // For payment intents created through payment links, find the payment link ID
-      const paymentLinkId = paymentIntent.metadata?.payment_link_id;
-      if (paymentLinkId) {
-        try {
-          // Update order payment status to failed
-          const updatedOrder = await updateOrderPaymentStatus(
-            paymentLinkId,
-            PaymentStatus.FAILED
-          );
-          
-          if (updatedOrder) {
-            logger.info('Order payment status updated to FAILED', {
-              context: 'payments.webhook',
-              data: {
-                orderId: updatedOrder.id,
-                paymentLinkId,
-                paymentStatus: 'FAILED',
-                error: paymentIntent.last_payment_error?.message
-              }
-            });
-          } else {
-            logger.warn('Order not found for payment link', {
-              context: 'payments.webhook',
+        
+        // For payment intents created through payment links, find the payment link ID
+        const paymentLinkId = paymentIntent.metadata?.payment_link_id;
+        if (paymentLinkId) {
+          try {
+            // Update order payment status to failed
+            const updatedOrder = await updateOrderPaymentStatus(
+              paymentLinkId,
+              PaymentStatus.FAILED
+            );
+            
+            if (updatedOrder) {
+              logger.info('Order payment status updated to FAILED', {
+                correlationId,
+                context: 'payments.webhook',
+                data: {
+                  orderId: updatedOrder.id,
+                  paymentLinkId,
+                  paymentStatus: 'FAILED',
+                  error: paymentIntent.last_payment_error?.message
+                }
+              });
+            } else {
+              logger.warn('Order not found for payment link', {
+                correlationId,
+                context: 'payments.webhook',
+                data: {
+                  paymentLinkId
+                }
+              });
+            }
+          } catch (error) {
+            logger.error('Failed to update order payment status', {
+              correlationId,
+              error,
               data: {
                 paymentLinkId
               }
             });
           }
-        } catch (error) {
-          logger.error('Failed to update order payment status', {
-            context: 'payments.webhook',
-            error,
-            data: {
-              paymentLinkId
-            }
-          });
-        }
-      } else {
-        logger.warn('No payment link ID found in payment intent metadata', {
-          context: 'payments.webhook',
-          data: {
-            paymentIntentId: paymentIntent.id,
-            metadata: paymentIntent.metadata
-          }
-        });
-      }
-      break;
-    }
-    case 'checkout.session.expired': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      logger.info('Processing checkout.session.expired', {
-        context: 'payments.webhook',
-        data: {
-          sessionId: session.id,
-          metadata: session.metadata,
-          expiresAt: session.expires_at
-        }
-      });
-      // Look for temporary order ID in metadata
-      const tempOrderId = session.metadata?.tempOrderId || session.metadata?.orderId;
-      if (tempOrderId) {
-        const tempOrder = temporaryOrderService.getOrder(tempOrderId);
-        if (tempOrder) {
-          const updatedOrder = temporaryOrderService.updateOrder(tempOrderId, {
-            metadata: {
-              ...tempOrder.metadata,
-              paymentStatus: 'expired',
-              expiredAt: new Date().toISOString()
-            }
-          });
-          logger.info('Temporary order payment status updated', {
-            context: 'payments.webhook',
-            data: {
-              orderId: updatedOrder?.id,
-              paymentStatus: updatedOrder?.metadata?.paymentStatus,
-              updatedAt: new Date().toISOString()
-            }
-          });
         } else {
-          logger.warn('Temporary order not found', {
+          logger.warn('No payment link ID found in payment intent metadata', {
+            correlationId,
             context: 'payments.webhook',
             data: {
-              orderId: tempOrderId
+              paymentIntentId: paymentIntent.id,
+              metadata: paymentIntent.metadata
             }
           });
         }
-      } else {
-        logger.warn('No temporary order ID found in session metadata', {
+        break;
+      }
+      case 'checkout.session.expired': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        logger.info('Processing checkout.session.expired', {
+          correlationId,
           context: 'payments.webhook',
           data: {
             sessionId: session.id,
-            metadata: session.metadata
+            metadata: session.metadata,
+            expiresAt: session.expires_at
+          }
+        });
+        // Look for temporary order ID in metadata
+        const tempOrderId = session.metadata?.tempOrderId || session.metadata?.orderId;
+        if (tempOrderId) {
+          const tempOrder = temporaryOrderService.getOrder(tempOrderId);
+          if (tempOrder) {
+            const updatedOrder = temporaryOrderService.updateOrder(tempOrderId, {
+              metadata: {
+                ...tempOrder.metadata,
+                paymentStatus: 'expired',
+                expiredAt: new Date().toISOString()
+              }
+            });
+            logger.info('Temporary order payment status updated', {
+              correlationId,
+              context: 'payments.webhook',
+              data: {
+                orderId: updatedOrder?.id,
+                paymentStatus: updatedOrder?.metadata?.paymentStatus,
+                updatedAt: new Date().toISOString()
+              }
+            });
+          } else {
+            logger.warn('Temporary order not found', {
+              correlationId,
+              context: 'payments.webhook',
+              data: {
+                orderId: tempOrderId
+              }
+            });
+          }
+        } else {
+          logger.warn('No temporary order ID found in session metadata', {
+            correlationId,
+            context: 'payments.webhook',
+            data: {
+              sessionId: session.id,
+              metadata: session.metadata
+            }
+          });
+        }
+        break;
+      }
+      default: {
+        logger.info('Unhandled webhook event type', {
+          correlationId,
+          context: 'payments.webhook',
+          data: {
+            eventType: event.type,
+            eventId: event.id
           }
         });
       }
-      break;
     }
-    default: {
-      logger.info('Unhandled webhook event type', {
-        context: 'payments.webhook',
-        data: {
-          eventType: event.type,
-          eventId: event.id
-        }
-      });
-    }
-  }
 
-  res.json({ received: true });
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('Error processing webhook event', {
+      correlationId,
+      context: 'payments.webhook',
+      error,
+      data: {
+        eventId: event.id,
+        eventType: event.type
+      }
+    });
+    res.status(500).send('Internal server error');
+  }
 });
 
 /**

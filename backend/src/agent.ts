@@ -169,7 +169,7 @@ export default defineAgent({
      - Summarize the complete order with all items, quantities, and the total price
      - Ask the customer to confirm if everything is correct
      - CRITICAL: When the customer confirms their order, you MUST IMMEDIATELY call the placeOrder function with all order details
-     - After calling placeOrder, tell them: "Thanks for confirming your order! IMPORTANT: Please check your email right away - I've sent you a payment link to complete your order. You must click the payment link in your email to process the payment. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after. Don't forget to check your email for the payment link!"
+     - After calling placeOrder, ALWAYS tell them: "Thanks for confirming your order! IMPORTANT: Please check your email right away - I've sent you a payment link to complete your order. You must click the payment link in your email to process the payment. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after. Don't forget to check your email for the payment link!"
      - If they want changes, go back to the appropriate step
      - NEVER skip calling the placeOrder function when an order is confirmed
 
@@ -180,11 +180,8 @@ export default defineAgent({
      - IMPORTANT: If a customer asks for a specific restaurant like Niros Gyros, ALWAYS try to find it even if initial lookup fails
      - If you initially say a restaurant doesn't exist but the customer insists, try again using the getRestaurantById function
      - NEVER tell customers a restaurant doesn't exist without trying multiple times to find it
-  
-     - Briefly summarize their complete order including all items and total
+     - CRITICAL: ALWAYS remind them to check their email for the payment link before ending the conversation
 
-     - CRITICAL: ALWAYS call the placeOrder function with the correct restaurant ID, customer name, and all order items
-  
   7. CONVERSATION FLOW:
      - Keep all interactions brief and to the point
      - Focus on efficiency and accuracy
@@ -474,9 +471,9 @@ export default defineAgent({
                   specialInstructions: item.specialInstructions
                 });
               });
-            
+              
               console.log('Items added to cart:', conversationState.cartItems);
-            
+              
               // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
               const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);
               
@@ -1043,9 +1040,9 @@ export default defineAgent({
     next();
   });
 
-  // Register Stripe webhook endpoint at /stripe-webhook path
+  // Register Stripe webhook endpoint at /api/payments/webhook path
   // This path should match what you configure in your Stripe Dashboard
-  app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res, next) => {
+  app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), async (req, res, next) => {
     const startTime = Date.now();
     try {
       const sig = req.headers['stripe-signature'];
@@ -1077,27 +1074,26 @@ export default defineAgent({
 
         // Quickly acknowledge receipt of the webhook
         res.sendStatus(200);
+
+        // Process the webhook asynchronously
+        try {
+          // Forward the raw request to the payment webhook handler
+          await new Promise((resolve, reject) => {
+            paymentRoutes(req, { ...res, end: resolve }, (error) => {
+              if (error) reject(error);
+              else resolve(undefined);
+            });
+          });
+
+          const duration = Date.now() - startTime;
+          monitor.log('WebhookServer', 'Webhook processing completed', { duration });
+        } catch (error) {
+          monitor.webhookServer.errorCount++;
+          monitor.error('WebhookServer', 'Async webhook processing error', error);
+        }
       } catch (err) {
         monitor.error('WebhookServer', 'Invalid webhook signature', err);
         return res.sendStatus(400);
-      }
-
-      // Process the webhook asynchronously
-      try {
-        // Forward the raw request to the payment webhook handler
-        req.url = '/api/payments/webhook';
-        await new Promise((resolve, reject) => {
-          paymentRoutes(req, { ...res, end: resolve }, (error) => {
-            if (error) reject(error);
-            else resolve();
-          });
-        });
-
-        const duration = Date.now() - startTime;
-        monitor.log('WebhookServer', 'Webhook processing completed', { duration });
-      } catch (error) {
-        monitor.webhookServer.errorCount++;
-        monitor.error('WebhookServer', 'Async webhook processing error', error);
       }
     } catch (err) {
       monitor.webhookServer.errorCount++;
@@ -1284,11 +1280,11 @@ export default defineAgent({
         if (message && message.type === 'error' && message.error && message.error.code === 'ERR_IPC_CHANNEL_CLOSED') {
           monitor.log('LiveKitWorker', 'Received IPC channel error, attempting recovery');
           // Attempt to recover by restarting the worker
-          cli.runApp(new WorkerOptions({
-            agent: fileURLToPath(import.meta.url),
-            port: liveKitPort,
-            host: '0.0.0.0'
-          }));
+  cli.runApp(new WorkerOptions({
+    agent: fileURLToPath(import.meta.url),
+    port: liveKitPort,
+    host: '0.0.0.0'
+  }));
         }
       });
 

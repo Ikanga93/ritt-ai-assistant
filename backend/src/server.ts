@@ -36,30 +36,6 @@ initializeDatabase().then(() => {
   logger.error('Failed to initialize database', { context: 'server', error });
 });
 
-// Server is started in agent.ts to handle both webhook and regular requests
-app.post('/', express.raw({ type: 'application/json' }), (req, res, next) => {
-  try {
-    const sig = req.headers['stripe-signature'];
-    if (!sig) {
-      res.status(400).json({ error: 'No Stripe signature found' });
-      return;
-    }
-
-    // Ensure the body is a Buffer
-    if (!Buffer.isBuffer(req.body)) {
-      res.status(400).json({ error: 'Invalid request body format' });
-      return;
-    }
-
-    // Forward the raw request to the payment webhook handler
-    req.url = '/api/payments/webhook';
-    paymentRoutes(req, res, next);
-  } catch (err) {
-    console.error('Webhook error:', err);
-    res.status(400).json({ error: 'Webhook error' });
-  }
-});
-
 // Add JSON body parser for all other routes
 app.use(express.json());
 
