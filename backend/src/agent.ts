@@ -1202,13 +1202,13 @@ export default defineAgent({
         });
 
         // Handle server errors
-        server.on('error', (error) => {
+        server.on('error', async (error) => {
           clearTimeout(startTimeout);
           isServerStarting = false;
           if (error.code === 'EADDRINUSE') {
             monitor.log('WebhookServer', 'Port in use, server may already be running');
-            // Try to find the existing server
-            const net = require('net');
+            // Use dynamic import for net module
+            const { default: net } = await import('net');
             const testServer = net.createServer();
             testServer.once('error', (err) => {
               if (err.code === 'EADDRINUSE') {
