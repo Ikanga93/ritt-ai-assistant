@@ -1213,12 +1213,23 @@ export default defineAgent({
             testServer.once('error', (err) => {
               if (err.code === 'EADDRINUSE') {
                 monitor.log('WebhookServer', 'Confirmed port is in use by another process');
-                resolve(server); // Resolve with null since we can't access the existing server
+                // Instead of resolving with null, we'll try to find the existing server
+                const existingServer = net.createServer();
+                existingServer.once('error', () => {
+                  // If we can't connect, the server is already running
+                  monitor.log('WebhookServer', 'Existing server confirmed running');
+                  resolve(server);
+                });
+                existingServer.once('listening', () => {
+                  existingServer.close();
+                  reject(error);
+                });
+                existingServer.listen(port);
               }
             });
             testServer.once('listening', () => {
               testServer.close();
-              reject(error); // Port is actually free, reject to try again
+              reject(error);
             });
             testServer.listen(port);
           } else {
