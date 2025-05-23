@@ -1140,6 +1140,9 @@ export default defineAgent({
   // Use the port provided by Render, falling back to 3000 for local development
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   let server;
+  let isServerStarting = false;
+  let serverStartAttempts = 0;
+  const MAX_START_ATTEMPTS = 3;
 
   // Log the port we're using
   monitor.log('WebhookServer', `Using port from environment: ${port}`);
@@ -1147,13 +1150,27 @@ export default defineAgent({
   // Function to start the webhook server
   const startWebhookServer = () => {
     return new Promise((resolve, reject) => {
+      // Prevent multiple server starts
+      if (isServerStarting) {
+        monitor.log('WebhookServer', 'Server start already in progress');
+        return resolve(server);
+      }
       if (server) {
         monitor.log('WebhookServer', 'Server already running');
         return resolve(server);
       }
 
+      // Check if we've exceeded max attempts
+      if (serverStartAttempts >= MAX_START_ATTEMPTS) {
+        monitor.log('WebhookServer', 'Max server start attempts reached, using existing server');
+        return resolve(server);
+      }
+
+      isServerStarting = true;
+      serverStartAttempts++;
+      
       try {
-        monitor.log('WebhookServer', 'Starting webhook server', { port });
+        monitor.log('WebhookServer', `Starting webhook server (attempt ${serverStartAttempts}/${MAX_START_ATTEMPTS})`, { port });
         
         // Configure server with timeouts
         server = app.listen(port, '0.0.0.0');
@@ -1161,6 +1178,7 @@ export default defineAgent({
         server.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
 
         server.on('listening', () => {
+          isServerStarting = false;
           monitor.webhookServer.status = 'running';
           monitor.webhookServer.port = port;
           monitor.webhookServer.startTime = new Date().toISOString();
@@ -1174,11 +1192,18 @@ export default defineAgent({
 
         // Handle server errors
         server.on('error', (error) => {
-          monitor.webhookServer.errorCount++;
-          monitor.error('WebhookServer', 'Server error', error);
-          reject(error);
+          isServerStarting = false;
+          if (error.code === 'EADDRINUSE') {
+            monitor.log('WebhookServer', 'Port in use, server may already be running');
+            resolve(server); // Resolve instead of reject for EADDRINUSE
+          } else {
+            monitor.webhookServer.errorCount++;
+            monitor.error('WebhookServer', 'Server error', error);
+            reject(error);
+          }
         });
       } catch (error) {
+        isServerStarting = false;
         monitor.webhookServer.errorCount++;
         monitor.error('WebhookServer', 'Failed to start server', error);
         reject(error);
