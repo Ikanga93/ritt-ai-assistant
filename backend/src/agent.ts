@@ -1246,6 +1246,41 @@ export default defineAgent({
       const liveKitPort = port + 2; // Use the same port offset logic
       monitor.log('LiveKitWorker', 'Starting LiveKit worker', { port: liveKitPort });
       
+      // Add error handlers for the LiveKit worker
+      process.on('uncaughtException', (error) => {
+        if (error.code === 'ERR_IPC_CHANNEL_CLOSED') {
+          monitor.log('LiveKitWorker', 'IPC channel closed, attempting graceful shutdown');
+          // Attempt graceful shutdown
+          if (server) {
+            server.close(() => {
+              monitor.log('System', 'Webhook server closed');
+              process.exit(0);
+            });
+          } else {
+            process.exit(0);
+          }
+        } else {
+          monitor.error('System', 'Uncaught exception', error);
+          // Don't exit immediately, allow the error to be logged
+          setTimeout(() => {
+            process.exit(1);
+          }, 1000);
+        }
+      });
+
+      // Add handler for IPC channel errors
+      process.on('message', (message) => {
+        if (message && message.type === 'error' && message.error && message.error.code === 'ERR_IPC_CHANNEL_CLOSED') {
+          monitor.log('LiveKitWorker', 'Received IPC channel error, attempting recovery');
+          // Attempt to recover by restarting the worker
+          cli.runApp(new WorkerOptions({
+            agent: fileURLToPath(import.meta.url),
+            port: liveKitPort,
+            host: '0.0.0.0'
+          }));
+        }
+      });
+
       cli.runApp(new WorkerOptions({
         agent: fileURLToPath(import.meta.url),
         port: liveKitPort,
@@ -1258,7 +1293,14 @@ export default defineAgent({
       monitor.log('LiveKitWorker', 'Worker started successfully', { port: liveKitPort });
     } catch (error) {
       monitor.error('System', 'Failed to start servers', error);
-      process.exit(1);
+      // Don't exit immediately on error, attempt graceful shutdown
+      if (server) {
+        server.close(() => {
+          process.exit(1);
+        });
+      } else {
+        process.exit(1);
+      }
     }
   })();
 
@@ -1287,16 +1329,8 @@ export default defineAgent({
     }
   });
 
-  // Add uncaught exception handler
-  process.on('uncaughtException', (error) => {
-    monitor.error('System', 'Uncaught exception', error);
-    // Don't exit immediately, allow the error to be logged
-    setTimeout(() => {
-      process.exit(1);
-    }, 1000);
-  });
-
   // Add unhandled rejection handler
   process.on('unhandledRejection', (reason, promise) => {
     monitor.error('System', 'Unhandled promise rejection', { reason, promise });
+    // Don't exit on unhandled rejection, just log it
   });
