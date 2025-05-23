@@ -1137,8 +1137,12 @@ export default defineAgent({
   });
 
   // Start the Express server for webhook handling
+  // Use the port provided by Render, falling back to 3000 for local development
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   let server;
+
+  // Log the port we're using
+  monitor.log('WebhookServer', `Using port from environment: ${port}`);
 
   // Function to start the webhook server
   const startWebhookServer = () => {
