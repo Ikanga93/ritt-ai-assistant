@@ -68,14 +68,10 @@ app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Start the Express server
-const server = app.listen(parseInt(port.toString(), 10), '0.0.0.0', () => {
-  console.log(`Express server is running on port ${port}`);
-});
-
 // Configure and start the LiveKit worker
 cli.runApp(new WorkerOptions({
   agent: fileURLToPath(new URL('./agent.js', import.meta.url)),
+  port: process.env.LIVEKIT_PORT ? parseInt(process.env.LIVEKIT_PORT, 10) : 10002,
   host: '0.0.0.0'
 }));
 
