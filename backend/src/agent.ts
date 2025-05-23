@@ -1143,6 +1143,7 @@ export default defineAgent({
   let isServerStarting = false;
   let serverStartAttempts = 0;
   const MAX_START_ATTEMPTS = 3;
+  const SERVER_START_TIMEOUT = 5000; // 5 seconds timeout for server start
 
   // Log the port we're using
   monitor.log('WebhookServer', `Using port from environment: ${port}`);
@@ -1177,7 +1178,17 @@ export default defineAgent({
         server.keepAliveTimeout = 65000; // Slightly higher than 60 seconds
         server.headersTimeout = 66000; // Slightly higher than keepAliveTimeout
 
+        // Add timeout for server start
+        const startTimeout = setTimeout(() => {
+          if (isServerStarting) {
+            isServerStarting = false;
+            monitor.error('WebhookServer', 'Server start timeout');
+            reject(new Error('Server start timeout'));
+          }
+        }, SERVER_START_TIMEOUT);
+
         server.on('listening', () => {
+          clearTimeout(startTimeout);
           isServerStarting = false;
           monitor.webhookServer.status = 'running';
           monitor.webhookServer.port = port;
@@ -1192,10 +1203,24 @@ export default defineAgent({
 
         // Handle server errors
         server.on('error', (error) => {
+          clearTimeout(startTimeout);
           isServerStarting = false;
           if (error.code === 'EADDRINUSE') {
             monitor.log('WebhookServer', 'Port in use, server may already be running');
-            resolve(server); // Resolve instead of reject for EADDRINUSE
+            // Try to find the existing server
+            const net = require('net');
+            const testServer = net.createServer();
+            testServer.once('error', (err) => {
+              if (err.code === 'EADDRINUSE') {
+                monitor.log('WebhookServer', 'Confirmed port is in use by another process');
+                resolve(server); // Resolve with null since we can't access the existing server
+              }
+            });
+            testServer.once('listening', () => {
+              testServer.close();
+              reject(error); // Port is actually free, reject to try again
+            });
+            testServer.listen(port);
           } else {
             monitor.webhookServer.errorCount++;
             monitor.error('WebhookServer', 'Server error', error);
