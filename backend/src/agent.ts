@@ -471,16 +471,16 @@ export default defineAgent({
                   specialInstructions: item.specialInstructions
                 });
               });
-              
+            
               console.log('Items added to cart:', conversationState.cartItems);
-              
+            
               // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
               const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);
-              
+            
               // Process verified items
               const validatedItems = [];
               const unverifiedItems = [];
-              
+            
               for (const item of verifiedItems) {
                 // Check if this is a special instruction rather than a menu item
                 if (item.isSpecialInstruction) {
@@ -583,7 +583,7 @@ export default defineAgent({
                   unverifiedItems.push(item);
                 }
               }
-              
+            
               // If we have unverified items, log them for debugging
               if (unverifiedItems.length > 0) {
                 console.warn(`${unverifiedItems.length} items could not be verified against the menu:`, 
@@ -593,7 +593,7 @@ export default defineAgent({
                 // Add unverified items to the order anyway
                 validatedItems.push(...unverifiedItems);
               }
-              
+            
               // Update customer info in conversation state
               updateCustomerInfo(conversationState, customerName, customerEmail);
               updateLastFunction(conversationState, 'placeOrder');
@@ -1072,13 +1072,12 @@ export default defineAgent({
           bodySize: req.body.length
         });
 
-        // Quickly acknowledge receipt of the webhook
-        res.sendStatus(200);
-
         // Process the webhook asynchronously
         try {
           // Forward the raw request to the payment webhook handler
           await new Promise((resolve, reject) => {
+            // Change the URL to match the paymentRoutes handler
+            req.url = '/api/payments/';
             paymentRoutes(req, { ...res, end: resolve }, (error) => {
               if (error) reject(error);
               else resolve(undefined);
