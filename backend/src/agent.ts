@@ -10,13 +10,15 @@ import {
     llm,
     multimodal,
   } from '@livekit/agents';
-  import * as openai from '@livekit/agents-plugin-openai';
-  import dotenv from 'dotenv';
-  import path from 'node:path';
-  import { fileURLToPath } from 'node:url';
-  import { z } from 'zod';
-  import express from 'express';
-  import fetch from 'node-fetch';
+import * as openai from '@livekit/agents-plugin-openai';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+import express, { type Request } from 'express';
+import fetch from 'node-fetch';
+import getRawBody from 'raw-body';
+import type { IncomingMessage } from 'http';
   // Import API throttler and performance monitor
   import { apiThrottler } from './apiThrottler.js';
   import { performanceMonitor } from './performanceMonitor.js';
@@ -1040,96 +1042,67 @@ export default defineAgent({
     next();
   });
 
-  // Register Stripe webhook endpoint at /api/payments/webhook path
-  // This path should match what you configure in your Stripe Dashboard
-  app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), async (req, res, next) => {
-    const startTime = Date.now();
-    try {
-      const sig = req.headers['stripe-signature'];
-      if (!sig) {
-        monitor.error('WebhookServer', 'No Stripe signature found in webhook request');
-        return res.sendStatus(400);
-      }
-
-      // Ensure the body is a Buffer
-      if (!Buffer.isBuffer(req.body)) {
-        monitor.error('WebhookServer', 'Invalid request body format - not a Buffer');
-        return res.status(400).send('Invalid request body format');
-      }
-
-      // Verify Stripe webhook signature
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (!webhookSecret) {
-        monitor.error('WebhookServer', 'STRIPE_WEBHOOK_SECRET not configured');
-        return res.sendStatus(500);
-      }
-
-      try {
-        const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-        monitor.log('WebhookServer', 'Processing webhook request', {
-          type: event.type,
-          signature: sig,
-          bodySize: req.body.length
-        });
-
-        // Process the webhook asynchronously
-        try {
-          // Forward the raw request to the payment webhook handler
-          await new Promise((resolve, reject) => {
-            // Change the URL to match the paymentRoutes handler
-            req.url = '/api/payments/';
-            paymentRoutes(req, { ...res, end: resolve }, (error) => {
-              if (error) reject(error);
-              else resolve(undefined);
-            });
-          });
-
-          const duration = Date.now() - startTime;
-          monitor.log('WebhookServer', 'Webhook processing completed', { duration });
-        } catch (error) {
-          monitor.webhookServer.errorCount++;
-          monitor.error('WebhookServer', 'Async webhook processing error', error);
-        }
-      } catch (err) {
-        monitor.error('WebhookServer', 'Invalid webhook signature', err);
-        return res.sendStatus(400);
-      }
-    } catch (err) {
-      monitor.webhookServer.errorCount++;
-      monitor.error('WebhookServer', 'Webhook processing error', err);
-      if (!res.headersSent) {
-        res.status(500).send('Internal server error');
-      }
+  // Handle raw body for webhook endpoint
+  // Handle webhook requests using Stripe's recommended approach
+  app.use('/api/payments/webhook', (req, res, next) => {
+    // Only process POST requests
+    if (req.method !== 'POST') {
+      return next();
     }
+    
+    let rawBody = '';
+    req.setEncoding('utf8');
+    
+    req.on('data', (chunk) => {
+      rawBody += chunk;
+    });
+    
+    req.on('end', () => {
+      if (rawBody) {
+        // Store the raw body as a string for Stripe webhook verification
+        (req as any).rawBody = rawBody;
+        
+        // Log successful raw body capture
+        monitor.log('WebhookServer', 'Successfully captured raw body', {
+          length: rawBody.length,
+          headers: {
+            'content-type': req.headers['content-type'],
+            'content-length': req.headers['content-length']
+          }
+        });
+        
+        // Parse the body as JSON for easier access in the route handler
+        try {
+          (req as any).body = JSON.parse(rawBody);
+        } catch (err) {
+          // If JSON parsing fails, that's okay - we still have the raw body
+          monitor.error('WebhookServer', 'Error parsing JSON body', err);
+        }
+      }
+      next();
+    });
+    
+    req.on('error', (err) => {
+      monitor.error('WebhookServer', 'Error reading request stream', err);
+      res.status(400).json({
+        error: 'Could not read request body',
+        details: err.message
+      });
+    });
   });
 
   // Add JSON parsing for non-webhook routes
-  app.use(express.json());
-
-  // Add JSON body parser for all other routes
-  app.use(express.json());
-  
-  // Mount payment routes for non-webhook endpoints
-  app.use('/api/payments', paymentRoutes);
-  
-  // Add health check endpoint
-  app.get('/health', (req, res) => {
-    const health = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      webhookServer: {
-        ...monitor.webhookServer,
-        uptime: monitor.webhookServer.startTime ? 
-          (Date.now() - new Date(monitor.webhookServer.startTime).getTime()) / 1000 : 0
-      },
-      liveKitWorker: {
-        ...monitor.liveKitWorker,
-        uptime: monitor.liveKitWorker.startTime ? 
-          (Date.now() - new Date(monitor.liveKitWorker.startTime).getTime()) / 1000 : 0
-      }
-    };
-    res.json(health);
+  app.use((req, res, next) => {
+    // Skip JSON parsing for webhook endpoint
+    if (req.originalUrl === '/api/payments/webhook') {
+      return next();
+    }
+    express.json()(req, res, next);
   });
+
+  // Mount payment routes
+  app.use('/api/payments', paymentRoutes);
+  monitor.log('WebhookServer', 'Mounted payment routes at /api/payments');
 
   // Start the Express server for webhook handling
   // Use the port provided by Render, falling back to 3000 for local development

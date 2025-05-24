@@ -1,6 +1,6 @@
 {
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
+  "exclude": ["**/node_modules", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "target": "ESNext",
     "module": "NodeNext",
@@ -13,6 +13,10 @@
     "rootDir": "src",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ]
   }
 }

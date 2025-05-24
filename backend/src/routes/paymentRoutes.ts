@@ -204,16 +204,34 @@ router.post('/generate-link', async (req: any, res: Response) => {
 /**
  * Stripe webhook handler
  * 
- * POST /api/payments/
+ * POST /api/payments/webhook
  * 
  * Handles Stripe payment events
  */
 // Webhook handler
-router.post('/', async (req: Request, res: Response): Promise<void> => {
+router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
   const correlationId = logger.createCorrelationId();
-  console.log('>>> Webhook endpoint / hit by a POST request at', new Date().toISOString());
+  console.log('>>> Webhook endpoint /webhook hit by a POST request at', new Date().toISOString());
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim(); // Trim any whitespace
+  
+  // Log the webhook secret (partially masked for security)
+  if (webhookSecret) {
+    const maskedSecret = webhookSecret.substring(0, 4) + '...' + webhookSecret.substring(webhookSecret.length - 4);
+    logger.debug('Using webhook secret', {
+      correlationId,
+      context: 'payments.webhook',
+      data: {
+        maskedSecret,
+        length: webhookSecret.length
+      }
+    });
+  } else {
+    logger.error('Webhook secret not configured', {
+      correlationId,
+      context: 'payments.webhook'
+    });
+  }
   let event: Stripe.Event;
   const sig = req.headers['stripe-signature'];
 
@@ -236,8 +254,64 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    // req.body should already be raw due to express.raw() middleware
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    // Get the raw body from the request (added by our middleware)
+    const rawBody = (req as any).rawBody;
+    
+    if (!rawBody) {
+      const errorMessage = 'Missing request body';
+      logger.error(errorMessage, {
+        correlationId,
+        context: 'payments.webhook',
+        data: {
+          bodyType: typeof rawBody,
+          headers: req.headers,
+          url: req.url,
+          method: req.method
+        }
+      });
+      res.status(400).json({ error: errorMessage });
+      return;
+    }
+
+    // Log the raw body for debugging
+    logger.debug('Raw webhook body received', {
+      correlationId,
+      context: 'payments.webhook',
+      data: {
+        bodyLength: rawBody.length,
+        signature: sig,
+        headers: {
+          'stripe-signature': sig,
+          'content-type': req.headers['content-type'],
+          'content-length': req.headers['content-length']
+        }
+      }
+    });
+
+    try {
+      // Verify the webhook signature using the raw body
+      // Note: Stripe's constructEvent can handle both string and Buffer
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig as string,
+        webhookSecret
+      );
+    } catch (err: any) {
+      logger.error('Webhook signature verification failed', {
+        correlationId,
+        context: 'payments.webhook',
+        error: err.message,
+        data: {
+          bodyLength: rawBody.length,
+          signature: sig,
+          webhookSecretConfigured: !!webhookSecret,
+          headers: req.headers
+        }
+      });
+      res.status(400).send(`Webhook Error: ${err.message}`);
+      return;
+    }
+    
     logger.info('Webhook signature verified', {
       correlationId,
       context: 'payments.webhook',
@@ -248,17 +322,23 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       }
     });
   } catch (err: any) {
-    logger.error('Webhook signature verification failed', {
+    const errorMessage = `Webhook signature verification failed: ${err.message}`;
+    logger.error(errorMessage, {
       correlationId,
       context: 'payments.webhook',
-      error: err.message,
+      error: {
+        message: err.message,
+        stack: err.stack
+      },
       data: {
-        bodyType: typeof req.body,
-        isBuffer: Buffer.isBuffer(req.body),
-        bodyPreview: Buffer.isBuffer(req.body) ? req.body.toString().substring(0, 200) : String(req.body).substring(0, 200)
+        headers: req.headers,
+        signature: sig,
+        webhookSecretConfigured: !!webhookSecret,
+        bodyLength: (req as any).rawBody?.length || 0,
+        bodyPreview: (req as any).rawBody ? (req as any).rawBody.toString('utf8').substring(0, 200) + '...' : 'No body'
       }
     });
-    res.status(400).send(`Webhook Error: ${err.message}`);
+    res.status(400).json({ error: errorMessage });
     return;
   }
 

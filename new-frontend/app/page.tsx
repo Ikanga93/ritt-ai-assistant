@@ -70,7 +70,7 @@ export default function Page() {
   return (
     <div className="relative h-full">
       <div className="fixed top-8 left-0 right-0 z-50">
-        <div className="text-red-600 text-center text-sm py-1">
+        <div className="text-gray-400 text-center text-xs py-1">
           Please check your order; AI can make mistakes.
           If it does, start over.
         </div>

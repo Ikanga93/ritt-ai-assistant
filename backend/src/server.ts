@@ -22,6 +22,19 @@ const app = express();
 // Add middleware
 app.use(cors());
 
+// Add JSON body parser for all routes
+app.use(express.json());
+
+// Apply raw body parser for webhook route before the router
+app.use('/api/payments/webhook', 
+  express.raw({ type: 'application/json' }),
+  (req, res, next) => {
+    // Set a flag to indicate this is a webhook request
+    req.isWebhook = true;
+    next();
+  }
+);
+
 // Initialize database before registering routes
 import { initializeDatabase } from './database.js';
 
@@ -36,13 +49,8 @@ initializeDatabase().then(() => {
   logger.error('Failed to initialize database', { context: 'server', error });
 });
 
-// Add JSON body parser for all other routes
-app.use(express.json());
-
-// Register API routes
+// Mount routes
 app.use('/api', apiRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/payments', paymentRoutes);
 
 // Configure and start the LiveKit worker
 cli.runApp(new WorkerOptions({
