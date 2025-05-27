@@ -445,6 +445,49 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
                   printerEmail
                 }
               });
+              
+              // Explicitly move the order to the database
+              try {
+                // Import the entire module since movePaidOrderToDatabase is not exported directly
+                const orderPaymentLinkService = await import('../services/orderPaymentLinkService.js');
+                // Call the function to move the order to the database
+                const moved = await orderPaymentLinkService.updateOrderPaymentStatus(
+                  updatedOrder.id,
+                  PaymentStatus.PAID,
+                  session.id,
+                  session.payment_intent as string
+                );
+                
+                if (moved) {
+                  logger.info('Order successfully moved to database from webhook handler', {
+                    correlationId,
+                    context: 'payments.webhook',
+                    data: {
+                      orderId: updatedOrder.id,
+                      orderNumber: updatedOrder.orderNumber || orderNumber
+                    }
+                  });
+                } else {
+                  logger.warn('Failed to move order to database from webhook handler', {
+                    correlationId,
+                    context: 'payments.webhook',
+                    data: {
+                      orderId: updatedOrder.id,
+                      orderNumber: updatedOrder.orderNumber || orderNumber
+                    }
+                  });
+                }
+              } catch (dbError) {
+                logger.error('Error moving order to database from webhook handler', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  error: dbError,
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber || orderNumber
+                  }
+                });
+              }
             } catch (printerError) {
               logger.error('Failed to send order to printer', {
                 correlationId,

@@ -186,14 +186,10 @@ export async function sendPaymentReceiptEmail(
       }
     });
     
-    // Calculate processing fees
+    // Calculate processing fee (2.9% + $0.40) - ONLY ONCE
     const processingFeePercentage = 0.029; // 2.9%
     const processingFeeFixed = 0.40; // $0.40
-    const processingFeeAmount = (order.total * processingFeePercentage);
-    const totalProcessingFee = processingFeeAmount;
-    
-    // Calculate processing fee (2.9% + $0.40)
-    const processingFee = (order.total * 0.029) + 0.40;
+    const processingFee = (order.total * processingFeePercentage) + processingFeeFixed;
     
     // Generate receipt number using the new utility function
     const receiptNumber = generateReceiptNumber();
