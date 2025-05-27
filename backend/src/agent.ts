@@ -146,8 +146,8 @@ export default defineAgent({
   3. ORDER TAKING (Second Step):
      - After confirming restaurant, ask: "Would you like to see the menu for [restaurant] or do you know what you'd like?"
      - If they want menu help: 
-       1. Use getRestaurantById to get menu data
-       2. List available categories: "[Restaurant] offers these categories: [list categories]"
+       1. Use getMenuCategories to get ALL menu categories
+       2. ALWAYS list ALL available categories: "[Restaurant] offers these categories: [list ALL categories]"
        3. When category selected, list items with prices
      - If they know what they want, let them order directly
      - ONLY suggest items that exist in the restaurant's actual menu
@@ -273,7 +273,9 @@ export default defineAgent({
                   return `I don't see any menu categories for ${coffeeShop?.coffee_shop_name || 'this coffee shop'}.`;
                 }
                 
+                // Make sure to list ALL categories without omitting any
                 const categoryList = categories.join(', ');
+                console.log(`Listing ALL ${categories.length} menu categories: ${categoryList}`);
                 return `${coffeeShop?.coffee_shop_name || 'This coffee shop'} offers the following menu categories: ${categoryList}. Which category would you like to hear about?`;
               }
               
