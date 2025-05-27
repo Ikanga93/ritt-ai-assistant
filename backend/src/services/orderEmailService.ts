@@ -7,6 +7,7 @@ import * as logger from '../utils/logger.js';
 import { sendEmail, EmailResult } from './emailService.js';
 import { TemporaryOrder } from './temporaryOrderService.js';
 import { generateReceiptNumber } from '../utils/orderUtils.js';
+import { PriceCalculator } from './priceCalculator.js';
 
 /**
  * Send a payment link email for a temporary order
@@ -186,13 +187,26 @@ export async function sendPaymentReceiptEmail(
       }
     });
     
-    // Calculate processing fee (2.9% + $0.40) - ONLY ONCE
-    const processingFeePercentage = 0.029; // 2.9%
-    const processingFeeFixed = 0.40; // $0.40
-    const processingFee = (order.total * processingFeePercentage) + processingFeeFixed;
+    // Use the price calculator for consistent calculations
+    const priceCalculator = PriceCalculator.getInstance();
+    const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
     
     // Generate receipt number using the new utility function
     const receiptNumber = generateReceiptNumber();
+    
+    // Log the price breakdown for debugging
+    logger.info('Payment receipt price breakdown', {
+      correlationId,
+      context: 'orderEmailService.sendPaymentReceiptEmail',
+      data: {
+        orderId: order.id,
+        subtotal: order.subtotal,
+        tax: priceBreakdown.tax,
+        total: priceBreakdown.total,
+        processingFee: priceBreakdown.processingFee,
+        totalWithFees: priceBreakdown.totalWithFees
+      }
+    });
     
     // Send the email using the generic sendEmail function
     return await sendEmail({
@@ -208,11 +222,11 @@ export async function sendPaymentReceiptEmail(
         receiptNumber,
         orderNumber: order.orderNumber,
         items: order.items,
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
-        processingFee: parseFloat(processingFee.toFixed(2)),
-        totalWithFees: parseFloat((order.total + processingFee).toFixed(2))
+        subtotal: priceBreakdown.subtotal,
+        tax: priceBreakdown.tax,
+        total: priceBreakdown.total,
+        processingFee: priceBreakdown.processingFee,
+        totalWithFees: priceBreakdown.totalWithFees
       }
     });
   } catch (error: any) {
@@ -264,9 +278,13 @@ export async function sendOrderToPrinter(
     // Format the current date and time
     const orderDate = new Date().toLocaleString();
     
-    // Calculate processing fee for printer receipt
-    const processingFee = (order.total * 0.029) + 0.40;
-    const totalWithFees = order.total + processingFee;
+    // Use the price calculator for consistent calculations
+    const priceCalculator = PriceCalculator.getInstance();
+    const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
+    
+    // Use the calculated values for consistency
+    const processingFee = priceBreakdown.processingFee;
+    const totalWithFees = priceBreakdown.totalWithFees;
     
     // Generate receipt number using the new utility function
     const receiptNumber = generateReceiptNumber();

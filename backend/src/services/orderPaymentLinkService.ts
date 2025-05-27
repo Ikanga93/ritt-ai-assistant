@@ -6,6 +6,7 @@
 
 import * as logger from '../utils/logger.js';
 import { generatePaymentLink, PaymentLinkRequest, PaymentLinkResponse } from './paymentService.js';
+import { PriceCalculator } from './priceCalculator.js';
 
 // Import the order storage service
 import { temporaryOrderService, TemporaryOrder } from './temporaryOrderService.js';
@@ -122,14 +123,31 @@ export async function generateOrderPaymentLink(
       metadata.restaurantName = order.restaurantName;
     }
     
-    // Calculate total with processing fee
-    const processingFee = order.total * 0.029 + 0.40;
-    const totalWithFees = order.total + processingFee;
+    // Use the price calculator for consistent calculations
+    const priceCalculator = PriceCalculator.getInstance();
+    
+    // Calculate the price breakdown using the subtotal
+    const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
+    
+    // Log the price breakdown for debugging
+    logger.info('Order price breakdown', {
+      correlationId,
+      context: 'orderPaymentLinkService.generateOrderPaymentLink',
+      data: {
+        orderId: order.id,
+        subtotal: order.subtotal,
+        tax: priceBreakdown.tax,
+        total: priceBreakdown.total,
+        processingFee: priceBreakdown.processingFee,
+        totalWithFees: priceBreakdown.totalWithFees
+      }
+    });
+    
     // Create the payment link request
     const paymentLinkRequest: PaymentLinkRequest = {
       orderId: parseInt(order.id.split('-')[1], 10), // Use timestamp part of ID as numeric ID
       tempOrderId: order.id, // Include the full temporary order ID
-      amount: totalWithFees, // Pass in total including processing fee
+      amount: priceBreakdown.totalWithFees, // Pass in total including processing fee
       customerEmail,
       customerName: customerName || order.customerName,
       description: description || `Order from ${order.restaurantName || 'Ritt Drive-Thru'}`,
