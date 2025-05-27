@@ -372,7 +372,112 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         }
 
         // Process the completed checkout session
-        // ... rest of the checkout.session.completed handling ...
+        try {
+          // Update order payment status to paid
+          const updatedOrder = await updateOrderPaymentStatus(
+            orderNumber,
+            PaymentStatus.PAID,
+            session.id,
+            session.payment_intent as string
+          );
+          
+          if (updatedOrder) {
+            logger.info('Order payment status updated to PAID via checkout session', {
+              correlationId,
+              context: 'payments.webhook',
+              data: {
+                orderId: updatedOrder.id,
+                orderNumber: updatedOrder.orderNumber || orderNumber,
+                paymentStatus: 'PAID',
+                sessionId: session.id,
+                paymentIntentId: session.payment_intent,
+                paidAt: updatedOrder.paidAt
+              }
+            });
+            
+            // Send payment receipt email if customer email is available
+            if (updatedOrder.customerEmail) {
+              try {
+                // Import here to avoid circular dependency
+                const { sendPaymentReceiptEmail } = await import('../services/orderEmailService.js');
+                
+                await sendPaymentReceiptEmail(updatedOrder, updatedOrder.customerEmail);
+                logger.info('Payment receipt email sent', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    email: updatedOrder.customerEmail
+                  }
+                });
+              } catch (emailError) {
+                logger.error('Failed to send payment receipt email', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  error: emailError,
+                  data: {
+                    orderId: updatedOrder.id,
+                    email: updatedOrder.customerEmail
+                  }
+                });
+              }
+            }
+            
+            // Send order to printer
+            try {
+              // Get the central printer email from environment variables
+              const printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
+              
+              if (!printerEmail) {
+                throw new Error('No printer email configured in environment variables');
+              }
+              
+              // Import here to avoid circular dependency
+              const { sendOrderToPrinter } = await import('../services/orderEmailService.js');
+              
+              await sendOrderToPrinter(updatedOrder, printerEmail);
+              logger.info('Order sent to printer', {
+                correlationId,
+                context: 'payments.webhook',
+                data: {
+                  orderId: updatedOrder.id,
+                  orderNumber: updatedOrder.orderNumber || orderNumber,
+                  printerEmail
+                }
+              });
+            } catch (printerError) {
+              logger.error('Failed to send order to printer', {
+                correlationId,
+                context: 'payments.webhook',
+                error: printerError,
+                data: {
+                  orderId: updatedOrder.id,
+                  orderNumber: updatedOrder.orderNumber || orderNumber
+                }
+              });
+            }
+          } else {
+            logger.warn('Order not found for checkout session', {
+              correlationId,
+              context: 'payments.webhook',
+              data: {
+                orderNumber,
+                sessionId: session.id
+              }
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to process checkout.session.completed', {
+            correlationId,
+            context: 'payments.webhook',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            data: {
+              orderNumber,
+              sessionId: session.id,
+              errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
+            }
+          });
+        }
         break;
       }
       case 'payment_intent.succeeded': {
