@@ -425,26 +425,67 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
             
             // Send order to printer
             try {
-              // Get the central printer email from environment variables
-              const printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
+              // Get the printer email with fallbacks
+              // 1. Try to get from order metadata if available
+              // 2. Try to get from restaurant settings
+              // 3. Fall back to environment variables
+              let printerEmail = null;
+              
+              // Check if order has restaurant printer email in metadata
+              if (updatedOrder.metadata?.restaurantPrinterEmail) {
+                printerEmail = updatedOrder.metadata.restaurantPrinterEmail;
+                logger.info('Using printer email from order metadata', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: { printerEmail }
+                });
+              }
+              
+              // If no printer email in metadata, try environment variables
+              if (!printerEmail) {
+                printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
+                logger.info('Using printer email from environment variables', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: { printerEmail }
+                });
+              }
               
               if (!printerEmail) {
-                throw new Error('No printer email configured in environment variables');
+                throw new Error('No printer email configured in environment variables or order metadata');
               }
               
               // Import here to avoid circular dependency
               const { sendOrderToPrinter } = await import('../services/orderEmailService.js');
               
-              await sendOrderToPrinter(updatedOrder, printerEmail);
-              logger.info('Order sent to printer', {
-                correlationId,
-                context: 'payments.webhook',
-                data: {
-                  orderId: updatedOrder.id,
-                  orderNumber: updatedOrder.orderNumber || orderNumber,
-                  printerEmail
-                }
-              });
+              // Add a small delay to ensure the email service is ready
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              const printerResult = await sendOrderToPrinter(updatedOrder, printerEmail);
+              
+              if (printerResult.success) {
+                logger.info('Order sent to printer successfully', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber || orderNumber,
+                    printerEmail,
+                    messageId: printerResult.messageId
+                  }
+                });
+              } else {
+                logger.warn('Order sent to printer but response indicates failure', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber || orderNumber,
+                    printerEmail,
+                    error: printerResult.error?.message
+                  }
+                });
+              }
               
               // Explicitly move the order to the database
               try {

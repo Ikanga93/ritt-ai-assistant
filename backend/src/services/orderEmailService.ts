@@ -8,6 +8,8 @@ import { sendEmail, EmailResult } from './emailService.js';
 import { TemporaryOrder } from './temporaryOrderService.js';
 import { generateReceiptNumber } from '../utils/orderUtils.js';
 import { PriceCalculator } from './priceCalculator.js';
+// @ts-ignore - async-retry doesn't have type definitions
+import retry from 'async-retry';
 
 /**
  * Send a payment link email for a temporary order
@@ -265,13 +267,23 @@ export async function sendOrderToPrinter(
   );
   
   try {
+    // Validate inputs
+    if (!order || !order.id) {
+      throw new Error('Invalid order data provided to sendOrderToPrinter');
+    }
+    
+    if (!printerEmail || !printerEmail.includes('@')) {
+      throw new Error(`Invalid printer email: ${printerEmail}`);
+    }
+    
     logger.info('Sending order to restaurant printer', {
       correlationId,
       context: 'orderEmailService.sendOrderToPrinter',
       data: {
         orderId: order.id,
-        restaurantName: order.restaurantName,
-        printerEmail
+        restaurantName: order.restaurantName || 'Unknown Restaurant',
+        printerEmail,
+        orderItems: order.items?.length || 0
       }
     });
     
@@ -289,30 +301,66 @@ export async function sendOrderToPrinter(
     // Generate receipt number using the new utility function
     const receiptNumber = generateReceiptNumber();
     
-    // Send the email using the generic sendEmail function
-    return await sendEmail({
-      to: printerEmail,
-      subject: `ORDER #${order.orderNumber || order.id}`,
-      templateName: 'printer-receipt',
-      templateData: {
-        order,
+    // Prepare the template data with fallbacks for all required fields
+    const templateData = {
+      order,
+      orderId: order.id,
+      orderNumber: order.orderNumber || order.id,
+      customerName: order.customerName || 'Customer',
+      customerEmail: order.customerEmail || 'No Email Provided',
+      items: order.items || [],
+      total: (typeof order.total === 'number' ? order.total : priceBreakdown.total).toFixed(2),
+      tax: (typeof order.tax === 'number' ? order.tax : priceBreakdown.tax).toFixed(2),
+      subtotal: (typeof order.subtotal === 'number' ? order.subtotal : priceBreakdown.subtotal).toFixed(2),
+      processingFee: processingFee.toFixed(2),
+      totalWithFees: totalWithFees.toFixed(2),
+      orderDate: orderDate,
+      paidDate: orderDate,
+      restaurantName: order.restaurantName || 'Ritt Drive-Thru Restaurant',
+      isPaid: true,
+      receiptType: 'PAID ORDER'
+    };
+    
+    // Log the template data for debugging
+    logger.info('Printer receipt template data prepared', {
+      correlationId,
+      context: 'orderEmailService.sendOrderToPrinter',
+      data: {
         orderId: order.id,
-        orderNumber: order.orderNumber || order.id,
-        customerName: order.customerName,
-        customerEmail: order.customerEmail,
-        items: order.items,
-        total: order.total.toFixed(2),
-        tax: order.tax.toFixed(2),
-        subtotal: order.subtotal.toFixed(2),
-        processingFee: processingFee.toFixed(2),
-        totalWithFees: totalWithFees.toFixed(2),
-        orderDate: orderDate,
-        paidDate: orderDate,
-        restaurantName: order.restaurantName,
-        isPaid: true,
-        receiptType: 'PAID ORDER'
+        templateData: {
+          orderNumber: templateData.orderNumber,
+          items: templateData.items.length,
+          total: templateData.total,
+          subtotal: templateData.subtotal
+        }
       }
     });
+    
+    // Send the email using the generic sendEmail function with retry logic
+    return await retry(
+      async () => {
+        return await sendEmail({
+          to: printerEmail,
+          subject: `ORDER #${templateData.orderNumber}`,
+          templateName: 'printer-receipt',
+          templateData
+        });
+      },
+      {
+        retries: 3,
+        factor: 2,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error: Error, attempt: number) => {
+          logger.warn(`Retry attempt ${attempt} for printer email`, {
+            correlationId,
+            context: 'orderEmailService.sendOrderToPrinter',
+            error: error.message,
+            data: { printerEmail, orderId: order.id }
+          });
+        }
+      }
+    );
   } catch (error: any) {
     logger.error('Failed to send order to restaurant printer', {
       correlationId,
