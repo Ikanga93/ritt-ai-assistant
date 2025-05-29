@@ -2,7 +2,6 @@ import "@livekit/components-styles";
 import { Public_Sans } from "next/font/google";
 import "./globals.css";
 import AuthProvider from "../components/auth/AuthProvider";
-import OrderProcessor from "../components/auth/OrderProcessor";
 
 const publicSans400 = Public_Sans({
   weight: "400",
@@ -19,7 +18,6 @@ export default function RootLayout({
       <body className="h-full">
         <AuthProvider>
           {children}
-          <OrderProcessor />
         </AuthProvider>
       </body>
     </html>

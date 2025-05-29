@@ -49,6 +49,8 @@ This repository contains both the frontend and backend components of the Ritt AI
    pnpm build
    node dist/agent.js dev
    
+   OR
+   
    pnpm install
    pnpm dev
    
