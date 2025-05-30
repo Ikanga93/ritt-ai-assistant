@@ -57,13 +57,41 @@ function saveOrdersToDisk(): void {
   try {
     // Create an index of all order IDs
     const orderIds = Array.from(tempOrdersMap.keys());
-    fs.writeFileSync(TEMP_ORDERS_INDEX, JSON.stringify(orderIds), 'utf8');
+    
+    // Ensure the directory exists
+    if (!fs.existsSync(TEMP_ORDERS_DIR)) {
+      fs.mkdirSync(TEMP_ORDERS_DIR, { recursive: true });
+    }
+    
+    // Write to a temporary file first, then rename to avoid corruption
+    const tempIndexPath = path.join(TEMP_ORDERS_DIR, 'index.tmp.json');
+    fs.writeFileSync(tempIndexPath, JSON.stringify(orderIds), 'utf8');
+    fs.renameSync(tempIndexPath, TEMP_ORDERS_INDEX);
 
     // Save each order to its own file
+    let savedCount = 0;
     for (const [id, order] of tempOrdersMap.entries()) {
-      const orderFilePath = path.join(TEMP_ORDERS_DIR, `${id}.json`);
-      fs.writeFileSync(orderFilePath, JSON.stringify(order), 'utf8');
+      try {
+        const orderFilePath = path.join(TEMP_ORDERS_DIR, `${id}.json`);
+        const tempOrderPath = path.join(TEMP_ORDERS_DIR, `${id}.tmp.json`);
+        
+        // Write to temp file first
+        fs.writeFileSync(tempOrderPath, JSON.stringify(order), 'utf8');
+        
+        // Then rename (atomic operation on most file systems)
+        fs.renameSync(tempOrderPath, orderFilePath);
+        savedCount++;
+      } catch (orderError) {
+        logger.warn(`Failed to save order ${id} to disk`, {
+          context: 'temporaryOrderService',
+          error: orderError
+        });
+      }
     }
+    
+    logger.info(`Saved ${savedCount} temporary orders to disk`, {
+      context: 'temporaryOrderService'
+    });
   } catch (error) {
     logger.error('Failed to save temporary orders to disk', {
       context: 'temporaryOrderService',
@@ -77,25 +105,99 @@ function saveOrdersToDisk(): void {
  */
 function loadOrdersFromDisk(): void {
   try {
-    if (!fs.existsSync(TEMP_ORDERS_INDEX)) {
+    // Initialize recovery mode flag
+    let recoveryMode = false;
+    let orderIds: string[] = [];
+    
+    // Try to load the index file
+    if (fs.existsSync(TEMP_ORDERS_INDEX)) {
+      try {
+        const indexContent = fs.readFileSync(TEMP_ORDERS_INDEX, 'utf8');
+        // Trim any potential whitespace or unexpected characters
+        const cleanedContent = indexContent.trim();
+        orderIds = JSON.parse(cleanedContent) as string[];
+      } catch (indexError) {
+        logger.warn('Failed to parse orders index file, entering recovery mode', {
+          context: 'temporaryOrderService',
+          error: indexError
+        });
+        recoveryMode = true;
+      }
+    } else {
+      // Index doesn't exist, nothing to load
       return;
     }
-
-    const orderIds = JSON.parse(fs.readFileSync(TEMP_ORDERS_INDEX, 'utf8')) as string[];
+    
+    // If in recovery mode, scan the directory for order files
+    if (recoveryMode) {
+      try {
+        const files = fs.readdirSync(TEMP_ORDERS_DIR);
+        orderIds = files
+          .filter(file => file.endsWith('.json') && file !== 'index.json')
+          .map(file => file.replace('.json', ''));
+        
+        logger.info(`Recovery mode: found ${orderIds.length} order files`, {
+          context: 'temporaryOrderService'
+        });
+      } catch (scanError) {
+        logger.error('Failed to scan temp orders directory during recovery', {
+          context: 'temporaryOrderService',
+          error: scanError
+        });
+        return;
+      }
+    }
+    
+    // Load each order file
+    const validOrderIds: string[] = [];
     
     for (const id of orderIds) {
       const orderFilePath = path.join(TEMP_ORDERS_DIR, `${id}.json`);
       
       if (fs.existsSync(orderFilePath)) {
-        const orderData = JSON.parse(fs.readFileSync(orderFilePath, 'utf8')) as TemporaryOrder;
-        
-        // Only load non-expired orders
-        if (orderData.expiresAt > Date.now()) {
-          tempOrdersMap.set(id, orderData);
-        } else {
-          // Clean up expired order files
-          fs.unlinkSync(orderFilePath);
+        try {
+          const fileContent = fs.readFileSync(orderFilePath, 'utf8');
+          // Trim any potential whitespace or unexpected characters
+          const cleanedContent = fileContent.trim();
+          const orderData = JSON.parse(cleanedContent) as TemporaryOrder;
+          
+          // Only load non-expired orders
+          if (orderData.expiresAt > Date.now()) {
+            tempOrdersMap.set(id, orderData);
+            validOrderIds.push(id);
+          } else {
+            // Clean up expired order files
+            try {
+              fs.unlinkSync(orderFilePath);
+            } catch (unlinkError) {
+              logger.warn(`Failed to delete expired order file: ${id}`, {
+                context: 'temporaryOrderService',
+                error: unlinkError
+              });
+            }
+          }
+        } catch (parseError) {
+          logger.warn(`Skipping corrupted order file: ${id}`, {
+            context: 'temporaryOrderService',
+            error: parseError
+          });
+          // Optionally: attempt to repair or delete corrupted file
         }
+      }
+    }
+    
+    // If in recovery mode or if we found any discrepancies, rebuild the index
+    if (recoveryMode || validOrderIds.length !== orderIds.length) {
+      try {
+        fs.writeFileSync(TEMP_ORDERS_INDEX, JSON.stringify(validOrderIds), 'utf8');
+        logger.info(`Rebuilt orders index with ${validOrderIds.length} valid orders`, {
+          context: 'temporaryOrderService'
+        });
+      } catch (rebuildError) {
+        logger.error('Failed to rebuild orders index', {
+          context: 'temporaryOrderService',
+          error: rebuildError
+        });
       }
     }
     
@@ -335,23 +437,62 @@ export const temporaryOrderService = {
    * Retrieves a temporary order by ID
    */
   getOrder(tempOrderId: string): TemporaryOrder | null {
+    // First check in-memory cache
     const order = tempOrdersMap.get(tempOrderId);
     
     if (order) {
       return order;
     }
     
+    // If not in memory, try to load from disk
     try {
       const orderFilePath = path.join(TEMP_ORDERS_DIR, `${tempOrderId}.json`);
       
       if (fs.existsSync(orderFilePath)) {
-        const orderData = JSON.parse(fs.readFileSync(orderFilePath, 'utf8')) as TemporaryOrder;
-        
-        if (orderData.expiresAt > Date.now()) {
-          tempOrdersMap.set(tempOrderId, orderData);
-          return orderData;
-        } else {
-          fs.unlinkSync(orderFilePath);
+        try {
+          // Read and clean the file content
+          const fileContent = fs.readFileSync(orderFilePath, 'utf8');
+          const cleanedContent = fileContent.trim();
+          const orderData = JSON.parse(cleanedContent) as TemporaryOrder;
+          
+          // Check if the order is expired
+          if (orderData.expiresAt > Date.now()) {
+            // Add to memory cache
+            tempOrdersMap.set(tempOrderId, orderData);
+            return orderData;
+          } else {
+            // Clean up expired order file
+            try {
+              fs.unlinkSync(orderFilePath);
+            } catch (unlinkError) {
+              logger.warn(`Failed to delete expired order file: ${tempOrderId}`, {
+                context: 'temporaryOrderService',
+                error: unlinkError
+              });
+            }
+          }
+        } catch (parseError) {
+          logger.error('Failed to parse order file', {
+            context: 'temporaryOrderService',
+            data: { tempOrderId, errorType: 'JSON_PARSE_ERROR' },
+            error: parseError
+          });
+          
+          // Attempt to recover or delete corrupted file
+          try {
+            // Rename corrupted file for later investigation
+            const corruptedFilePath = path.join(TEMP_ORDERS_DIR, `${tempOrderId}.corrupted`);
+            fs.renameSync(orderFilePath, corruptedFilePath);
+            logger.info(`Moved corrupted order file to ${corruptedFilePath}`, {
+              context: 'temporaryOrderService'
+            });
+          } catch (recoveryError) {
+            logger.error('Failed to handle corrupted order file', {
+              context: 'temporaryOrderService',
+              data: { tempOrderId },
+              error: recoveryError
+            });
+          }
         }
       }
     } catch (error) {
