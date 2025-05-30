@@ -86,36 +86,38 @@
       "category": "Specials",
       "items": [
         {
-          "name": "Gyro, Fries and Drink",
-          "description": "Combo meal with gyro, fries and drink.",
+          "name": "Single Gyro Meal",
+          "description": "Combo meal with Single Gyro sandwich, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 8.99,
           "calories": null,
-          "id": "niros_gyros_gyro_fries_drink_0"
+          "id": "niros_gyros_single_gyro_meal_0",
+          "isMealCombo": true,
+          "baseItemId": "niros_gyros_single_gyro_0"
         },
         {
           "name": "Philly Cheesesteak, Fries and Drink",
-          "description": "Combo meal with Philly cheesesteak, fries and drink.",
+          "description": "Combo meal with Philly cheesesteak, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 8.99,
           "calories": null,
           "id": "niros_gyros_philly_cheesesteak_fries_drink_1"
         },
         {
           "name": "2 Hot Dogs, Fries and Drink",
-          "description": "Combo meal with two hot dogs, fries and drink.",
+          "description": "Combo meal with two hot dogs, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 7.99,
           "calories": null,
           "id": "niros_gyros_2_hot_dogs_fries_drink_2"
         },
         {
           "name": "Italian Beef, Fries and Drink",
-          "description": "Combo meal with Italian beef, fries and drink.",
+          "description": "Combo meal with Italian beef, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 8.99,
           "calories": null,
           "id": "niros_gyros_italian_beef_fries_drink_3"
         },
         {
           "name": "2 Burgers, Fries and Drink",
-          "description": "Combo meal with two burgers, fries and drink.",
+          "description": "Combo meal with two burgers, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 7.99,
           "calories": null,
           "id": "niros_gyros_2_burgers_fries_drink_4"
@@ -134,10 +136,12 @@
       "items": [
         {
           "name": "Single Gyro",
-          "description": "Served on a toasted pita with gyro sauce, tomatoes, and onions.",
+          "description": "Served on a toasted pita with gyro sauce, tomatoes, and onions. Available as a sandwich only or as a meal combo with fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 7.99,
           "calories": null,
-          "id": "niros_gyros_single_gyro_0"
+          "id": "niros_gyros_single_gyro_0",
+          "hasMealCombo": true,
+          "mealComboId": "niros_gyros_gyro_fries_drink_0"
         },
         {
           "name": "Double Gyro Plate",
@@ -480,35 +484,35 @@
       "items": [
         {
           "name": "Kid's Hot Dog Meal",
-          "description": "Includes fries and a drink.",
+          "description": "Includes a hot dog, fries, and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 5.99,
           "calories": null,
           "id": "niros_gyros_kids_hot_dog_meal_0"
         },
         {
           "name": "Kid's Hamburger Meal",
-          "description": "Includes fries and a drink.",
+          "description": "Includes a hamburger, fries, and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 5.49,
           "calories": null,
           "id": "niros_gyros_kids_hamburger_meal_1"
         },
         {
           "name": "Kid's Chicken Strips Meal",
-          "description": "Includes fries and a drink.",
+          "description": "Includes chicken strips, fries, and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 5.99,
           "calories": null,
           "id": "niros_gyros_kids_chicken_strips_meal_2"
         },
         {
           "name": "Kid's Chili Dog Meal",
-          "description": "Includes fries and a drink.",
+          "description": "Includes a chili dog, fries, and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 5.99,
           "calories": null,
           "id": "niros_gyros_kids_chili_dog_meal_3"
         },
         {
           "name": "Kid's Cheeseburger Meal",
-          "description": "Includes fries and a drink.",
+          "description": "Includes a cheeseburger, fries, and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
           "price": 5.99,
           "calories": null,
           "id": "niros_gyros_kids_cheeseburger_meal_4"

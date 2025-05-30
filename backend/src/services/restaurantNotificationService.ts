@@ -206,7 +206,6 @@ async function sendSingleRestaurantNotification(
       name: item.name,
       quantity: item.quantity,
       price: item.price.toFixed(2),
-      total: (item.price * item.quantity).toFixed(2),
       specialInstructions: item.specialInstructions
     }));
     

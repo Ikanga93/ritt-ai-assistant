@@ -371,19 +371,45 @@ export function verifyOrderItems(
     'napkin', 'silverware', 'utensil', 'straw', 'condiment', 'sauce', 'ketchup', 'mustard',
     'salt', 'pepper', 'sugar', 'cream', 'milk', 'please', 'extra', 'without', 'no ', 'add ',
     'include', 'bring', 'need', 'want', 'put', 'give', 'provide', 'make sure', 'ensure',
-    'don\'t forget', 'remember', 'include', 'request', 'instruction', 'note', 'special'
+    'don\'t forget', 'remember', 'include', 'request', 'instruction', 'note', 'special',
+    'light', 'extra', 'double', 'triple', 'hold', 'remove', 'minus', 'plus'
+  ];
+
+  // Common modification patterns
+  const modificationPatterns = [
+    /without\s+(\w+)/i,
+    /no\s+(\w+)/i,
+    /extra\s+(\w+)/i,
+    /light\s+(\w+)/i,
+    /hold\s+the\s+(\w+)/i,
+    /remove\s+(\w+)/i,
+    /minus\s+(\w+)/i,
+    /plus\s+(\w+)/i
   ];
 
   return requestedItems.map(item => {
+    // Check for modifications in the item name
+    let baseItemName = item.name;
+    let modifications: string[] = [];
+
+    // Extract modifications from the item name
+    modificationPatterns.forEach(pattern => {
+      const matches = item.name.match(pattern);
+      if (matches) {
+        modifications.push(matches[0]);
+        baseItemName = baseItemName.replace(matches[0], '').trim();
+      }
+    });
+
     // Check if this is likely a special instruction rather than a menu item
-    const itemNameLower = item.name.toLowerCase();
+    const itemNameLower = baseItemName.toLowerCase();
     const isLikelySpecialInstruction = specialInstructionKeywords.some(keyword => 
       itemNameLower.includes(keyword.toLowerCase())
     );
 
     // If it looks like a special instruction and not in the menu, mark it as such
     if (isLikelySpecialInstruction) {
-      const matchedItem = findMenuItemByName(item.name, menuItems, threshold + 0.2); // Higher threshold for special instructions
+      const matchedItem = findMenuItemByName(baseItemName, menuItems, threshold + 0.2);
       
       if (!matchedItem) {
         console.log(`Identified "${item.name}" as a special instruction, not a menu item`);
@@ -391,34 +417,36 @@ export function verifyOrderItems(
           ...item,
           verified: false,
           isSpecialInstruction: true,
-          price: 0, // Special instructions should not have a price
-          specialInstructions: item.name // Move the item name to special instructions
+          price: 0,
+          specialInstructions: item.name
         };
       }
     }
 
     // Regular menu item verification
-    const matchedItem = findMenuItemByName(item.name, menuItems, threshold);
+    const matchedItem = findMenuItemByName(baseItemName, menuItems, threshold);
     
     if (matchedItem) {
       return {
         ...item,
-        name: matchedItem.name, // Use the correct name from the menu
+        name: matchedItem.name,
         price: matchedItem.price || item.price,
         id: matchedItem.id || item.id,
         verified: true,
-        isSpecialInstruction: false
+        isSpecialInstruction: false,
+        specialInstructions: modifications.length > 0 ? modifications.join(', ') : undefined
       };
     } else {
       // If no match found, try to find a suggestion
-      const normalizedQuery = normalizeString(item.name);
+      const normalizedQuery = normalizeString(baseItemName);
       const potentialMatches = findAllMatches(normalizedQuery, menuItems.map(mi => mi.name), threshold - 0.2);
       
       return {
         ...item,
         verified: false,
         isSpecialInstruction: false,
-        suggestion: potentialMatches.length > 0 ? potentialMatches[0].match : undefined
+        suggestion: potentialMatches.length > 0 ? potentialMatches[0].match : undefined,
+        specialInstructions: modifications.length > 0 ? modifications.join(', ') : undefined
       };
     }
   });

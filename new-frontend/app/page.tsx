@@ -71,8 +71,6 @@ export default function Page() {
     <div className="relative h-full">
       <div className="fixed top-8 left-0 right-0 z-50">
         <div className="text-gray-400 text-center text-xs py-1">
-          Please check your order; AI can make mistakes.
-          If it does, start over.
         </div>
       </div>
       <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)] pt-16">

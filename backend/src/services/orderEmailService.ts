@@ -40,12 +40,9 @@ export async function sendPaymentLinkEmail(
     // Calculate expiration time in a readable format
     const expirationDate = new Date(expiresAt * 1000).toLocaleString();
     
-    // Calculate processing fees
-    const processingFeePercentage = 0.029; // 2.9%
-    const processingFeeFixed = 0.40; // $0.40
-    const processingFeeAmount = (order.total * processingFeePercentage);
-    const totalProcessingFee = processingFeeAmount + processingFeeFixed;
-    const totalWithFees = order.total + totalProcessingFee;
+    // Use the price calculator for consistent calculations
+    const priceCalculator = PriceCalculator.getInstance();
+    const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
     
     // Send the email using the generic sendEmail function
     return await sendEmail({
@@ -57,11 +54,11 @@ export async function sendPaymentLinkEmail(
         orderId: order.id,
         customerName: order.customerName,
         items: order.items,
-        total: order.total.toFixed(2),
-        tax: order.tax.toFixed(2),
-        subtotal: order.subtotal.toFixed(2),
-        processingFee: totalProcessingFee.toFixed(2),
-        totalWithFees: totalWithFees.toFixed(2),
+        total: priceBreakdown.total.toFixed(2),
+        tax: priceBreakdown.tax.toFixed(2),
+        subtotal: priceBreakdown.subtotal.toFixed(2),
+        processingFee: priceBreakdown.processingFee.toFixed(2),
+        totalWithFees: priceBreakdown.totalWithFees.toFixed(2),
         orderDate: new Date(order.createdAt).toLocaleString(),
         restaurantName: order.restaurantName,
         paymentLink,
@@ -300,7 +297,10 @@ export async function sendOrderToPrinter(
         orderNumber: order.orderNumber || order.id,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
-        items: order.items,
+        items: order.items.map(item => ({
+          ...item,
+          specialInstructions: item.specialInstructions || ''
+        })),
         total: order.total.toFixed(2),
         tax: order.tax.toFixed(2),
         subtotal: order.subtotal.toFixed(2),

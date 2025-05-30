@@ -14,7 +14,7 @@ Special Instructions: {{specialInstructions}}
 Order Items:
 -----------
 {{#each items}}
-* {{name}} (Qty: {{quantity}}) - ${{price}} each = ${{total}}
+* {{name}} (Qty: {{quantity}}) - ${{price}} each = ${{multiply price quantity}}
   {{#if specialInstructions}}Note: {{specialInstructions}}{{/if}}
 {{/each}}
 

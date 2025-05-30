@@ -65,11 +65,14 @@ export enum ConversationStage {
 
 /**
  * Create a new conversation state
+ * Default to Niros Gyros restaurant
  */
 export function createInitialState(): ConversationState {
   return {
     cartItems: [],
-    stage: ConversationStage.GREETING
+    selectedRestaurantId: "niros_gyros",
+    selectedRestaurantName: "Niro's Gyros",
+    stage: ConversationStage.MENU_BROWSING // Skip the restaurant selection stage
   };
 }
 

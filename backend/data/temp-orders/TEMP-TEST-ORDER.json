@@ -1,0 +1,30 @@
+{
+  "id": "TEMP-TEST-ORDER",
+  "customerName": "Test Customer",
+  "customerEmail": "test@example.com",
+  "restaurantId": "test-restaurant",
+  "restaurantName": "Test Restaurant",
+  "items": [
+    {
+      "id": "item-1",
+      "name": "Test Item",
+      "price": 10.99,
+      "quantity": 1
+    }
+  ],
+  "total": 10.99,
+  "subtotal": 10.99,
+  "tax": 0,
+  "createdAt": 1748502225780,
+  "expiresAt": 1748588625780,
+  "metadata": {
+    "paymentStatus": "pending",
+    "paymentLink": {
+      "url": "https://buy.stripe.com/test_123456789",
+      "id": "plink_test123",
+      "expiresAt": 1748588625780,
+      "createdAt": 1748502225780
+    }
+  },
+  "updated": true
+} 

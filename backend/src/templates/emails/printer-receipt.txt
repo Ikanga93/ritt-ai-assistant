@@ -12,7 +12,9 @@ Email: {{customerEmail}}
 ITEMS:
 {{#each items}}
 {{quantity}}x {{name}} - ${{price}}
-{{#if specialInstructions}}* SPECIAL: {{specialInstructions}}{{/if}}
+{{#if specialInstructions}}
+  * SPECIAL: {{specialInstructions}}
+{{/if}}
 {{/each}}
 
 ----------------------------------
