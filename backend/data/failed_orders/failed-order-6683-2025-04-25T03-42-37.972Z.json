@@ -1,0 +1,37 @@
+{
+  "orderDetails": {
+    "orderNumber": 6683,
+    "restaurantId": "niros_gyros",
+    "restaurantName": "",
+    "customerName": "Chris",
+    "items": [
+      {
+        "name": "Single Gyro",
+        "quantity": 1,
+        "price": 7.99,
+        "id": "niros_gyros_single_gyro_0"
+      }
+    ],
+    "subtotal": 7.99,
+    "stateTax": 0.72,
+    "orderTotal": 9.36,
+    "processingFee": 0.65,
+    "timestamp": "2025-04-25T03:42:37.798Z",
+    "estimatedTime": 13,
+    "status": "confirmed",
+    "paymentLinkSent": false
+  },
+  "auth0User": {
+    "sub": "auth0|680866096f3c11f35d05c2c8",
+    "nickname": "ikanga0911",
+    "name": "ikanga0911@gmail.com",
+    "picture": "https://s.gravatar.com/avatar/28ce2d08dbb0f06c6f39e67d0ca053ae?s=480&r=pg&d=https://cdn.auth0.com/avatars/ik.png",
+    "updated_at": "2025-04-25T03:41:43.904Z",
+    "email": "ikanga0911@gmail.com",
+    "email_verified": true
+  },
+  "correlationId": "corr-e44e355f-5cb4-4114-b53b-86cc1f0aa2a6",
+  "failureReason": "null value in column \"subtotal\" of relation \"orders\" violates not-null constraint",
+  "retryCount": 0,
+  "createdAt": "2025-04-25T03:42:37.972Z"
+}

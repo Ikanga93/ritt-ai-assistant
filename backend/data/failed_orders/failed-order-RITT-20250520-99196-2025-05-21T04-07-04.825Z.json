@@ -1,0 +1,34 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250520-99196",
+    "restaurantId": "niros_gyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Chris",
+    "customerEmail": "ikanga93@gmail.com",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "niros_gyros_single_gyro_0",
+        "name": "Single Gyros",
+        "price": 7.99,
+        "quantity": 1
+      },
+      {
+        "id": "niros_gyros_kids_hot_dog_meal_0",
+        "name": "Kid's Hot Dog Meal",
+        "price": 5.99,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 13.98,
+    "stateTax": 1.15335,
+    "orderTotal": 15.13335,
+    "processingFee": 0,
+    "tax": 1.15335,
+    "total": 15.13335
+  },
+  "correlationId": "corr-9c0dd0a1-946b-4d69-a132-12a9f7f60e9d",
+  "failureReason": "column \"customer_email\" of relation \"orders\" does not exist",
+  "retryCount": 0,
+  "createdAt": "2025-05-21T04:07:04.825Z"
+}

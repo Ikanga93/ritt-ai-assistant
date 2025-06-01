@@ -163,7 +163,7 @@ export default defineAgent({
      - Summarize the complete order with all items, quantities, and the total price
      - Ask the customer to confirm if everything is correct
      - CRITICAL: When the customer confirms their order, you MUST IMMEDIATELY call the placeOrder function with all order details
-     - After calling placeOrder, ALWAYS tell them: "Thanks for confirming your order! You'll receive a payment link via email. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after."
+     - After calling placeOrder, ALWAYS tell them: "Thanks for confirming your order! You'll see a payment button appear in our chat that you can click to complete your payment. You'll also receive a payment link via email as a backup. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after."
      - If they want changes, go back to the appropriate step
      - NEVER skip calling the placeOrder function when an order is confirmed
 
@@ -806,12 +806,61 @@ export default defineAgent({
                   
                   // Set conversation state to ORDER_COMPLETED
                   conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
-                  
-                  // Send the payment link message first
-                  await ctx.agent.sendText(`payment_link:${order.paymentLink}`);
+                    // Send the payment data as a structured message first
+                    if (order.paymentLink) {
+                      console.log('\n=== SENDING PAYMENT LINK TO FRONTEND ===');
+                      
+                      // Create structured payment data object
+                      const paymentData = {
+                        orderId: order.orderId,
+                        orderNumber: order.orderNumber,
+                        total: order.total,
+                        paymentLink: order.paymentLink,
+                        items: orderDetails.items,
+                        subtotal: orderDetails.subtotal,
+                        tax: orderDetails.tax,
+                        processingFee: orderDetails.processingFee || 0
+                      };
+                      
+                      // Log payment information
+                      console.log({
+                        message: 'Sending payment link to user',
+                        paymentLink: order.paymentLink,
+                        orderId: order.orderId,
+                        orderNumber: order.orderNumber,
+                        timestamp: new Date().toISOString()
+                      });
+                      
+                      try {
+                        console.log('Sending payment data to frontend...');
+                        
+                        // Send payment data using LiveKit text streams with proper topic
+                        // According to LiveKit docs, agents should use 'lk.chat' topic for data communication
+                        
+                        // Send payment link with the chat topic
+                        await ctx.agent.sendText(`payment_link:${order.paymentLink}`, { topic: 'lk.chat' });
+                        console.log('Payment link sent successfully to lk.chat topic');
+                        
+                        // Send structured payment data with the chat topic
+                        const paymentDataJson = JSON.stringify(paymentData);
+                        await ctx.agent.sendText(`PAYMENT_DATA:${paymentDataJson}`, { topic: 'lk.chat' });
+                        console.log('Full payment data sent successfully to lk.chat topic');
+                        
+                        // Send the user-friendly message normally (will appear in transcription)
+                        await ctx.agent.sendText('Your order has been confirmed. Please use the payment button at the top of the chat to complete your payment.');
+                        console.log('Payment button direction message sent successfully');
+                      } catch (error) {
+                        console.error('Error sending payment data:', error);
+                        
+                        // If there's an error, send a fallback message
+                        await ctx.agent.sendText('Your order has been confirmed. Please check your email for payment instructions.');
+                      }
+                    } else {
+                      console.log('\n=== NO PAYMENT LINK AVAILABLE TO SEND ===');
+                    }
                   
                   // Then send the confirmation message
-                  return `Okay, your order #${orderDetails.orderNumber} is confirmed for a total of $${orderDetails.orderTotal.toFixed(2)}. Your order will be ready for pickup at the window. Thank you for choosing us!`;
+                  return `Okay, your order #${orderDetails.orderNumber} is confirmed for a total of $${orderDetails.orderTotal.toFixed(2)}. You'll see a payment button appear in our chat that you can click to complete your payment. You'll also receive a payment link via email as a backup. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after. Thank you for choosing us!`;
                   
                 } catch (orderError) {
                   console.error('Error placing order:', orderError);

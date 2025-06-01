@@ -26,24 +26,83 @@ export default function Page() {
   const { user, isLoading } = useAuth();
 
   const onConnectButtonClicked = useCallback(async () => {
-    // Generate room connection details, including:
-    //   - A random Room name
-    //   - A random Participant name
-    //   - An Access Token to permit the participant to join the room
-    //   - The URL of the LiveKit server to connect to
-    //
-    // In real-world application, you would likely allow the user to specify their
-    // own participant name, and possibly to choose from existing rooms to join.
+    try {
+      console.log('Connecting to room...');
+      
+      // Clear any existing connections first to prevent issues
+      if (room.state === 'connected') {
+        console.log('Room already connected, disconnecting first...');
+        await room.disconnect();
+        console.log('Room disconnected successfully');
+      }
+      
+      // Generate room connection details, including:
+      //   - A random Room name
+      //   - A random Participant name
+      //   - An Access Token to permit the participant to join the room
+      //   - The URL of the LiveKit server to connect to
 
-    const url = new URL(
-      process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? "/api/connection-details",
-      window.location.origin
-    );
-    const response = await fetch(url.toString());
-    const connectionDetailsData: ConnectionDetails = await response.json();
+      const url = new URL(
+        process.env.NEXT_PUBLIC_CONN_DETAILS_ENDPOINT ?? "/api/connection-details",
+        window.location.origin
+      );
+      console.log('Fetching connection details from:', url.toString());
+      
+      // Add cache-busting parameter to prevent cached responses
+      url.searchParams.append('t', Date.now().toString());
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch connection details: ${response.statusText}`);
+      }
+      
+      const connectionDetailsData: ConnectionDetails = await response.json();
+      console.log('Connection details received:', connectionDetailsData);
 
-    await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken);
-    await room.localParticipant.setMicrophoneEnabled(true);
+      if (!connectionDetailsData.serverUrl || !connectionDetailsData.participantToken) {
+        throw new Error('Invalid connection details received');
+      }
+
+      // Connect to the room
+      console.log('Connecting to LiveKit server:', connectionDetailsData.serverUrl);
+      await room.connect(connectionDetailsData.serverUrl, connectionDetailsData.participantToken, {
+        autoSubscribe: true
+      });
+      console.log('Connected to room successfully');
+      
+      // Enable microphone with retry logic
+      console.log('Enabling microphone...');
+      let micEnabled = false;
+      let retryCount = 0;
+      
+      while (!micEnabled && retryCount < 3) {
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+          micEnabled = true;
+          console.log('Microphone enabled successfully');
+        } catch (micError) {
+          console.error(`Attempt ${retryCount + 1} to enable microphone failed:`, micError);
+          retryCount++;
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      if (!micEnabled) {
+        console.warn('Could not enable microphone after multiple attempts');
+        // Continue anyway, as the connection is established
+      }
+    } catch (error) {
+      console.error('Error connecting to room:', error);
+      alert('Failed to connect to the voice assistant. Please check your microphone permissions and try again.');
+    }
   }, [room]);
 
   useEffect(() => {
@@ -186,37 +245,87 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
   useEffect(() => {
     if (!transcript || transcript.length === 0) return;
     
-    // Get the last message from the assistant
-    const lastMessages = transcript.slice(-3); // Look at the last few messages
+    // Get the last few messages to analyze the conversation flow
+    const lastMessages = transcript.slice(-5); // Look at the last 5 messages for better context
     const assistantMessages = lastMessages.filter((msg: TranscriptMessage) => msg.role === 'assistant');
     
     if (assistantMessages.length > 0) {
+      // Get the most recent assistant message
       const lastAssistantMessage = assistantMessages[assistantMessages.length - 1].content.toLowerCase();
+      console.log('Analyzing assistant message for order confirmation:', lastAssistantMessage);
+      
+      // More comprehensive check for order confirmation phrases
+      const orderConfirmationPhrases = [
+        'confirm your order',
+        'is that correct',
+        'anything else',
+        'would you like to place this order',
+        'place your order',
+        'complete your order',
+        'finalize your order',
+        'proceed with your order',
+        'confirm the order',
+        'ready to order',
+        'submit your order',
+        'does that sound right',
+        'shall i place the order',
+        'is your order complete',
+        'would you like to proceed',
+        'ready to checkout'
+      ];
       
       // Check if the assistant is confirming the order
-      const isConfirmingOrder = (
-        lastAssistantMessage.includes('confirm your order') ||
-        lastAssistantMessage.includes('is that correct') ||
-        lastAssistantMessage.includes('anything else') ||
-        lastAssistantMessage.includes('would you like to place this order')
+      const isConfirmingOrder = orderConfirmationPhrases.some(phrase => 
+        lastAssistantMessage.includes(phrase)
       );
       
+      // Get the most recent customer responses after the last assistant message
+      const lastAssistantIndex = lastMessages.findIndex(msg => 
+        msg.role === 'assistant' && msg.content.toLowerCase() === lastAssistantMessage
+      );
+      
+      const recentCustomerResponses = lastMessages
+        .slice(lastAssistantIndex + 1)
+        .filter((msg: TranscriptMessage) => msg.role === 'user');
+      
+      // More comprehensive check for customer confirmation phrases
+      const customerConfirmationPhrases = [
+        'yes',
+        'yeah',
+        'yep',
+        'correct',
+        'that\'s right',
+        'sounds good',
+        'place the order',
+        'confirm',
+        'go ahead',
+        'proceed',
+        'that\'s it',
+        'looks good',
+        'that\'s all',
+        'perfect',
+        'i\'m ready',
+        'let\'s do it',
+        'order it',
+        'submit',
+        'checkout'
+      ];
+      
       // Check if the customer has confirmed the order
-      const customerResponses = lastMessages.filter((msg: TranscriptMessage) => msg.role === 'user');
-      const hasCustomerConfirmed = customerResponses.some((msg: TranscriptMessage) => {
+      const hasCustomerConfirmed = recentCustomerResponses.some((msg: TranscriptMessage) => {
         const content = msg.content.toLowerCase();
-        return (
-          content.includes('yes') ||
-          content.includes('correct') ||
-          content.includes('that\'s right') ||
-          content.includes('sounds good') ||
-          content.includes('place the order') ||
-          content.includes('confirm')
-        );
+        return customerConfirmationPhrases.some(phrase => content.includes(phrase));
+      });
+      
+      console.log('Order confirmation analysis:', {
+        isConfirmingOrder,
+        hasCustomerConfirmed,
+        currentlyConfirmed: orderConfirmed
       });
       
       // If the order is being confirmed and the customer has confirmed, process the order
       if (isConfirmingOrder && hasCustomerConfirmed && !orderConfirmed) {
+        console.log('Order confirmation detected! Processing order...');
         setOrderConfirmed(true);
         setShouldPromptAuth(true); // This will trigger the order submission logic
       }
@@ -262,6 +371,13 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
         console.log('User data:', JSON.stringify(props.user, null, 2));
         
         try {
+          // Add processing fee if not present (2% of subtotal)
+          if (!orderData.processingFee) {
+            orderData.processingFee = parseFloat((orderData.subtotal * 0.02).toFixed(2));
+            // Recalculate total with processing fee
+            orderData.total = parseFloat((orderData.subtotal + orderData.tax + orderData.processingFee).toFixed(2));
+          }
+          
           // Submit the order with authenticated user information
           const response = await fetch('/api/submit-order', {
             method: 'POST',
@@ -289,20 +405,27 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
           console.log('Initial order created:', result);
           
           // Store the order data in localStorage for retrieval after authentication
-          storePendingOrder({
+          const orderToStore = {
             items: orderData.items,
             subtotal: orderData.subtotal,
             tax: orderData.tax,
+            processingFee: orderData.processingFee,
             total: orderData.total,
-            customerName: orderData.customerName,
+            customerName: orderData.customerName || props.user?.name || 'Customer',
             restaurantId: orderData.restaurantId,
             timestamp: new Date().toISOString(),
             orderId: result.orderId, // Store the order ID
             orderNumber: result.orderNumber, // Store the order number
-          });
+            paymentLink: result.paymentLink // Store the payment link if available
+          };
           
-          // Set the flag to show the auth modal
-          setShowAuthModal(true);
+          storePendingOrder(orderToStore);
+          console.log('Order data stored with payment link:', orderToStore);
+          
+          // Store payment link in localStorage for easy access
+          if (result.paymentLink) {
+            localStorage.setItem('latestPaymentUrl', result.paymentLink);
+          }
           
           // Set the voice ordering session flag
           sessionStorage.setItem('voice_ordering_active', 'true');
@@ -322,24 +445,28 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
           orderData.customerName = customerName;
         }
         
-        // Store the order data
-        storePendingOrder(orderData);
+        // Store the order data temporarily
         setCurrentOrderData(orderData);
-        console.log('Order data stored before authentication:', orderData);
+        console.log('Order data extracted from transcript:', orderData);
         
-        // Call the order confirmation handler
+        // Call the order confirmation handler to process the order
         handleOrderConfirmation(orderData);
+      } else {
+        console.error('Failed to extract order data from transcript');
       }
       
-      // We no longer need to inject a message here since the backend will handle it
-      // Just log that we're showing the auth modal
-      console.log('Showing authentication modal after order confirmation');
+      // Show the auth modal if needed
+      if (!props.user) {
+        console.log('User not authenticated, showing auth modal');
+        setShowAuthModal(true);
+      } else {
+        console.log('User already authenticated, no need for auth modal');
+      }
       
-      // Show the auth modal
-      setShowAuthModal(true);
+      // Reset the prompt flag
       setShouldPromptAuth(false);
     }
-  }, [shouldPromptAuth, user, isLoading, transcript, customerName, voiceAssistant]);
+  }, [shouldPromptAuth, props.user, transcript, customerName]);
   return (
     <>
       <div className="fixed top-4 left-4 z-10 flex flex-col">
@@ -361,10 +488,22 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, top: "-10px" }}
             transition={{ duration: 1, ease: [0.09, 1.04, 0.245, 1.055] }}
-            className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
-            onClick={() => props.onConnectButtonClicked()}
+            className="uppercase absolute left-1/2 -translate-x-1/2 px-6 py-3 bg-white text-black font-bold rounded-lg shadow-md hover:bg-gray-100 active:bg-gray-200 cursor-pointer transform hover:scale-105 transition-all duration-200"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Start order button clicked');
+              
+              // Visual feedback that button was clicked
+              const button = e.currentTarget;
+              button.classList.add('bg-gray-200');
+              setTimeout(() => button.classList.remove('bg-gray-200'), 200);
+              
+              // Call the connect function
+              props.onConnectButtonClicked();
+            }}
           >
-            Start order
+            Start Order
           </motion.button>
         )}
         <div className="w-3/4 lg:w-1/2 mx-auto h-full">
