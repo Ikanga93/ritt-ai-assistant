@@ -137,11 +137,13 @@ export default defineAgent({
 
   2. MENU ACCURACY (CRITICAL):
      - NEVER mention menu items unless you have verified they exist using the getMenuItems or getAllMenuItems functions
-     - If a customer asks about specific items (like chicken items), ALWAYS call getMenuItems first to check what's actually available
+     - If a customer asks about specific items (like chicken items, burgers, sandwiches, etc.), ALWAYS call getMenuItems or getAllMenuItems first to check what's actually available
      - NEVER say items like "Chicken Gyro", "Chicken Souvlaki Platter", or "Chicken Salad" exist - these are NOT on our menu
      - Our actual chicken items include: Chicken Strips Salad, 6 Piece Chicken Wings, Chicken Breast Sandwich, Chicken Strips, Chicken Philly Sandwich, Grilled Chicken Pita Sandwich, Chicken Parmesan Sandwich, and Kid's Chicken Strips Meal
      - When asked about menu categories or items, use the getMenuCategories and getMenuItems functions to provide accurate information
      - If you're unsure about any menu item, call getAllMenuItems to verify before responding
+     - CRITICAL: When a customer asks "What burgers do you have?" or "Do you have burgers?", you MUST call getMenuItems with category "Beef Patties" or getAllMenuItems to check for burger items before responding
+     - NEVER say "we don't have burgers" without first checking the menu data
 
   3. GREETING (First Step):
      - Begin with a brief, friendly greeting like "Hi".
@@ -225,9 +227,11 @@ export default defineAgent({
      - Use the getMenuItems function to verify what items are actually available in each category
      - NEVER assume an item doesn't exist based on memory or previous responses
      - If a customer asks for a specific item (like "Pepsi"), always check the Drinks category first
+     - If a customer asks about burgers, ALWAYS call getMenuItems with category "Beef Patties" to check what burger options are available
      - Only say an item is unavailable AFTER you have confirmed it's not in the menu data
      - If you find the item in the menu, immediately correct yourself and offer it to the customer
      - Example: If you initially say "We don't have Pepsi" but then find it in the menu, say "Actually, I apologize - we do have Pepsi available for $1.99. Would you like to add that to your order?"
+     - MANDATORY: When customers ask about specific food categories (burgers, chicken, sandwiches, etc.), you MUST call the appropriate getMenuItems function before responding
    
   14. MENU ITEMS AND SPECIAL INSTRUCTIONS:
      - Pay close attention to menu items with unique names
@@ -464,39 +468,95 @@ export default defineAgent({
               
               console.log(`Successfully found restaurant: ${coffeeShop.coffee_shop_name} (ID: ${coffeeShop.coffee_shop_id})`);
               
-              // Validate items against the menu
-              const allMenuItems = [];
-              
               // Collect all menu items for validation
+              const allMenuItems = [];
               coffeeShop.menu_categories.forEach(category => {
                 category.items.forEach(menuItem => {
                   allMenuItems.push(menuItem);
                 });
               });
               
-              // Ensure all items have a price
-              const itemsWithPrices = items.map(item => {
-                // If item doesn't have a price, try to find it in the menu
-                if (item.price === undefined || item.price === null) {
-                  const menuItem = allMenuItems.find(mi => 
-                    mi.name.toLowerCase() === item.name.toLowerCase() ||
-                    mi.id === item.id
-                  );
-                  
-                  if (menuItem && menuItem.price) {
-                    return { ...item, price: menuItem.price };
-                  } else {
-                    // If we can't find the price, use a default price
-                    console.warn(`Could not find price for item: ${item.name}, using default price of 9.99`);
-                    return { ...item, price: 9.99 };
-                  }
+              // CRITICAL: Validate ALL items against the menu BEFORE processing the order
+              const invalidItems = [];
+              const validatedItems = [];
+              
+              for (const item of items) {
+                // Skip special instructions (they have price 0 or are marked as special instructions)
+                if (item.price === 0 || item.name.toLowerCase().includes('special:') || 
+                    item.name.toLowerCase().includes('napkins') || 
+                    item.name.toLowerCase().includes('silverware') ||
+                    item.name.toLowerCase().includes('extra sauce') ||
+                    item.name.toLowerCase().includes('no ') ||
+                    item.name.toLowerCase().includes('without ')) {
+                  console.log(`Processing special instruction: "${item.name}"`);
+                  validatedItems.push({
+                    ...item,
+                    price: 0,
+                    specialInstructions: item.specialInstructions || item.name,
+                    name: item.name.startsWith('Special:') ? item.name : `Special: ${item.name}`
+                  });
+                  continue;
                 }
                 
-                return item;
-              });
+                // Try to find the item in the menu
+                let foundMenuItem = null;
+                
+                // First try exact match by name
+                foundMenuItem = allMenuItems.find(mi => 
+                  mi.name.toLowerCase() === item.name.toLowerCase()
+                );
+                
+                // If no exact match, try by ID
+                if (!foundMenuItem && item.id) {
+                  foundMenuItem = allMenuItems.find(mi => mi.id === item.id);
+                }
+                
+                // If still no match, try partial match
+                if (!foundMenuItem) {
+                  foundMenuItem = allMenuItems.find(mi => 
+                    mi.name.toLowerCase().includes(item.name.toLowerCase()) || 
+                    item.name.toLowerCase().includes(mi.name.toLowerCase())
+                  );
+                }
+                
+                if (foundMenuItem) {
+                  console.log(`Found menu item for "${item.name}": "${foundMenuItem.name}" at $${foundMenuItem.price}`);
+                  validatedItems.push({
+                    ...item,
+                    name: foundMenuItem.name, // Use the exact menu item name
+                    price: foundMenuItem.price,
+                    id: foundMenuItem.id
+                  });
+                } else {
+                  console.warn(`Could not find menu item: "${item.name}"`);
+                  invalidItems.push(item.name);
+                }
+              }
+              
+              // If there are invalid items, reject the order and ask the customer to clarify
+              if (invalidItems.length > 0) {
+                console.log(`Order rejected due to invalid items: ${invalidItems.join(', ')}`);
+                
+                if (formatForVoice) {
+                  if (invalidItems.length === 1) {
+                    return `I'm sorry, but I couldn't find "${invalidItems[0]}" on our menu. Could you please check our menu and let me know what you'd like to order instead?`;
+                  } else {
+                    return `I'm sorry, but I couldn't find these items on our menu: ${invalidItems.join(', ')}. Could you please check our menu and let me know what you'd like to order instead?`;
+                  }
+                } else {
+                  return JSON.stringify({
+                    success: false,
+                    message: 'Invalid menu items',
+                    invalidItems: invalidItems
+                  });
+                }
+              }
+              
+              // If all items are valid, proceed with the order
+              console.log(`All ${validatedItems.length} items validated successfully`);
               
               // Add items to cart before order placement
-              itemsWithPrices.forEach(item => {
+              validatedItems.forEach(item => {
                 addToCart(conversationState, {
                   name: item.name,
                   quantity: item.quantity,
@@ -507,135 +567,9 @@ export default defineAgent({
             
               console.log('Items added to cart:', conversationState.cartItems);
             
-              // Use the enhanced verifyOrderItems function from fuzzyMatch.ts
-              const verifiedItems = verifyOrderItems(items, allMenuItems, 0.6);
-            
-              // Process verified items
-              const validatedItems = [];
-              const unverifiedItems = [];
-            
-              for (const item of verifiedItems) {
-                // Check if this is a special instruction rather than a menu item
-                if (item.isSpecialInstruction) {
-                  console.log(`Processing special instruction: "${item.name}"`);
-                  // Add as a special instruction with no price
-                  validatedItems.push({
-                    ...item,
-                    price: 0, // Special instructions should not have a price
-                    specialInstructions: item.specialInstructions || item.name,
-                    // Make sure the special instruction is properly recorded for the printer receipt
-                    name: item.name.startsWith('Special:') ? item.name : `Special: ${item.name}`
-                  });
-                  continue;
-                }
-                
-                if (item.verified) {
-                  console.log(`Verified menu item: "${item.name}"`);
-                  // Find the actual menu item to get its price
-                  const menuItem = allMenuItems.find(mi => mi.name === item.name);
-                  const itemPrice = menuItem?.price || item.price || 9.99;
-                  console.log(`Found ${menuItem ? 'exact' : 'fuzzy'} match for ${item.name}: $${itemPrice}`);
-                  
-                  validatedItems.push({
-                    ...item,
-                    price: itemPrice
-                  });
-                } else {
-                  console.warn(`Unverified menu item: "${item.name}"${item.suggestion ? `, did you mean "${item.suggestion}"?` : ''}`);
-                  
-                  // If we have a suggestion, use it
-                  if (item.suggestion) {
-                    const suggestedItem = allMenuItems.find(mi => mi.name === item.suggestion);
-                    if (suggestedItem) {
-                      console.log(`Using suggested menu item: "${item.name}" -> "${suggestedItem.name}"`);
-                      const itemPrice = suggestedItem.price || item.price || 9.99;
-                      console.log(`Using suggested price for ${suggestedItem.name}: $${itemPrice}`);
-                      
-                      validatedItems.push({
-                        ...item,
-                        name: suggestedItem.name,
-                        price: itemPrice,
-                        id: suggestedItem.id || item.id
-                      });
-                      continue;
-                    }
-                  }
-                  
-                  // If still no match, try enhanced fuzzy matching
-                  if (!foundItem) {
-                    const allMenuItems = [];
-                    allCategories.forEach(category => {
-                      category.items.forEach(menuItem => {
-                        allMenuItems.push(menuItem);
-                      });
-                    });
-                    
-                    // Use enhanced fuzzy matching with findMenuItemByName
-                    if (allMenuItems.length > 0) {
-                      try {
-                        console.log(`Attempting enhanced fuzzy match for "${item.name}" against ${allMenuItems.length} menu items`);
-                        
-                        // Use the enhanced findMenuItemByName function
-                        const matchedItem = findMenuItemByName(item.name, allMenuItems);
-                        
-                        if (matchedItem && typeof matchedItem.price === 'number') {
-                          item.price = matchedItem.price;
-                          item.id = item.id || matchedItem.id;
-                          item.name = matchedItem.name; // Update to the exact menu item name
-                          console.log(`Enhanced fuzzy match found for "${item.name}": "${matchedItem.name}" at $${matchedItem.price}`);
-                          foundItem = true;
-                        } else if (matchedItem) {
-                          console.log(`Enhanced fuzzy match found for "${item.name}": "${matchedItem.name}" but no valid price available`);
-                        } else {
-                          console.log(`No enhanced fuzzy match found for "${item.name}"`);
-                          
-                          // Try to get suggestions for better user feedback
-                          const menuItemNames = allMenuItems.map(mi => mi.name);
-                          const suggestions = findAllMatches(normalizeString(item.name), menuItemNames, 0.3);
-                          
-                          if (suggestions.length > 0) {
-                            console.log(`Suggestions for "${item.name}":`, 
-                              suggestions.slice(0, 3).map(s => `"${s.match}" (${s.similarity.toFixed(2)})`).join(', ')
-                            );
-                          }
-                        }
-                      } catch (error) {
-                        console.error(`Error during enhanced fuzzy matching for ${item.name}:`, error);
-                      }
-                    }
-                  }
-                  
-                  if (!foundItem) {
-                    console.log(`Could not find price for item: ${item.name}, using default price of 9.99`);
-                    // Set a default price to avoid NaN in total
-                    item.price = 9.99; // Default price if not found
-                  }
-                }
-              }
-            
-              // If we have unverified items, log them for debugging
-              if (unverifiedItems.length > 0) {
-                console.warn(`${unverifiedItems.length} items could not be verified against the menu:`, 
-                  unverifiedItems.map(item => item.name).join(', ')
-                );
-                
-                // Add unverified items to the order anyway
-                validatedItems.push(...unverifiedItems);
-              }
-            
               // Update customer info in conversation state
               updateCustomerInfo(conversationState, customerName, customerEmail);
               updateLastFunction(conversationState, 'placeOrder');
-            
-              // Add validated items to cart
-              validatedItems.forEach((item) => {
-                addToCart(conversationState, {
-                  name: item.name,
-                  quantity: item.quantity,
-                  price: item.price,
-                  specialInstructions: item.specialInstructions
-                });
-              });
             
               console.log('Updated conversation state with order details');
               console.log('Cart items:', conversationState.cartItems);
@@ -644,122 +578,21 @@ export default defineAgent({
               const orderNumber = Math.floor(Math.random() * 1000) + 1;
               const estimatedTime = Math.floor(Math.random() * 10) + 5; // 5-15 minutes
             
-              // Calculate order total
+              // Calculate order total using validated items
               let orderTotal = 0;
-              const itemsWithDetails = await Promise.all(items.map(async (item: any) => {
-                // If price is not provided, try to find the item in the menu
-                if (item.price === undefined || item.price === 0) {
-                  const allCategories = coffeeShop.menu_categories;
-                  let foundItem = false;
-                  
-                  // First try exact match
-                  for (const category of allCategories) {
-                    const menuItem = category.items.find(mi => 
-                      mi.name.toLowerCase() === item.name.toLowerCase() || 
-                      mi.id === item.id
-                    );
-                    if (menuItem) {
-                      item.price = menuItem.price;
-                      item.id = item.id || menuItem.id;
-                      foundItem = true;
-                      console.log(`Found exact match for ${item.name}: $${item.price}`);
-                      break;
-                    }
-                  }
-                  
-                  // If no exact match, try partial match
-                  if (!foundItem) {
-                    for (const category of allCategories) {
-                      for (const menuItem of category.items) {
-                        if (menuItem.name.toLowerCase().includes(item.name.toLowerCase()) || 
-                            item.name.toLowerCase().includes(menuItem.name.toLowerCase())) {
-                          item.price = menuItem.price;
-                          item.id = item.id || menuItem.id;
-                          console.log(`Found partial match for ${item.name}: ${menuItem.name} at $${item.price}`);
-                          foundItem = true;
-                          break;
-                        }
-                      }
-                      if (foundItem) break;
-                    }
-                  }
-                  
-                  // If still no match, try enhanced fuzzy matching
-                  if (!foundItem) {
-                    const allMenuItems = [];
-                    allCategories.forEach(category => {
-                      category.items.forEach(menuItem => {
-                        allMenuItems.push(menuItem);
-                      });
-                    });
-                    
-                    // Use enhanced fuzzy matching with findMenuItemByName
-                    if (allMenuItems.length > 0) {
-                      try {
-                        console.log(`Attempting enhanced fuzzy match for "${item.name}" against ${allMenuItems.length} menu items`);
-                        
-                        // Use the enhanced findMenuItemByName function
-                        const matchedItem = findMenuItemByName(item.name, allMenuItems);
-                        
-                        if (matchedItem && typeof matchedItem.price === 'number') {
-                          item.price = matchedItem.price;
-                          item.id = item.id || matchedItem.id;
-                          item.name = matchedItem.name; // Update to the exact menu item name
-                          console.log(`Enhanced fuzzy match found for "${item.name}": "${matchedItem.name}" at $${matchedItem.price}`);
-                          foundItem = true;
-                        } else if (matchedItem) {
-                          console.log(`Enhanced fuzzy match found for "${item.name}": "${matchedItem.name}" but no valid price available`);
-                        } else {
-                          console.log(`No enhanced fuzzy match found for "${item.name}"`);
-                          
-                          // Try to get suggestions for better user feedback
-                          const menuItemNames = allMenuItems.map(mi => mi.name);
-                          const suggestions = findAllMatches(normalizeString(item.name), menuItemNames, 0.3);
-                          
-                          if (suggestions.length > 0) {
-                            console.log(`Suggestions for "${item.name}":`, 
-                              suggestions.slice(0, 3).map(s => `"${s.match}" (${s.similarity.toFixed(2)})`).join(', ')
-                            );
-                          }
-                        }
-                      } catch (error) {
-                        console.error(`Error during enhanced fuzzy matching for ${item.name}:`, error);
-                      }
-                    }
-                  }
-                  
-                  if (!foundItem) {
-                    console.log(`Could not find price for item: ${item.name}, using default price of 9.99`);
-                    // Set a default price to avoid NaN in total
-                    item.price = 9.99; // Default price if not found
-                  }
-                }
-              
-                if (item.price !== undefined) {
+              validatedItems.forEach(item => {
+                if (item.price > 0) { // Only count items with actual prices (not special instructions)
                   orderTotal += item.price * item.quantity;
-                } else {
-                  // Ensure we always have a price
-                  item.price = 9.99; // Default price
-                  orderTotal += item.price * item.quantity;
-                  console.log(`Using default price of $9.99 for ${item.name}`);
                 }
-                
-                return item;
-              }));
+              });
             
               // Calculate subtotal, tax, and processing fee
               const subtotal = parseFloat(orderTotal.toFixed(2));
               const { priceCalculator } = await import('./services/priceCalculator.js');
               const priceBreakdown = priceCalculator.calculateOrderPrices(subtotal);
               const { tax, processingFee, totalWithFees: finalTotal } = priceBreakdown;
+              
               try {
-                // Place the order using the items with prices
-                // Pass auth0User data from conversation state if available
-                console.log('Attempting to place order with the following data:');
-                console.log('Restaurant ID:', restaurantId);
-                console.log('Customer Name:', customerName);
-                console.log('Items:', JSON.stringify(itemsWithDetails));
-                
                 // Use email from Auth0 user data if available and customerEmail is not provided
                 const effectiveEmail = customerEmail || 
                   (conversationState.auth0User ? conversationState.auth0User.email : undefined);
@@ -769,15 +602,8 @@ export default defineAgent({
                   conversationState.auth0User ? conversationState.auth0User.email : 'Not available');
                 console.log('Customer Email (effective):', effectiveEmail);
                 
-                console.log('Auth0 User from conversation state:', conversationState.auth0User ? 
-                  JSON.stringify({
-                    sub: conversationState.auth0User.sub,
-                    email: conversationState.auth0User.email,
-                    name: conversationState.auth0User.name
-                  }) : 'Not available');
-                
                 // Ensure special instructions are properly included in each item
-                const itemsWithSpecialInstructions = itemsWithDetails.map(item => {
+                const itemsWithSpecialInstructions = validatedItems.map(item => {
                   if (!item.specialInstructions && item.specialInstructions !== '') {
                     // Check if there's a matching item in the cart with special instructions
                     const cartItem = conversationState.cartItems.find(ci => 
@@ -809,52 +635,26 @@ export default defineAgent({
                   name: coffeeShop.coffee_shop_name
                 }, null, 2));
 
-                console.log('\n=== STARTING ORDER PLACEMENT ===');
-                console.log('Order Data:', JSON.stringify(orderData, null, 2));
-                console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
-                console.log('Restaurant:', JSON.stringify({
-                  id: restaurantId,
-                  name: coffeeShop.coffee_shop_name
-                }, null, 2));
-
-                // Call placeOrder directly instead of using the HTTP endpoint
-                console.log('\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                console.log('!!!!!!!!!!!!! ABOUT TO CALL PLACEORDER FUNCTION !!!!!!!!!!!!!');
-                console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-                console.log('Order Data:', JSON.stringify(orderData, null, 2));
-                console.log('Customer Info:', JSON.stringify(customerInfo, null, 2));
-                console.log('Restaurant ID:', restaurantId);
-                console.log('Restaurant Name:', coffeeShop.coffee_shop_name);
+                // Call placeOrder function directly
+                console.log('Calling placeOrder function now...');
+                const order = await placeOrder(
+                  orderData,
+                  customerInfo,
+                  restaurantId,
+                  coffeeShop.coffee_shop_name
+                );
+                console.log('placeOrder function call completed successfully');
                 
-                let order;
-                try {
-                  // Call the placeOrder function directly
-                  console.log('Calling placeOrder function now...');
-                  order = await placeOrder(
-                    orderData,
-                    customerInfo,
-                    restaurantId,
-                    coffeeShop.coffee_shop_name
-                  );
-                  console.log('placeOrder function call completed successfully');
-                  
-                  console.log('\n=== ORDER PLACEMENT RESULT ===');
-                  console.log('Order placed successfully:', JSON.stringify({
-                    orderNumber: order.orderNumber,
-                    total: order.orderTotal,
-                    dbOrderId: order.dbOrderId,
-                    paymentLink: order.paymentLink
-                  }, null, 2));
-                  
-                  // Update the order with restaurant name
-                  order.restaurantName = coffeeShop.coffee_shop_name;
-                } catch (error) {
-                  console.error('\n=== ORDER PLACEMENT FAILED ===');
-                  console.error('Error:', error);
-                  return formatForVoice
-                    ? `I'm sorry, but there was an error processing your order. Please try again later.`
-                    : JSON.stringify({ error: 'Failed to place order', message: error.message });
-                }
+                console.log('\n=== ORDER PLACEMENT RESULT ===');
+                console.log('Order placed successfully:', JSON.stringify({
+                  orderNumber: order.orderNumber,
+                  total: order.orderTotal,
+                  dbOrderId: order.dbOrderId,
+                  paymentLink: order.paymentLink
+                }, null, 2));
+                
+                // Update the order with restaurant name
+                order.restaurantName = coffeeShop.coffee_shop_name;
                 
                 // Create order object with more details
                 const orderDetails = {
@@ -863,7 +663,7 @@ export default defineAgent({
                   restaurantName: coffeeShop.coffee_shop_name,
                   customerName: customerName,
                   customerEmail: effectiveEmail,
-                  items: itemsWithDetails,
+                  items: validatedItems,
                   subtotal: subtotal,
                   tax: tax,
                   processingFee: processingFee,
@@ -882,58 +682,56 @@ export default defineAgent({
                 
                 // Set conversation state to ORDER_COMPLETED
                 conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
-                  // Send the payment data as a structured message first
-                  if (order.paymentLink) {
-                    console.log('\n=== SENDING PAYMENT LINK TO FRONTEND ===');
+                
+                // Send the payment data as a structured message first
+                if (order.paymentLink) {
+                  console.log('\n=== SENDING PAYMENT LINK TO FRONTEND ===');
+                  
+                  // Create structured payment data object
+                  const paymentData = {
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    total: order.total,
+                    paymentLink: order.paymentLink,
+                    items: orderDetails.items,
+                    subtotal: orderDetails.subtotal,
+                    tax: orderDetails.tax,
+                    processingFee: orderDetails.processingFee || 0
+                  };
+                  
+                  // Log payment information
+                  console.log({
+                    message: 'Sending payment link to user',
+                    paymentLink: order.paymentLink,
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  try {
+                    console.log('Sending payment data to frontend...');
                     
-                    // Create structured payment data object
-                    const paymentData = {
-                      orderId: order.orderId,
-                      orderNumber: order.orderNumber,
-                      total: order.total,
-                      paymentLink: order.paymentLink,
-                      items: orderDetails.items,
-                      subtotal: orderDetails.subtotal,
-                      tax: orderDetails.tax,
-                      processingFee: orderDetails.processingFee || 0
-                    };
+                    // Send payment link with the chat topic
+                    await ctx.agent.sendText(`payment_link:${order.paymentLink}`, { topic: 'lk.chat' });
+                    console.log('Payment link sent successfully to lk.chat topic');
                     
-                    // Log payment information
-                    console.log({
-                      message: 'Sending payment link to user',
-                      paymentLink: order.paymentLink,
-                      orderId: order.orderId,
-                      orderNumber: order.orderNumber,
-                      timestamp: new Date().toISOString()
-                    });
+                    // Send structured payment data with the chat topic
+                    const paymentDataJson = JSON.stringify(paymentData);
+                    await ctx.agent.sendText(`PAYMENT_DATA:${paymentDataJson}`, { topic: 'lk.chat' });
+                    console.log('Full payment data sent successfully to lk.chat topic');
                     
-                    try {
-                      console.log('Sending payment data to frontend...');
-                      
-                      // Send payment data using LiveKit text streams with proper topic
-                      // According to LiveKit docs, agents should use 'lk.chat' topic for data communication
-                      
-                      // Send payment link with the chat topic
-                      await ctx.agent.sendText(`payment_link:${order.paymentLink}`, { topic: 'lk.chat' });
-                      console.log('Payment link sent successfully to lk.chat topic');
-                      
-                      // Send structured payment data with the chat topic
-                      const paymentDataJson = JSON.stringify(paymentData);
-                      await ctx.agent.sendText(`PAYMENT_DATA:${paymentDataJson}`, { topic: 'lk.chat' });
-                      console.log('Full payment data sent successfully to lk.chat topic');
-                      
-                      // Send the user-friendly message normally (will appear in transcription)
-                      await ctx.agent.sendText('Your order has been confirmed. Please use the payment button in the chat to complete your payment.');
-                      console.log('Payment button direction message sent successfully');
-                    } catch (error) {
-                      console.error('Error sending payment data:', error);
-                      
-                      // If there's an error, send a fallback message
-                      await ctx.agent.sendText('Your order has been confirmed. Please use the payment button in the chat to complete your payment.');
-                    }
-                  } else {
-                    console.log('\n=== NO PAYMENT LINK AVAILABLE TO SEND ===');
+                    // Send the user-friendly message normally (will appear in transcription)
+                    await ctx.agent.sendText('Your order has been confirmed. Please use the payment button in the chat to complete your payment.');
+                    console.log('Payment button direction message sent successfully');
+                  } catch (error) {
+                    console.error('Error sending payment data:', error);
+                    
+                    // If there's an error, send a fallback message
+                    await ctx.agent.sendText('Your order has been confirmed. Please use the payment button in the chat to complete your payment.');
                   }
+                } else {
+                  console.log('\n=== NO PAYMENT LINK AVAILABLE TO SEND ===');
+                }
                 
                 // After confirming payment status is PAID for an order
                 if (order.paymentStatus === 'PAID') {

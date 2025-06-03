@@ -67,14 +67,16 @@ export class OrderRepository extends BaseRepository<Order> {
       // Create order items with prices
       const orderItems = orderData.items.map(item => {
         const menuItem = menuItems.find(mi => mi.id === item.menuItemId);
-        const price = menuItem ? menuItem.price : 9.99; // Default price if not found
+        if (!menuItem) {
+          throw new Error(`Menu item with ID ${item.menuItemId} not found`);
+        }
         
         const orderItem = new OrderItem();
         orderItem.order_id = savedOrder.id;
         orderItem.menu_item_id = item.menuItemId;
         orderItem.quantity = item.quantity;
         orderItem.special_instructions = item.specialInstructions || null;
-        orderItem.price_at_time = price; // Set the price_at_time field
+        orderItem.price_at_time = menuItem.price; // Use the actual menu item price
         return orderItem;
       });
 
@@ -186,14 +188,16 @@ export class OrderRepository extends BaseRepository<Order> {
       // Create new items with prices
       const orderItems = items.map(item => {
         const menuItem = menuItems.find(mi => mi.id === item.menuItemId);
-        const price = menuItem ? menuItem.price : 9.99; // Default price if not found
+        if (!menuItem) {
+          throw new Error(`Menu item with ID ${item.menuItemId} not found`);
+        }
         
         const orderItem = new OrderItem();
         orderItem.order_id = orderId;
         orderItem.menu_item_id = item.menuItemId;
         orderItem.quantity = item.quantity;
         orderItem.special_instructions = item.specialInstructions || null;
-        orderItem.price_at_time = price; // Set the price_at_time field
+        orderItem.price_at_time = menuItem.price; // Use the actual menu item price
         return orderItem;
       });
 

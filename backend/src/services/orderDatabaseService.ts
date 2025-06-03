@@ -156,8 +156,13 @@ export async function saveOrderToDatabase(
       // Then, ensure menu items exist in the database
       console.log('Processing menu items...');
       const orderItems = await Promise.all(orderDetails.items.map(async item => {
+        // Validate that the item has a valid price
+        if (item.price === undefined || item.price === null || item.price < 0) {
+          throw new Error(`Invalid price for menu item: ${item.name}. All items must have valid prices.`);
+        }
+        
         const menuItemId = await executeWithRetry(
-          () => findOrCreateMenuItem(item.name, item.price || 9.99, restaurantId),
+          () => findOrCreateMenuItem(item.name, item.price, restaurantId),
           `findOrCreateMenuItem-${item.name}`
         );
         if (!menuItemId) {
@@ -168,7 +173,7 @@ export async function saveOrderToDatabase(
           menuItemId,
           quantity: item.quantity,
           specialInstructions: item.specialInstructions,
-          price_at_time: item.price || 9.99
+          price_at_time: item.price
         };
       }));
       
