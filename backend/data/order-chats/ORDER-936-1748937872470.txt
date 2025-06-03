@@ -1,0 +1,45 @@
+================================================================================
+ORDER CHAT LOG
+================================================================================
+
+ORDER DETAILS:
+Order Number: 936
+Customer Name: Chris
+Customer Email: Not provided
+Restaurant: Niro's Gyros
+Order Total: $2.68
+Payment Status: PENDING
+Order Status: COMPLETED
+Created At: 2025-06-03T08:04:02.497Z
+Completed At: 2025-06-03T08:04:32.469Z
+
+ORDER ITEMS:
+1. Pepsi
+   Quantity: 1
+   Price: $1.99
+
+--------------------------------------------------------------------------------
+CHAT CONVERSATION:
+--------------------------------------------------------------------------------
+
+[6/3/2025, 3:04:02 AM] ASSISTANT:
+Welcome to Niro's Gyros! How can I help you today?
+
+[6/3/2025, 3:03:32 AM] CUSTOMER:
+I'd like to order: 1x Pepsi
+
+[6/3/2025, 3:04:02 AM] ASSISTANT:
+Great! I've added 1x Pepsi to your order. Your total is $2.68.
+
+[6/3/2025, 3:04:12 AM] ASSISTANT:
+Can I get your name for the order?
+
+[6/3/2025, 3:04:22 AM] CUSTOMER:
+Chris
+
+[6/3/2025, 3:04:32 AM] ASSISTANT:
+Your order has been confirmed. Please use the payment button in the chat to complete your payment.
+
+================================================================================
+END OF CHAT LOG
+================================================================================

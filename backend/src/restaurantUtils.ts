@@ -296,7 +296,17 @@ export async function getMenuItemsByCategory(
     // Handle special cases for generic categories
     const lowerCaseCategoryName = categoryName.toLowerCase().trim();
     
-    // Handle 'drinks' category (combines all drink-related categories)
+    // Try exact match first
+    const exactCategory = coffeeShop.menu_categories.find(
+      cat => cat.category.toLowerCase() === lowerCaseCategoryName
+    );
+    
+    if (exactCategory) {
+      console.log(`Exact category match found: "${exactCategory.category}"`);
+      return exactCategory.items;
+    }
+    
+    // Handle 'drinks' category (combines all drink-related categories) - only if no exact match
     if (lowerCaseCategoryName === 'drinks' || 
         lowerCaseCategoryName === 'drink' || 
         lowerCaseCategoryName === 'beverages' || 
@@ -334,16 +344,6 @@ export async function getMenuItemsByCategory(
       
       console.log(`Returning ${allFoodItems.length} items from combined food categories`);
       return allFoodItems;
-    }
-    
-    // Try exact match first
-    const exactCategory = coffeeShop.menu_categories.find(
-      cat => cat.category.toLowerCase() === lowerCaseCategoryName
-    );
-    
-    if (exactCategory) {
-      console.log(`Exact category match found: "${exactCategory.category}"`);
-      return exactCategory.items;
     }
     
     // If no exact match, try fuzzy matching

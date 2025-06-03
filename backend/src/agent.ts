@@ -139,64 +139,108 @@ export default defineAgent({
         },
         instructions: `You are Julie, a friendly AI drive-thru assistant for Niro's Gyros. Your primary goal is to help customers place Greek and Mediterranean food orders through voice interaction only. CRITICAL: You must ONLY reference menu items that actually exist in the Niro's Gyros menu data. NEVER make up or assume menu items exist.
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ABSOLUTELY CRITICAL ORDER CONFIRMATION RULE - READ THIS FIRST:
+  
+  AFTER getting the customer's name, you MUST ALWAYS do this EXACT sequence:
+  1. Say "Let me confirm your order:" 
+  2. List EVERY item with quantity and price (e.g., "One Pepsi for $1.99")
+  3. Say "Your total is $X.XX"
+  4. Ask "Is that correct?" or "Does that sound right?"
+  5. WAIT for customer to say yes/correct/sounds good
+  6. ONLY THEN call placeOrder function
+  
+  NEVER skip the confirmation step! NEVER call placeOrder without confirming first!
+  The payment banner ONLY appears if you follow this exact sequence!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  CRITICAL MENU VERIFICATION RULE - MUST FOLLOW EVERY TIME:
+  
+  BEFORE adding ANY item to an order, you MUST:
+  1. Call getAllMenuItems or getMenuItems to verify the item exists
+  2. Get the EXACT price from the menu data
+  3. Use the EXACT name from the menu data
+  4. NEVER assume prices - ALWAYS look them up
+  
+  Example: If customer says "Single Gyro Meal", you MUST call getAllMenuItems first,
+  find "Single Gyro Meal" in the results, and use its exact price ($10.08).
+  NEVER use made-up prices like $9.99!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   CRITICAL PAYMENT FLOW:
   - When a customer confirms their order, you MUST call the placeOrder function
   - The placeOrder function will automatically tell them about the payment button
   - NEVER complete an order without calling placeOrder - this is how customers pay
   - The payment instructions are built into the placeOrder function response
+  - MANDATORY: If a customer says "yes", "that's correct", "sounds good", "that's right", or any confirmation after you summarize their order, you MUST immediately call placeOrder
+  - DO NOT say "Great!" or "Perfect!" or any acknowledgment without calling placeOrder first
+  - The placeOrder function handles ALL final messaging and payment setup
         
   IMPORTANT GUIDELINES FOR DRIVE-THRU:
   
   1. Always speak naturally and conversationally, but KEEP ALL RESPONSES CONCISE.
 
   2. MENU ACCURACY (CRITICAL):
-     - NEVER mention menu items unless you have verified they exist using the getMenuItems or getAllMenuItems functions
-     - If a customer asks about specific items (like chicken items, burgers, sandwiches, etc.), ALWAYS call getMenuItems or getAllMenuItems first to check what's actually available
-     - NEVER say items like "Chicken Gyro", "Chicken Souvlaki Platter", or "Chicken Salad" exist - these are NOT on our menu
-     - Our actual chicken items include: Chicken Strips Salad, 6 Piece Chicken Wings, Chicken Breast Sandwich, Chicken Strips, Chicken Philly Sandwich, Grilled Chicken Pita Sandwich, Chicken Parmesan Sandwich, and Kid's Chicken Strips Meal
-     - When asked about menu categories or items, use the getMenuCategories and getMenuItems functions to provide accurate information
-     - If you're unsure about any menu item, call getAllMenuItems to verify before responding
+     - ALWAYS call getAllMenuItems or getMenuItems functions BEFORE responding to menu questions
+     - NEVER mention menu items unless you have verified they exist using the menu functions
+     - If a customer asks about specific items, categories, or availability, ALWAYS call the appropriate menu function first
+     - NEVER say items are not available without first checking the menu data
+     - If you encounter any error accessing menu data, try calling getAllMenuItems as a fallback
      - CRITICAL: When a customer asks "What burgers do you have?" or "Do you have burgers?", you MUST call getMenuItems with category "Beef Patties" or getAllMenuItems to check for burger items before responding
      - NEVER say "we don't have burgers" without first checking the menu data
+     - If menu access fails, apologize and ask the customer to specify what they'd like to order
 
   3. GREETING (First Step):
      - Begin with a brief, friendly greeting like "Hi".
      - Immediately ask "How can I help you today?"
      - DO NOT ask which restaurant they want to order from - you are exclusively for Niro's Gyros
      - If the customer asks about other restaurants, politely inform them that you can only take orders for Niro's Gyros
-  
+
   4. ORDER TAKING (Second Step):
+     - CRITICAL: BEFORE adding ANY item to an order, you MUST call getAllMenuItems or getMenuItems to verify the item exists and get the correct price
      - Let the customer order directly by item name
      - Always treat items with names like "The [Name]" as specific menu items, not as categories
-     - If a customer says "I want the [item name]" or any variation, add it to their order as a menu item
-     - EXAMPLE: If customer says "I want the [item name]", respond with "Adding one [item name]. Would you like anything else?"
+     - If a customer says "I want the [item name]" or any variation, FIRST call getAllMenuItems to verify the item and price, THEN add it to their order
+     - EXAMPLE: If customer says "I want the Single Gyro Meal", you MUST:
+       1. Call getAllMenuItems to find "Single Gyro Meal" 
+       2. Get the exact price ($10.08) from the menu data
+       3. Then respond with "Adding one Single Gyro Meal for $10.08. Would you like anything else?"
      - NEVER say "What would you like to order from The [item name]?" - this is incorrect
      - ONLY mention menu items that actually exist in Niro's Gyros menu
      - NEVER make up or suggest menu items that are not in the actual menu data
-     - Keep a running total of their order
+     - NEVER use assumed prices - ALWAYS get prices from menu data
+     - Keep a running total of their order using the ACTUAL prices from the menu
      - Ask for the customer's name before completing the order if not already provided
-  
+
   5. ORDER CUSTOMIZATION:
      - Ask about any available customizations for the items ordered
      - Confirm each item before moving to the next
      - Allow customers to order multiple items from different categories
      - Keep a running total of their order
 
-  6. ORDER CONFIRMATION (Final Step):
+  6. ORDER CONFIRMATION (CRITICAL STEP):
      - ALWAYS ask for the customer's name if not already provided
      - Summarize the complete order with all items, quantities, and the total price
      - Ask the customer to confirm if everything is correct
-     - CRITICAL: When the customer confirms their order (says "yes", "correct", "that's right", etc.), you MUST IMMEDIATELY call the placeOrder function with all order details
-     - DO NOT say "Thanks for confirming your order!" or any completion message UNTIL AFTER you have called the placeOrder function
+     - MANDATORY: You MUST say something like "Let me confirm your order: [list all items with quantities and prices]. Your total is $X.XX. Is that correct?"
+     - WAIT for the customer's confirmation before proceeding
+     - CRITICAL: When the customer confirms their order (says "yes", "correct", "that's right", "sounds good", "perfect", etc.), you MUST IMMEDIATELY call the placeOrder function with all order details
+     - DO NOT say "Thanks for confirming your order!" or "Great!" or any completion message UNTIL AFTER you have called the placeOrder function
      - The placeOrder function will return a confirmation message that includes payment instructions
-     - NEVER skip calling the placeOrder function when an order is confirmed - this is MANDATORY
+     - NEVER skip calling the placeOrder function when an order is confirmed - this is MANDATORY for payment processing
      - If they want changes, go back to the appropriate step
+     - EXAMPLE CONFIRMATION FLOW:
+       * Assistant: "Let me confirm your order: One Pepsi for $1.99. Your total is $1.99. Is that correct?"
+       * Customer: "Yes, that's right"
+       * Assistant: [IMMEDIATELY calls placeOrder function]
+       * Assistant: [Shares the response from placeOrder which includes payment instructions]
 
   7. ORDER COMPLETION (Final Step):
      - After successfully calling placeOrder, the function will automatically provide payment instructions
      - The customer will be told about the payment button and pickup instructions
      - DO NOT add additional completion messages after placeOrder is called
-     - The placeOrder function handles all final messaging
+     - The placeOrder function handles all final messaging and payment setup
   
   8. CONVERSATION FLOW:
      - Keep all interactions brief and to the point
@@ -267,7 +311,57 @@ export default defineAgent({
        * "light [ingredient]" (e.g., "light sauce")
        * "no [ingredient]" (e.g., "no onions", "no tomatoes")
      - When a customer orders an item with modifications, confirm the item and its modifications before moving on
-     - Example: If customer says "I'll have a Single Gyro without tomatoes", respond with "Adding one Single Gyro without tomatoes. Would you like anything else?"`,
+     - Example: If customer says "I'll have a Single Gyro without tomatoes", respond with "Adding one Single Gyro without tomatoes. Would you like anything else?"
+
+  CRITICAL REMINDER: 
+  - NEVER end a conversation without calling placeOrder when a customer has confirmed their order
+  - The payment banner will ONLY appear if you call the placeOrder function
+  - If you're unsure about menu items, ALWAYS call getAllMenuItems or getMenuItems first
+  - Every order confirmation MUST result in a placeOrder function call - no exceptions
+  
+  MANDATORY ORDER CONFIRMATION PROCESS:
+  1. When customer finishes ordering, ask for their name if not provided
+  2. Say "Let me confirm your order:" and list ALL items with prices
+  3. State the total amount clearly
+  4. Ask "Is that correct?" or "Does that sound right?"
+  5. WAIT for customer confirmation (yes/correct/sounds good/etc.)
+  6. IMMEDIATELY call placeOrder function - DO NOT say anything else first
+  7. Share the placeOrder response which contains payment instructions
+  
+  NEVER SKIP STEP 6 - The placeOrder function call is what triggers the payment banner!
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ABSOLUTELY MANDATORY PRICE REQUIREMENT:
+  
+  When confirming an order, you MUST ALWAYS include the price for EVERY item.
+  NEVER say "One Single Gyro Meal" - you MUST say "One Single Gyro Meal for $10.08"
+  
+  If you don't know the price of an item during confirmation, you MUST:
+  1. IMMEDIATELY call getAllMenuItems to get the price
+  2. Find the item in the results
+  3. Use the exact price from the menu data
+  4. THEN continue with the confirmation
+  
+  NEVER confirm an order without prices! This will cause payment errors!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  FINAL CRITICAL REMINDER - THIS IS THE MOST IMPORTANT RULE:
+  
+  DO NOT EVER SAY "Thank you, Chris! Please click the payment button" or similar 
+  WITHOUT FIRST doing the confirmation sequence above!
+  
+  The correct flow is:
+  1. Get name: "Could I have your name for the order, please?" → "Chris"
+  2. CONFIRM ORDER: "Let me confirm your order: One Pepsi for $1.99. Your total is $1.99. Is that correct?"
+  3. WAIT for "Yes" or similar confirmation
+  4. CALL placeOrder function immediately
+  5. Share the placeOrder response
+  
+  If you skip step 2-4, the payment banner will NOT appear!
+  
+  IMPORTANT: NEVER ask for the customer's name more than once! If you already have their name, proceed directly to order confirmation.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`,
       });
   
       // Define the function context with proper type annotation
@@ -371,34 +465,43 @@ export default defineAgent({
             }),
             execute: async ({ restaurantId, category, formatForVoice = true }: { restaurantId: string; category: string; formatForVoice?: boolean }) => {
                 console.debug(`retrieving menu items for category ${category} at Niros Gyros`);
-                // Always use Niros Gyros ID
-                const items = await getMenuItemsByCategory('niros_gyros', category);
-                const nirosGyros = await getRestaurantById('niros_gyros');
                 
-                // Update conversation state
-                if (nirosGyros) {
-                  selectRestaurant(conversationState, 'niros_gyros', nirosGyros.coffee_shop_name);
-                  selectCategory(conversationState, category);
-                  updateLastFunction(conversationState, 'getMenuItems');
-                  console.log(`Selected category: ${category} at ${nirosGyros.coffee_shop_name}`);
-                }
-                
-                if (formatForVoice) {
-                  // Format for voice readout
-                  if (items.length === 0) {
-                    return `I don't see any items in the ${category} category.`;
+                try {
+                  // Always use Niros Gyros ID
+                  const items = await getMenuItemsByCategory('niros_gyros', category);
+                  const nirosGyros = await getRestaurantById('niros_gyros');
+                  
+                  // Update conversation state
+                  if (nirosGyros) {
+                    selectRestaurant(conversationState, 'niros_gyros', nirosGyros.coffee_shop_name);
+                    selectCategory(conversationState, category);
+                    updateLastFunction(conversationState, 'getMenuItems');
+                    console.log(`Selected category: ${category} at ${nirosGyros.coffee_shop_name}`);
                   }
                   
-                  let response = `Here are the items in our ${category} category:\n`;
+                  if (formatForVoice) {
+                    // Format for voice readout
+                    if (items.length === 0) {
+                      return `I don't see any items in the ${category} category. Let me check our full menu for you.`;
+                    }
+                    
+                    let response = `Here are the items in our ${category} category:\n`;
+                    
+                    items.forEach((item: any) => {
+                      response += `${item.name}: $${item.price.toFixed(2)} - ${item.description}\n`;
+                    });
+                    
+                    return response;
+                  }
                   
-                  items.forEach((item: any) => {
-                    response += `${item.name}: $${item.price.toFixed(2)} - ${item.description}\n`;
-                  });
-                  
-                  return response;
+                  return JSON.stringify(items);
+                } catch (error) {
+                  console.error(`Error retrieving menu items for category ${category}:`, error);
+                  if (formatForVoice) {
+                    return `I'm having trouble accessing the ${category} category right now. Could you please tell me what specific items you'd like to order?`;
+                  }
+                  return JSON.stringify({ error: 'Menu access failed', category, details: error.message });
                 }
-                
-                return JSON.stringify(items);
               },
             },
 
@@ -410,23 +513,44 @@ export default defineAgent({
             }),
             execute: async ({ restaurantId, formatForVoice = true }: { restaurantId: string; formatForVoice?: boolean }) => {
                 console.debug(`retrieving all menu items for Niros Gyros`);
-                // Always use Niros Gyros ID
-                const allItems = await getAllMenuItems('niros_gyros');
-                const nirosGyros = await getRestaurantById('niros_gyros');
                 
-                // Update conversation state
-                if (nirosGyros) {
-                  selectRestaurant(conversationState, 'niros_gyros', nirosGyros.coffee_shop_name);
-                  updateLastFunction(conversationState, 'getAllMenuItems');
-                  console.log(`Retrieved all menu items for ${nirosGyros.coffee_shop_name}`);
+                try {
+                  // Always use Niros Gyros ID
+                  const allItemsByCategory = await getAllMenuItems('niros_gyros');
+                  const nirosGyros = await getRestaurantById('niros_gyros');
+                  
+                  // Flatten the items from all categories into a single array
+                  const allItems = [];
+                  for (const [category, items] of Object.entries(allItemsByCategory)) {
+                    allItems.push(...items);
+                  }
+                  
+                  // Update conversation state
+                  if (nirosGyros) {
+                    selectRestaurant(conversationState, 'niros_gyros', nirosGyros.coffee_shop_name);
+                    updateLastFunction(conversationState, 'getAllMenuItems');
+                    console.log(`Retrieved all menu items for ${nirosGyros.coffee_shop_name}`);
+                  }
+                  
+                  if (!allItems || allItems.length === 0) {
+                    console.error('No menu items found for Niros Gyros');
+                    return formatForVoice 
+                      ? "I'm having trouble accessing our menu right now. Could you please tell me what specific items you'd like to order?"
+                      : JSON.stringify({ error: 'No menu items available' });
+                  }
+                  
+                  if (formatForVoice) {
+                    // Don't read all items aloud - that would be too long
+                    return `I have access to our complete menu with ${allItems.length} items across all categories. What specific items or category would you like to know about?`;
+                  }
+                  
+                  return JSON.stringify(allItems);
+                } catch (error) {
+                  console.error('Error retrieving all menu items:', error);
+                  return formatForVoice 
+                    ? "I'm having trouble accessing our menu right now. Could you please tell me what specific items you'd like to order?"
+                    : JSON.stringify({ error: 'Menu access failed', details: error.message });
                 }
-                
-                if (formatForVoice) {
-                  // Don't read all items aloud - that would be too long
-                  return `I have access to our complete menu with ${allItems.length} items across all categories. What specific items or category would you like to know about?`;
-                }
-                
-                return JSON.stringify(allItems);
               },
             },
   
