@@ -425,7 +425,7 @@ export async function updateOrderPaymentStatus(
           
           // If still no email, fall back to environment variable
           if (!restaurantPrinterEmail) {
-            restaurantPrinterEmail = process.env.DEFAULT_RESTAURANT_EMAIL || process.env.CENTRAL_ORDER_EMAIL;
+            restaurantPrinterEmail = 'pofaraorder@gmail.com';
           }
         }
         
