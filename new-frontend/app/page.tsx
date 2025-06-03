@@ -475,7 +475,7 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
     <>
       <div className="fixed top-4 left-4 z-10 flex flex-col">
         <span className="text-3xl font-bold text-white">Ritt</span>
-        <span className="text-sm text-gray-300 -mt-1">Drive-thru</span>
+        <span className="text-sm text-gray-300 -mt-1">AI order taker</span>
       </div>
       
       {/* Cart icon removed */}
@@ -492,7 +492,21 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, top: "-10px" }}
             transition={{ duration: 1, ease: [0.09, 1.04, 0.245, 1.055] }}
-            className="uppercase absolute left-1/2 -translate-x-1/2 px-6 py-3 bg-white text-black font-bold rounded-lg shadow-md hover:bg-gray-100 active:bg-gray-200 cursor-pointer transform hover:scale-105 transition-all duration-200"
+            className="uppercase absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-8 py-4 bg-white text-black font-bold rounded-lg shadow-md hover:bg-gray-100 active:bg-gray-200 cursor-pointer transform hover:scale-105 transition-all duration-200 min-w-[140px] text-center border-2 border-transparent hover:border-gray-300 select-none z-50"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              touchAction: 'manipulation',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              MozUserSelect: 'none',
+              msUserSelect: 'none',
+              pointerEvents: 'auto',
+              position: 'absolute',
+              minHeight: '56px',
+              lineHeight: '1.2'
+            }}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();

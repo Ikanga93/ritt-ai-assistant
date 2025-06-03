@@ -350,13 +350,10 @@ export async function getMenuItemsByCategory(
     // Get all category names
     const categoryNames = coffeeShop.menu_categories.map(cat => cat.category);
     
-    // Import the findBestMatch function
-    // Already imported at the top level
-    
-    // Try to find the best match
+    // Try to find the best match with dynamic threshold
     const bestMatch = fuzzyMatchUtils.findBestMatch(normalizedCategoryName, categoryNames);
     
-    if (bestMatch && bestMatch.similarity >= 0.6) {
+    if (bestMatch && bestMatch.similarity) {
       const matchedCategory = coffeeShop.menu_categories.find(
         cat => cat.category === bestMatch.match
       );
