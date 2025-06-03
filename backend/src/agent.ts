@@ -56,6 +56,8 @@ import type { IncomingMessage } from 'http';
 
   import { preprocessMessage } from './messageProcessor.js';
   
+  // Import chat collection services
+  import { chatCollector } from './services/chatCollector.js';
 
   
   // Import fuzzy matching utilities
@@ -75,6 +77,9 @@ export default defineAgent({
       console.log('waiting for participant');
       const participant = await ctx.waitForParticipant();
       console.log(`starting assistant example agent for ${participant.identity}`);
+      
+      // Start chat tracking for this participant
+      chatCollector.startChatSession(participant.identity);
       
       // Extract Auth0 user data from participant metadata if available
       let auth0User = null;
@@ -116,6 +121,9 @@ export default defineAgent({
         conversationState.auth0User = auth0User;
       }
       
+      // Update chat collector with initial conversation state
+      chatCollector.updateConversationState(participant.identity, conversationState);
+      
       const model = new openai.realtime.RealtimeModel({
         apiKey: process.env.OPENAI_API_KEY,
         model: 'gpt-4o-realtime-preview',
@@ -130,6 +138,12 @@ export default defineAgent({
           interrupt_response: true
         },
         instructions: `You are Julie, a friendly AI drive-thru assistant for Niro's Gyros. Your primary goal is to help customers place Greek and Mediterranean food orders through voice interaction only. CRITICAL: You must ONLY reference menu items that actually exist in the Niro's Gyros menu data. NEVER make up or assume menu items exist.
+
+  CRITICAL PAYMENT FLOW:
+  - When a customer confirms their order, you MUST call the placeOrder function
+  - The placeOrder function will automatically tell them about the payment button
+  - NEVER complete an order without calling placeOrder - this is how customers pay
+  - The payment instructions are built into the placeOrder function response
         
   IMPORTANT GUIDELINES FOR DRIVE-THRU:
   
@@ -172,15 +186,17 @@ export default defineAgent({
      - ALWAYS ask for the customer's name if not already provided
      - Summarize the complete order with all items, quantities, and the total price
      - Ask the customer to confirm if everything is correct
-     - CRITICAL: When the customer confirms their order, you MUST IMMEDIATELY call the placeOrder function with all order details
-     - After calling placeOrder, ALWAYS tell them: "Thanks for confirming your order! You'll see a payment button appear in our chat that you can click to complete your payment. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after."
+     - CRITICAL: When the customer confirms their order (says "yes", "correct", "that's right", etc.), you MUST IMMEDIATELY call the placeOrder function with all order details
+     - DO NOT say "Thanks for confirming your order!" or any completion message UNTIL AFTER you have called the placeOrder function
+     - The placeOrder function will return a confirmation message that includes payment instructions
+     - NEVER skip calling the placeOrder function when an order is confirmed - this is MANDATORY
      - If they want changes, go back to the appropriate step
-     - NEVER skip calling the placeOrder function when an order is confirmed
 
   7. ORDER COMPLETION (Final Step):
-     - After the order is placed, thank the customer for their order
-     - Tell them their order will be ready for pickup at the window
-     - Wish them a good day
+     - After successfully calling placeOrder, the function will automatically provide payment instructions
+     - The customer will be told about the payment button and pickup instructions
+     - DO NOT add additional completion messages after placeOrder is called
+     - The placeOrder function handles all final messaging
   
   8. CONVERSATION FLOW:
      - Keep all interactions brief and to the point
@@ -683,6 +699,23 @@ export default defineAgent({
                 // Set conversation state to ORDER_COMPLETED
                 conversationState = updateStage(conversationState, ConversationStage.ORDER_COMPLETED);
                 
+                // Update chat collector with the completed order state
+                chatCollector.updateConversationState(participant.identity, conversationState);
+                
+                // Save the chat now that the order is completed
+                try {
+                  console.log('Order completed, saving chat...');
+                  const savedPath = await chatCollector.saveOrderChat(participant.identity, 'pending');
+                  if (savedPath) {
+                    console.log(`Chat saved successfully: ${savedPath}`);
+                  } else {
+                    console.log('No chat to save or saving failed');
+                  }
+                } catch (chatSaveError) {
+                  console.error('Error saving chat after order completion:', chatSaveError);
+                  // Don't fail the order if chat saving fails
+                }
+                
                 // Send the payment data as a structured message first
                 if (order.paymentLink) {
                   console.log('\n=== SENDING PAYMENT LINK TO FRONTEND ===');
@@ -749,7 +782,7 @@ export default defineAgent({
               } catch (orderError) {
                 console.error('Error placing order:', orderError);
                 // Handle order placement error
-                return 'I apologize, but there was an error placing your order. Please try again.';               
+                return 'I apologize, but there was an error placing your order. Please try again.';
               }
             },
           },
@@ -839,6 +872,80 @@ export default defineAgent({
           
           console.log('Conversation session started successfully with throttling');
           
+          // Add chat message tracking to the session
+          session.on('user_speech_committed', (event) => {
+            console.log(`[DEBUG] user_speech_committed event triggered for ${participant.identity}`);
+            console.log(`[DEBUG] Event data:`, JSON.stringify(event, null, 2));
+            
+            if (event.item && event.item.content) {
+              const content = Array.isArray(event.item.content) 
+                ? event.item.content.map(c => c.text || c.transcript || '').join(' ')
+                : event.item.content.text || event.item.content.transcript || '';
+              
+              console.log(`[DEBUG] Extracted user content: "${content}"`);
+              
+              if (content.trim()) {
+                chatCollector.addMessage(participant.identity, 'user', content);
+                // Update conversation state in chat collector
+                chatCollector.updateConversationState(participant.identity, conversationState);
+              }
+            } else {
+              console.log(`[DEBUG] No content found in user_speech_committed event`);
+            }
+          });
+
+          session.on('agent_speech_committed', (event) => {
+            console.log(`[DEBUG] agent_speech_committed event triggered for ${participant.identity}`);
+            console.log(`[DEBUG] Event data:`, JSON.stringify(event, null, 2));
+            
+            if (event.item && event.item.content) {
+              const content = Array.isArray(event.item.content) 
+                ? event.item.content.map(c => c.text || '').join(' ')
+                : event.item.content.text || '';
+              
+              console.log(`[DEBUG] Extracted agent content: "${content}"`);
+              
+              if (content.trim()) {
+                chatCollector.addMessage(participant.identity, 'assistant', content);
+                // Update conversation state in chat collector
+                chatCollector.updateConversationState(participant.identity, conversationState);
+              }
+            } else {
+              console.log(`[DEBUG] No content found in agent_speech_committed event`);
+            }
+          });
+
+          // Also track function call responses as assistant messages
+          session.on('function_call_output_added', (event) => {
+            console.log(`[DEBUG] function_call_output_added event triggered for ${participant.identity}`);
+            console.log(`[DEBUG] Event output: "${event.output?.substring(0, 100)}..."`);
+            
+            if (event.output) {
+              chatCollector.addMessage(participant.identity, 'assistant', event.output);
+              // Update conversation state in chat collector
+              chatCollector.updateConversationState(participant.identity, conversationState);
+            }
+          });
+
+          // Track when orders are completed to save the chat
+          session.on('response_done', async (event) => {
+            // Check if this was an order completion
+            if (conversationState.stage === ConversationStage.ORDER_COMPLETED && 
+                conversationState.orderDetails) {
+              console.log('Order completed, saving chat...');
+              try {
+                const savedPath = await chatCollector.saveOrderChat(participant.identity, 'pending');
+                if (savedPath) {
+                  console.log(`Chat saved successfully: ${savedPath}`);
+                } else {
+                  console.log('No chat to save or saving failed');
+                }
+              } catch (error) {
+                console.error('Error saving chat after order completion:', error);
+              }
+            }
+          });
+          
           // Add event listener for session errors to handle TextAudioSynchronizer issues
           session.on('error', (err) => {
             // Check if it's a TextAudioSynchronizer error
@@ -849,6 +956,17 @@ export default defineAgent({
               console.error('Session error:', err);
             }
           });
+
+          // Add cleanup when session ends
+          session.on('disconnected', async () => {
+            console.log('Session disconnected, attempting to save any remaining chat...');
+            try {
+              await chatCollector.forceSaveChat(participant.identity);
+            } catch (error) {
+              console.error('Error saving chat on disconnect:', error);
+            }
+          });
+
         } catch (error) {
           console.error('Error in conversation session:', error);
           

@@ -13,7 +13,8 @@
     "migration:run": "npm run build && npm run typeorm -- migration:run -d dist/database.js",
     "migration:revert": "npm run typeorm -- migration:revert -d dist/database.js",
     "db:backup": "./scripts/backup-db.sh",
-    "db:restore": "./scripts/restore-db.sh"
+    "db:restore": "./scripts/restore-db.sh",
+    "view-chats": "tsx src/scripts/view-chats.ts"
   },
   "packageManager": "pnpm@9.15.9",
   "devDependencies": {
