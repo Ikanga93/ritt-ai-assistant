@@ -125,7 +125,7 @@ router.post('/create-payment-intent', async (req: Request, res: Response): Promi
  *   customerEmail: string,
  *   customerName?: string,
  *   description?: string,
- *   expirationHours?: number
+ *   expirationDays?: number
  * }
  * 
  * Response:
@@ -148,7 +148,7 @@ router.post('/generate-link', async (req: any, res: Response) => {
     const customerEmail = body?.customerEmail;
     const customerName = body?.customerName;
     const description = body?.description;
-    const expirationHours = body?.expirationHours;
+    const expirationDays = body?.expirationDays;
     
     // Validate required fields
     if (!orderId || !customerEmail) {
@@ -164,16 +164,17 @@ router.post('/generate-link', async (req: any, res: Response) => {
       data: { orderId, customerEmail }
     });
     
-    const result = await generateOrderPaymentLink({
-      orderId,
-      customerEmail,
-      customerName,
-      description,
-      expirationHours
+    const orderWithPayment = await generateOrderPaymentLink({
+      orderId: orderId,
+      amount: orderId,
+      tempOrderId: orderId,
+      customerName: customerName,
+      description: description || `Order from ${orderId}`,
+      expirationDays: expirationDays || 2
     });
     
     // Get payment link from metadata
-    const paymentLink = result.metadata?.paymentLink;
+    const paymentLink = orderWithPayment.metadata?.paymentLink;
     
     if (!paymentLink) {
       throw new Error('Failed to generate payment link');
@@ -182,7 +183,7 @@ router.post('/generate-link', async (req: any, res: Response) => {
     return res.status(200).json({
       success: true,
       paymentLink: paymentLink.url,
-      orderId: result.id,
+      orderId: orderWithPayment.id,
       expiresAt: paymentLink.expiresAt
     });
   } catch (error) {

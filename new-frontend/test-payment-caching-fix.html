@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Data Caching Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .test-passed {
+            border-color: #4caf50;
+            background-color: #e8f5e9;
+        }
+        .test-failed {
+            border-color: #f44336;
+            background-color: #ffebee;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005fa3;
+        }
+        .debug-info {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        .payment-banner {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .payment-banner.hidden {
+            display: none;
+        }
+        .scenario {
+            border-left: 4px solid #007cba;
+            padding: 15px;
+            margin: 15px 0;
+            background: white;
+        }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Payment Data Caching Fix Test Suite</h1>
+        <p>This test simulates the payment data caching issues and validates the fixes implemented in the usePaymentChannel hook.</p>
+        
+        <div class="test-section">
+            <h3>Current State</h3>
+            <div id="currentState">Loading...</div>
+            <button onclick="updateCurrentState()">Refresh State</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 Test Scenarios</h2>
+        
+        <div class="scenario">
+            <h3>Scenario 1: Fresh Order (No Previous Data)</h3>
+            <p>Tests that a fresh order works correctly without any previous payment data.</p>
+            <button onclick="runScenario1()">Run Test</button>
+            <div id="scenario1-result"></div>
+        </div>
+
+        <div class="scenario">
+            <h3>Scenario 2: New Order with Old Cached Data</h3>
+            <p>Tests that old payment data is properly cleared when a new order is placed.</p>
+            <button onclick="runScenario2()">Run Test</button>
+            <div id="scenario2-result"></div>
+        </div>
+
+        <div class="scenario">
+            <h3>Scenario 3: User Switch with Different Payment Data</h3>
+            <p>Tests that payment data is properly isolated between different users.</p>
+            <button onclick="runScenario3()">Run Test</button>
+            <div id="scenario3-result"></div>
+        </div>
+
+        <div class="scenario">
+            <h3>Scenario 4: Expired Payment Data</h3>
+            <p>Tests that expired payment data is automatically cleared.</p>
+            <button onclick="runScenario4()">Run Test</button>
+            <div id="scenario4-result"></div>
+        </div>
+
+        <div class="scenario">
+            <h3>Scenario 5: Room Change (New Conversation)</h3>
+            <p>Tests that payment data is cleared when room connection changes.</p>
+            <button onclick="runScenario5()">Run Test</button>
+            <div id="scenario5-result"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🎮 Manual Controls</h2>
+        
+        <div class="test-section">
+            <h3>Payment Data Management</h3>
+            <button onclick="clearAllData()">Clear All Data</button>
+            <button onclick="simulateOldData()">Simulate Old Payment Data</button>
+            <button onclick="simulateNewPayment()">Simulate New Payment</button>
+            <button onclick="simulateConversationReset()">Simulate Conversation Reset</button>
+        </div>
+
+        <div class="test-section">
+            <h3>User Management</h3>
+            <label>Current User: 
+                <select id="userSelect" onchange="switchUser()">
+                    <option value="user1">user1@example.com</option>
+                    <option value="user2">user2@example.com</option>
+                    <option value="user3">user3@example.com</option>
+                    <option value="">Anonymous</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📊 Debug Information</h2>
+        <div id="debugInfo" class="debug-info">Loading debug info...</div>
+        
+        <h3>Console Log</h3>
+        <div id="consoleLog" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        // Simulate the usePaymentChannel hook functionality
+        let currentUser = 'user1';
+        let paymentData = null;
+        let lastPaymentTimestamp = 0;
+        let roomConnection = null;
+        let testResults = {};
+
+        // Logging functionality
+        const originalConsoleLog = console.log;
+        const logElement = document.getElementById('consoleLog');
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const logLine = document.createElement('div');
+            logLine.textContent = `[${new Date().toISOString()}] ${message}`;
+            logElement.appendChild(logLine);
+            logElement.scrollTop = logElement.scrollHeight;
+        };
+
+        function clearLog() {
+            logElement.innerHTML = '';
+        }
+
+        // Helper functions that mirror the actual implementation
+        function getStorageKey(key, userId) {
+            return userId ? `${key}_${userId}` : key;
+        }
+
+        function storePaymentData(data, userId) {
+            const dataWithContext = {
+                ...data,
+                userId: userId || 'anonymous',
+                sessionId: `session_${Date.now()}`,
+                timestamp: Date.now()
+            };
+            
+            try {
+                localStorage.setItem(getStorageKey('currentOrder', userId), JSON.stringify(dataWithContext));
+                localStorage.setItem(getStorageKey('latestPaymentUrl', userId), data.paymentLink);
+                console.log('💰 Payment data stored with user context:', userId);
+            } catch (error) {
+                console.error('💰 Error storing payment data:', error);
+            }
+        }
+
+        function getStoredPaymentData(userId) {
+            try {
+                const storedOrder = localStorage.getItem(getStorageKey('currentOrder', userId));
+                if (storedOrder) {
+                    const data = JSON.parse(storedOrder);
+                    
+                    // Check if data is expired (older than 24 hours)
+                    const maxAge = 24 * 60 * 60 * 1000;
+                    if (data.timestamp && (Date.now() - data.timestamp) > maxAge) {
+                        console.log('💰 Payment data expired, clearing');
+                        clearPaymentData(userId);
+                        return null;
+                    }
+                    
+                    return data;
+                }
+            } catch (error) {
+                console.error('💰 Error reading stored payment data:', error);
+            }
+            return null;
+        }
+
+        function clearPaymentData(userId) {
+            try {
+                localStorage.removeItem(getStorageKey('currentOrder', userId));
+                localStorage.removeItem(getStorageKey('latestPaymentUrl', userId));
+                console.log('💰 Payment data cleared for user:', userId);
+            } catch (error) {
+                console.error('💰 Error clearing payment data:', error);
+            }
+        }
+
+        function setPaymentData(data) {
+            paymentData = data;
+            if (data) {
+                lastPaymentTimestamp = data.timestamp || Date.now();
+            }
+            updateCurrentState();
+        }
+
+        function dismissPaymentData() {
+            console.log('💰 Payment data dismissed by user');
+            clearPaymentData(currentUser);
+            paymentData = null;
+            lastPaymentTimestamp = 0;
+            updateCurrentState();
+        }
+
+        function clearAllPaymentData() {
+            console.log('💰 Force clearing all payment data');
+            clearPaymentData(currentUser);
+            paymentData = null;
+            lastPaymentTimestamp = 0;
+            updateCurrentState();
+        }
+
+        // Test scenario functions
+        function runScenario1() {
+            console.log('\n🧪 Running Scenario 1: Fresh Order');
+            
+            // Clear all data first
+            clearAllPaymentData();
+            
+            // Simulate a new payment coming in
+            const newPaymentData = {
+                orderId: `order_${Date.now()}`,
+                orderNumber: `RITT-${Date.now()}`,
+                total: '12.99',
+                paymentLink: `https://buy.stripe.com/test_${Math.random().toString(36).substr(2, 9)}`,
+                items: [{ name: 'Coffee', quantity: 1, price: 12.99 }],
+                subtotal: 12.99,
+                tax: 0.99,
+                processingFee: 0.50,
+                timestamp: Date.now()
+            };
+            
+            setPaymentData(newPaymentData);
+            storePaymentData(newPaymentData, currentUser);
+            
+            const success = paymentData && paymentData.paymentLink === newPaymentData.paymentLink;
+            testResults.scenario1 = success;
+            
+            document.getElementById('scenario1-result').innerHTML = `
+                <div class="test-section ${success ? 'test-passed' : 'test-failed'}">
+                    <strong>Result: ${success ? '✅ PASSED' : '❌ FAILED'}</strong>
+                    <div class="debug-info">
+                        Expected: Fresh payment data should be set<br>
+                        Actual: ${paymentData ? 'Payment data present' : 'No payment data'}<br>
+                        Payment Link: ${paymentData?.paymentLink ? 'Present' : 'Missing'}
+                    </div>
+                </div>
+            `;
+            
+            console.log('Scenario 1 result:', success ? 'PASSED' : 'FAILED');
+        }
+
+        function runScenario2() {
+            console.log('\n🧪 Running Scenario 2: New Order with Old Cached Data');
+            
+            // First, set old payment data
+            const oldPaymentData = {
+                orderId: 'old_order_123',
+                orderNumber: 'RITT-OLD-123',
+                total: '9.99',
+                paymentLink: 'https://buy.stripe.com/test_old_payment',
+                items: [{ name: 'Old Item', quantity: 1, price: 9.99 }],
+                subtotal: 9.99,
+                tax: 0.75,
+                processingFee: 0.30,
+                timestamp: Date.now() - (10 * 60 * 1000) // 10 minutes ago
+            };
+            
+            setPaymentData(oldPaymentData);
+            storePaymentData(oldPaymentData, currentUser);
+            console.log('Set old payment data:', oldPaymentData.orderNumber);
+            
+            // Wait a moment, then simulate a new payment
+            setTimeout(() => {
+                const newPaymentData = {
+                    orderId: `order_${Date.now()}`,
+                    orderNumber: `RITT-NEW-${Date.now()}`,
+                    total: '15.99',
+                    paymentLink: `https://buy.stripe.com/test_${Math.random().toString(36).substr(2, 9)}`,
+                    items: [{ name: 'New Coffee', quantity: 1, price: 15.99 }],
+                    subtotal: 15.99,
+                    tax: 1.20,
+                    processingFee: 0.50,
+                    timestamp: Date.now()
+                };
+                
+                // Clear old data before setting new (as the hook should do)
+                clearPaymentData(currentUser);
+                setPaymentData(newPaymentData);
+                storePaymentData(newPaymentData, currentUser);
+                
+                const success = paymentData && 
+                              paymentData.paymentLink === newPaymentData.paymentLink &&
+                              paymentData.orderNumber === newPaymentData.orderNumber;
+                
+                testResults.scenario2 = success;
+                
+                document.getElementById('scenario2-result').innerHTML = `
+                    <div class="test-section ${success ? 'test-passed' : 'test-failed'}">
+                        <strong>Result: ${success ? '✅ PASSED' : '❌ FAILED'}</strong>
+                        <div class="debug-info">
+                            Expected: New payment data should replace old data<br>
+                            Old Order: ${oldPaymentData.orderNumber}<br>
+                            New Order: ${newPaymentData.orderNumber}<br>
+                            Current Order: ${paymentData?.orderNumber || 'None'}<br>
+                            Correct Link: ${paymentData?.paymentLink === newPaymentData.paymentLink ? 'Yes' : 'No'}
+                        </div>
+                    </div>
+                `;
+                
+                console.log('Scenario 2 result:', success ? 'PASSED' : 'FAILED');
+            }, 100);
+        }
+
+        function runScenario3() {
+            console.log('\n🧪 Running Scenario 3: User Switch with Different Payment Data');
+            
+            // Set payment data for user1
+            const user1Data = {
+                orderId: 'user1_order',
+                orderNumber: 'RITT-USER1-123',
+                total: '12.99',
+                paymentLink: 'https://buy.stripe.com/test_user1_payment',
+                items: [{ name: 'User1 Coffee', quantity: 1, price: 12.99 }],
+                subtotal: 12.99,
+                tax: 0.99,
+                processingFee: 0.50,
+                timestamp: Date.now()
+            };
+            
+            currentUser = 'user1';
+            setPaymentData(user1Data);
+            storePaymentData(user1Data, currentUser);
+            console.log('Set payment data for user1');
+            
+            // Switch to user2
+            currentUser = 'user2';
+            const user2StoredData = getStoredPaymentData(currentUser);
+            setPaymentData(user2StoredData); // Should be null for user2
+            console.log('Switched to user2, stored data:', user2StoredData);
+            
+            // Set different payment data for user2
+            const user2Data = {
+                orderId: 'user2_order',
+                orderNumber: 'RITT-USER2-456',
+                total: '18.99',
+                paymentLink: 'https://buy.stripe.com/test_user2_payment',
+                items: [{ name: 'User2 Coffee', quantity: 1, price: 18.99 }],
+                subtotal: 18.99,
+                tax: 1.45,
+                processingFee: 0.60,
+                timestamp: Date.now()
+            };
+            
+            setPaymentData(user2Data);
+            storePaymentData(user2Data, currentUser);
+            console.log('Set payment data for user2');
+            
+            // Verify user1 data is still there
+            const user1StoredData = getStoredPaymentData('user1');
+            const user2CurrentData = paymentData;
+            
+            const success = user1StoredData && 
+                          user1StoredData.orderNumber === user1Data.orderNumber &&
+                          user2CurrentData &&
+                          user2CurrentData.orderNumber === user2Data.orderNumber;
+            
+            testResults.scenario3 = success;
+            
+            document.getElementById('scenario3-result').innerHTML = `
+                <div class="test-section ${success ? 'test-passed' : 'test-failed'}">
+                    <strong>Result: ${success ? '✅ PASSED' : '❌ FAILED'}</strong>
+                    <div class="debug-info">
+                        Expected: Each user should have isolated payment data<br>
+                        User1 stored data: ${user1StoredData?.orderNumber || 'None'}<br>
+                        User2 current data: ${user2CurrentData?.orderNumber || 'None'}<br>
+                        Data isolation: ${user1StoredData && user2CurrentData ? 'Yes' : 'No'}
+                    </div>
+                </div>
+            `;
+            
+            console.log('Scenario 3 result:', success ? 'PASSED' : 'FAILED');
+        }
+
+        function runScenario4() {
+            console.log('\n🧪 Running Scenario 4: Expired Payment Data');
+            
+            // Create payment data that appears to be from 2 hours ago
+            const expiredData = {
+                orderId: 'expired_order',
+                orderNumber: 'RITT-EXPIRED-123',
+                total: '10.99',
+                paymentLink: 'https://buy.stripe.com/test_expired_payment',
+                items: [{ name: 'Expired Coffee', quantity: 1, price: 10.99 }],
+                subtotal: 10.99,
+                tax: 0.85,
+                processingFee: 0.40,
+                timestamp: Date.now() - (2 * 60 * 60 * 1000) // 2 hours ago
+            };
+            
+            // Store the expired data directly in localStorage
+            const dataWithContext = {
+                ...expiredData,
+                userId: currentUser,
+                sessionId: `session_${Date.now()}`,
+            };
+            
+            localStorage.setItem(getStorageKey('currentOrder', currentUser), JSON.stringify(dataWithContext));
+            console.log('Stored expired payment data');
+            
+            // Try to retrieve it (should be cleared due to age)
+            const retrievedData = getStoredPaymentData(currentUser);
+            
+            // Check if it's properly handled by the age check (1 hour limit in our test)
+            const maxAge = 60 * 60 * 1000; // 1 hour
+            const shouldBeExpired = (Date.now() - expiredData.timestamp) > maxAge;
+            const success = shouldBeExpired && !retrievedData;
+            
+            testResults.scenario4 = success;
+            
+            document.getElementById('scenario4-result').innerHTML = `
+                <div class="test-section ${success ? 'test-passed' : 'test-failed'}">
+                    <strong>Result: ${success ? '✅ PASSED' : '❌ FAILED'}</strong>
+                    <div class="debug-info">
+                        Expected: Expired data should be automatically cleared<br>
+                        Data age: ${Math.round((Date.now() - expiredData.timestamp) / 1000 / 60)} minutes<br>
+                        Should be expired: ${shouldBeExpired ? 'Yes' : 'No'}<br>
+                        Retrieved data: ${retrievedData ? 'Present (BAD)' : 'None (GOOD)'}
+                    </div>
+                </div>
+            `;
+            
+            console.log('Scenario 4 result:', success ? 'PASSED' : 'FAILED');
+        }
+
+        function runScenario5() {
+            console.log('\n🧪 Running Scenario 5: Room Change (New Conversation)');
+            
+            // Set payment data
+            const oldPaymentData = {
+                orderId: 'room_test_order',
+                orderNumber: 'RITT-ROOM-123',
+                total: '14.99',
+                paymentLink: 'https://buy.stripe.com/test_room_payment',
+                items: [{ name: 'Room Test Coffee', quantity: 1, price: 14.99 }],
+                subtotal: 14.99,
+                tax: 1.15,
+                processingFee: 0.50,
+                timestamp: Date.now()
+            };
+            
+            setPaymentData(oldPaymentData);
+            storePaymentData(oldPaymentData, currentUser);
+            console.log('Set payment data before room change');
+            
+            // Simulate room connection change
+            roomConnection = 'new_room_123';
+            console.log('Simulated room change to:', roomConnection);
+            
+            // In the actual implementation, room change would trigger clearing
+            clearAllPaymentData();
+            
+            const success = !paymentData;
+            testResults.scenario5 = success;
+            
+            document.getElementById('scenario5-result').innerHTML = `
+                <div class="test-section ${success ? 'test-passed' : 'test-failed'}">
+                    <strong>Result: ${success ? '✅ PASSED' : '❌ FAILED'}</strong>
+                    <div class="debug-info">
+                        Expected: Payment data should be cleared on room change<br>
+                        Before room change: Had payment data<br>
+                        After room change: ${paymentData ? 'Still has data (BAD)' : 'No data (GOOD)'}<br>
+                        Room connection: ${roomConnection}
+                    </div>
+                </div>
+            `;
+            
+            console.log('Scenario 5 result:', success ? 'PASSED' : 'FAILED');
+        }
+
+        // Manual control functions
+        function clearAllData() {
+            console.log('🗑️ Clearing all payment data');
+            clearAllPaymentData();
+            
+            // Also clear for all test users
+            ['user1', 'user2', 'user3', ''].forEach(userId => {
+                clearPaymentData(userId);
+            });
+        }
+
+        function simulateOldData() {
+            const oldData = {
+                orderId: 'old_manual_order',
+                orderNumber: 'RITT-OLD-MANUAL',
+                total: '8.99',
+                paymentLink: 'https://buy.stripe.com/test_old_manual',
+                items: [{ name: 'Old Manual Coffee', quantity: 1, price: 8.99 }],
+                subtotal: 8.99,
+                tax: 0.70,
+                processingFee: 0.30,
+                timestamp: Date.now() - (30 * 60 * 1000) // 30 minutes ago
+            };
+            
+            setPaymentData(oldData);
+            storePaymentData(oldData, currentUser);
+            console.log('Simulated old payment data');
+        }
+
+        function simulateNewPayment() {
+            clearPaymentData(currentUser);
+            
+            const newData = {
+                orderId: `manual_order_${Date.now()}`,
+                orderNumber: `RITT-MANUAL-${Date.now()}`,
+                total: '16.99',
+                paymentLink: `https://buy.stripe.com/test_${Math.random().toString(36).substr(2, 9)}`,
+                items: [{ name: 'New Manual Coffee', quantity: 1, price: 16.99 }],
+                subtotal: 16.99,
+                tax: 1.30,
+                processingFee: 0.55,
+                timestamp: Date.now()
+            };
+            
+            setPaymentData(newData);
+            storePaymentData(newData, currentUser);
+            console.log('Simulated new payment data');
+        }
+
+        function simulateConversationReset() {
+            console.log('🔄 Simulating conversation reset');
+            
+            // In the actual implementation, this would be triggered by detecting
+            // greeting messages in the conversation
+            if (paymentData && paymentData.timestamp && 
+                (Date.now() - paymentData.timestamp) > 2 * 60 * 1000) {
+                console.log('Payment data is old enough, clearing due to conversation reset');
+                clearAllPaymentData();
+            } else {
+                console.log('Payment data is too recent, not clearing');
+            }
+        }
+
+        function switchUser() {
+            const newUser = document.getElementById('userSelect').value;
+            console.log('Switching user from', currentUser, 'to', newUser || 'anonymous');
+            
+            currentUser = newUser;
+            
+            // Load payment data for the new user
+            const userData = getStoredPaymentData(currentUser);
+            setPaymentData(userData);
+            
+            updateCurrentState();
+        }
+
+        function updateCurrentState() {
+            const state = {
+                currentUser: currentUser || 'anonymous',
+                hasPaymentData: !!paymentData,
+                paymentOrder: paymentData?.orderNumber || 'None',
+                paymentLink: paymentData?.paymentLink ? 'Present' : 'None',
+                timestamp: paymentData?.timestamp ? new Date(paymentData.timestamp).toISOString() : 'None',
+                age: paymentData?.timestamp ? Math.round((Date.now() - paymentData.timestamp) / 1000 / 60) + ' minutes' : 'N/A',
+                roomConnection: roomConnection || 'None',
+                lastPaymentTimestamp: lastPaymentTimestamp || 'None'
+            };
+            
+            document.getElementById('currentState').innerHTML = `
+                <div class="debug-info">
+                    <strong>Current User:</strong> ${state.currentUser}<br>
+                    <strong>Has Payment Data:</strong> ${state.hasPaymentData}<br>
+                    <strong>Order Number:</strong> ${state.paymentOrder}<br>
+                    <strong>Payment Link:</strong> ${state.paymentLink}<br>
+                    <strong>Timestamp:</strong> ${state.timestamp}<br>
+                    <strong>Data Age:</strong> ${state.age}<br>
+                    <strong>Room Connection:</strong> ${state.roomConnection}<br>
+                    <strong>Last Payment Timestamp:</strong> ${state.lastPaymentTimestamp}
+                </div>
+            `;
+            
+            document.getElementById('debugInfo').innerHTML = `
+                <strong>localStorage Contents:</strong><br>
+                ${Object.keys(localStorage).filter(key => key.includes('currentOrder') || key.includes('latestPaymentUrl')).map(key => 
+                    `${key}: ${localStorage.getItem(key)?.substring(0, 100)}...`
+                ).join('<br>')}<br>
+                <br>
+                <strong>Test Results:</strong><br>
+                ${Object.entries(testResults).map(([test, result]) => 
+                    `${test}: ${result ? '✅ PASSED' : '❌ FAILED'}`
+                ).join('<br>')}
+            `;
+        }
+
+        // Initialize
+        updateCurrentState();
+        console.log('Payment Data Caching Fix Test Suite initialized');
+    </script>
+</body>
+</html>

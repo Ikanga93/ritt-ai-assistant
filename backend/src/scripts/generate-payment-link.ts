@@ -75,8 +75,11 @@ async function generatePaymentLinkForOrder() {
       
       const orderWithPayment = await generateOrderPaymentLink({
         orderId: order.id,
-        customerEmail: order.customerEmail,
-        customerName: order.customerName
+        amount: order.total,
+        tempOrderId: order.id,
+        customerName: order.customerName,
+        description: `Order from ${order.restaurantName || 'Ritt Drive-Thru'}`,
+        expirationDays: 2
       });
       
       console.log('\nPayment link generated:');

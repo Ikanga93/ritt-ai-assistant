@@ -251,63 +251,57 @@ export async function placeOrder(
       }
     });
 
-    // Generate payment link for all orders with customer emails
+    // Generate payment link for all orders
     console.log('\n=== GENERATING PAYMENT LINK ===');
     
     let paymentLinkResponse = null;
     
-    if (customerInfo.email) {
-      console.log('\n=== ORDER HAS CUSTOMER EMAIL, GENERATING PAYMENT LINK ===');
-      console.log(`Customer Email: ${customerInfo.email}`);
+    try {
+      console.log('Payment Link Parameters:', {
+        orderId: tempOrder.id,
+        customerName: customerInfo.name
+      });
       
-      try {
-        console.log('Payment Link Parameters:', {
-          orderId: tempOrder.id,
-          customerEmail: customerInfo.email,
-          customerName: customerInfo.name
-        });
-        
-        info('Generating payment link', { 
-          correlationId, 
-          context: 'orderService',
-          orderNumber,
-          data: {
-            tempOrderId: tempOrder.id,
-            customerEmail: customerInfo.email
-          }
-        });
-        
-        // Import the order payment link service
-        const { generateOrderPaymentLink } = await import('./services/orderPaymentLinkService.js');
-        
-        // Generate payment link using the temporary order
-        const orderWithPayment = await generateOrderPaymentLink({
-          orderId: tempOrder.id,
-          customerEmail: customerInfo.email,
-          customerName: customerInfo.name,
-          description: `Order from ${restaurantName}`,
-          expirationHours: 48
-        });
-        
-        console.log('Order with payment:', JSON.stringify({
-          id: orderWithPayment.id,
-          paymentLink: orderWithPayment.metadata?.paymentLink?.url,
-          paymentStatus: orderWithPayment.metadata?.paymentStatus
-        }, null, 2));
-        
-        // Extract payment link information
-        paymentLinkResponse = orderWithPayment.metadata?.paymentLink || null;
-      } catch (error) {
-        console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
-        console.error('Error:', error);
-        warn('Failed to generate payment link', { 
-          correlationId, 
-          context: 'orderService',
-          orderNumber,
-          error,
-          data: { tempOrderId: tempOrder.id }
-        });
-      }
+      info('Generating payment link', { 
+        correlationId, 
+        context: 'orderService',
+        orderNumber,
+        data: {
+          tempOrderId: tempOrder.id
+        }
+      });
+      
+      // Import the order payment link service
+      const { generateOrderPaymentLink } = await import('./services/orderPaymentLinkService.js');
+      
+      // Generate payment link using the temporary order
+      const orderWithPayment = await generateOrderPaymentLink({
+        orderId: tempOrder.id,
+        amount: total,
+        tempOrderId: tempOrder.id,
+        customerName: customerInfo.name,
+        description: `Order from ${restaurantName}`,
+        expirationDays: 2
+      });
+      
+      console.log('Order with payment:', JSON.stringify({
+        id: orderWithPayment.id,
+        paymentLink: orderWithPayment.metadata?.paymentLink?.url,
+        paymentStatus: orderWithPayment.metadata?.paymentStatus
+      }, null, 2));
+      
+      // Extract payment link information
+      paymentLinkResponse = orderWithPayment.metadata?.paymentLink || null;
+    } catch (error) {
+      console.error('\n=== PAYMENT LINK GENERATION FAILED ===');
+      console.error('Error:', error);
+      warn('Failed to generate payment link', { 
+        correlationId, 
+        context: 'orderService',
+        orderNumber,
+        error,
+        data: { tempOrderId: tempOrder.id }
+      });
     }
 
     if (!paymentLinkResponse) {

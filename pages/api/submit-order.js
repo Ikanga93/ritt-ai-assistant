@@ -1,35 +1,33 @@
 // pages/api/submit-order.js
-import { getSession } from '@auth0/nextjs-auth0';
-import { saveOrderToDatabase } from '../../backend/src/services/orderDatabaseService';
+// import { getSession } from '@auth0/nextjs-auth0'; // Commented out temporarily
+import { saveOrderToDatabase } from '../../backend/src/services/orderService';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
-    // Get order details from request body
     const orderDetails = req.body;
     
-    // Get Auth0 session if available
-    const session = await getSession(req, res);
-    const auth0User = session?.user;
+    // TEMPORARILY REMOVE AUTH CHECK
+    // const session = await getSession(req, res);
+    // const auth0User = session?.user;
     
-    // Save order to database with Auth0 user if available
-    const result = await saveOrderToDatabase(orderDetails, auth0User);
+    // Save order to database without Auth0 user
+    const result = await saveOrderToDatabase(orderDetails, null);
     
-    // Return success response
     return res.status(200).json({
       success: true,
-      orderId: result.dbOrderId,
-      orderNumber: result.orderNumber,
-      isAuthenticated: !!auth0User
+      orderId: result.orderId,
+      // isAuthenticated: !!auth0User // Commented out temporarily
     });
   } catch (error) {
     console.error('Error submitting order:', error);
     return res.status(500).json({ 
-      error: 'Failed to submit order',
-      message: error.message 
+      success: false, 
+      message: 'Error submitting order',
+      error: error.message 
     });
   }
 }

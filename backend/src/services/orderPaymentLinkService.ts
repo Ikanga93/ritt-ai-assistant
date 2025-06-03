@@ -57,10 +57,11 @@ interface OrderWithPaymentInfo extends TemporaryOrder {
  */
 export interface OrderPaymentLinkRequest {
   orderId: string;
-  customerEmail: string;
+  amount: number;
+  tempOrderId: string;
   customerName?: string;
   description?: string;
-  expirationHours?: number;
+  expirationDays?: number;
 }
 
 /**
@@ -77,18 +78,17 @@ export type OrderWithPayment = OrderWithPaymentInfo;
 export async function generateOrderPaymentLink(
   params: OrderPaymentLinkRequest
 ): Promise<OrderWithPayment> {
-  const { orderId, customerEmail, customerName, description, expirationHours } = params;
+  const { orderId, amount, tempOrderId, customerName, description, expirationDays } = params;
   
   // Create a correlation ID for tracking this operation through logs
-  const correlationId = logger.createCorrelationId(orderId, customerEmail);
+  const correlationId = logger.createCorrelationId(orderId);
   
   try {
     logger.info('Generating payment link for order', {
       correlationId,
       context: 'orderPaymentLinkService.generateOrderPaymentLink',
       data: {
-        orderId,
-        customerEmail
+        orderId
       }
     });
     
@@ -104,14 +104,10 @@ export async function generateOrderPaymentLink(
       throw new Error(errorMessage);
     }
     
-    // Calculate expiration in days (convert from hours if provided)
-    const expirationDays = expirationHours ? expirationHours / 24 : undefined;
-    
     // Create metadata for the payment link
     const metadata: Record<string, string> = {
       orderId: order.id,
       orderType: 'pending',
-      customerEmail,
       createdAt: new Date().toISOString()
     };
     
@@ -123,32 +119,11 @@ export async function generateOrderPaymentLink(
       metadata.restaurantName = order.restaurantName;
     }
     
-    // Use the price calculator for consistent calculations
-    const priceCalculator = PriceCalculator.getInstance();
-    
-    // Calculate the price breakdown using the subtotal
-    const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
-    
-    // Log the price breakdown for debugging
-    logger.info('Order price breakdown', {
-      correlationId,
-      context: 'orderPaymentLinkService.generateOrderPaymentLink',
-      data: {
-        orderId: order.id,
-        subtotal: order.subtotal,
-        tax: priceBreakdown.tax,
-        total: priceBreakdown.total,
-        processingFee: priceBreakdown.processingFee,
-        totalWithFees: priceBreakdown.totalWithFees
-      }
-    });
-    
     // Create the payment link request
     const paymentLinkRequest: PaymentLinkRequest = {
       orderId: parseInt(order.id.split('-')[1], 10), // Use timestamp part of ID as numeric ID
-      tempOrderId: order.id, // Include the full temporary order ID
-      amount: priceBreakdown.totalWithFees, // Pass in total including processing fee
-      customerEmail,
+      tempOrderId: tempOrderId,
+      amount: amount,
       customerName: customerName || order.customerName,
       description: description || `Order from ${order.restaurantName || 'Ritt Drive-Thru'}`,
       metadata,
@@ -169,7 +144,6 @@ export async function generateOrderPaymentLink(
     });
     
     // Update the order with payment link information
-    // Use metadata field to store payment information since TemporaryOrder doesn't have these fields directly
     const updatedOrder = temporaryOrderService.updateOrder(orderId, {
       metadata: {
         paymentLink: {
@@ -178,124 +152,9 @@ export async function generateOrderPaymentLink(
           expiresAt: paymentLink.expiresAt,
           createdAt: Math.floor(Date.now() / 1000)
         },
-        paymentStatus: 'pending',
-        emailStatus: {
-          paymentLinkEmailSent: false,
-          paymentLinkEmailAttempts: 0
-        }
+        paymentStatus: 'pending'
       }
     });
-    
-    // Send payment link email to customer
-    try {
-      // Check if order was updated successfully
-      if (!updatedOrder) {
-        throw new Error(`Failed to update order with payment link: ${orderId}`);
-      }
-      
-      logger.info('Sending payment link email to customer', {
-        correlationId,
-        context: 'orderPaymentLinkService.generateOrderPaymentLink',
-        data: {
-          orderId,
-          customerEmail,
-          paymentLinkId: paymentLink.id
-        }
-      });
-      
-      const emailResult = await sendPaymentLinkEmail(
-        updatedOrder,
-        paymentLink.url,
-        paymentLink.expiresAt
-      );
-      
-      // Update email status in order metadata
-      if (emailResult.success) {
-        // Get the current order to preserve existing metadata
-        const currentOrder = temporaryOrderService.getOrder(orderId);
-        if (!currentOrder) {
-          throw new Error(`Order not found when updating email status: ${orderId}`);
-        }
-        
-        // Merge the email status with existing metadata
-        temporaryOrderService.updateOrder(orderId, {
-          metadata: {
-            ...currentOrder.metadata,
-            paymentLink: currentOrder.metadata?.paymentLink || {
-              id: paymentLink.id,
-              url: paymentLink.url,
-              expiresAt: paymentLink.expiresAt,
-              createdAt: Math.floor(Date.now() / 1000)
-            },
-            paymentStatus: currentOrder.metadata?.paymentStatus || 'pending',
-            emailStatus: {
-              paymentLinkEmailSent: true,
-              paymentLinkEmailSentAt: Date.now(),
-              paymentLinkEmailMessageId: emailResult.messageId,
-              paymentLinkEmailAttempts: 1
-            }
-          }
-        });
-        
-        logger.info('Payment link email sent successfully', {
-          correlationId,
-          context: 'orderPaymentLinkService.generateOrderPaymentLink',
-          data: {
-            orderId,
-            customerEmail,
-            messageId: emailResult.messageId
-          }
-        });
-      } else {
-        // Update email status with failure information
-        // Get the current order to preserve existing metadata
-        const currentOrder = temporaryOrderService.getOrder(orderId);
-        if (!currentOrder) {
-          throw new Error(`Order not found when updating email status: ${orderId}`);
-        }
-        
-        // Merge the email status with existing metadata
-        temporaryOrderService.updateOrder(orderId, {
-          metadata: {
-            ...currentOrder.metadata,
-            paymentLink: currentOrder.metadata?.paymentLink || {
-              id: paymentLink.id,
-              url: paymentLink.url,
-              expiresAt: paymentLink.expiresAt,
-              createdAt: Math.floor(Date.now() / 1000)
-            },
-            paymentStatus: currentOrder.metadata?.paymentStatus || 'pending',
-            emailStatus: {
-              paymentLinkEmailSent: false,
-              paymentLinkEmailAttempts: 1,
-              paymentLinkEmailError: emailResult.error?.message || 'Unknown error',
-              paymentLinkEmailLastAttempt: Date.now()
-            }
-          }
-        });
-        
-        logger.warn('Failed to send payment link email', {
-          correlationId,
-          context: 'orderPaymentLinkService.generateOrderPaymentLink',
-          data: {
-            orderId,
-            customerEmail,
-            error: emailResult.error?.message
-          }
-        });
-      }
-    } catch (emailError: any) {
-      // Log email error but don't fail the overall operation
-      logger.error('Error sending payment link email', {
-        correlationId,
-        context: 'orderPaymentLinkService.generateOrderPaymentLink',
-        error: emailError.message,
-        data: {
-          orderId,
-          customerEmail
-        }
-      });
-    }
     
     if (!updatedOrder) {
       throw new Error(`Failed to update order with payment link: ${orderId}`);
@@ -775,61 +634,25 @@ export async function updateOrderPaymentStatus(
 export async function regenerateOrderPaymentLink(
   orderId: string
 ): Promise<OrderWithPayment> {
-  const correlationId = logger.createCorrelationId(orderId);
-  
-  try {
-    logger.info('Regenerating payment link for order', {
-      correlationId,
-      context: 'orderPaymentLinkService.regenerateOrderPaymentLink',
-      data: { orderId }
-    });
-    
-    // Retrieve the order
-    const order = temporaryOrderService.getOrder(orderId);
-    
-    if (!order) {
-      const errorMessage = `Order not found with ID: ${orderId}`;
-      logger.error(errorMessage, {
-        correlationId,
-        context: 'orderPaymentLinkService.regenerateOrderPaymentLink'
-      });
-      throw new Error(errorMessage);
-    }
-    
-    // Get payment metadata from the order
-    const paymentMetadata = getPaymentMetadata(order);
-    
-    // Check if the order has a payment link and it's expired or failed
-    if (!paymentMetadata.paymentLink || 
-        (paymentMetadata.paymentStatus !== 'expired' && paymentMetadata.paymentStatus !== 'failed')) {
-      logger.warn('Cannot regenerate payment link - order is not expired or failed', {
-        correlationId,
-        context: 'orderPaymentLinkService.regenerateOrderPaymentLink',
-        data: {
-          orderId,
-          currentStatus: paymentMetadata.paymentStatus
-        }
-      });
-      throw new Error(`Cannot regenerate payment link for order ${orderId} - not expired or failed`);
-    }
-    
-    // Generate a new payment link
-    return await generateOrderPaymentLink({
-      orderId,
-      customerEmail: order.customerEmail,
-      customerName: order.customerName
-    });
-  } catch (error) {
-    logger.error('Failed to regenerate payment link for order', {
-      correlationId,
-      context: 'orderPaymentLinkService.regenerateOrderPaymentLink',
-      error,
-      data: { orderId }
-    });
-    throw error;
-  } finally {
-    logger.removeCorrelationId(correlationId);
+  // Get the order
+  const order = temporaryOrderService.getOrder(orderId);
+  if (!order) {
+    throw new Error(`Order not found: ${orderId}`);
   }
+
+  // Get the price calculator
+  const priceCalculator = PriceCalculator.getInstance();
+  const priceBreakdown = priceCalculator.calculateOrderPrices(order.subtotal);
+
+  // Generate a new payment link
+  return await generateOrderPaymentLink({
+    orderId: order.id,
+    amount: priceBreakdown.totalWithFees,
+    tempOrderId: order.id,
+    customerName: order.customerName,
+    description: `Order from ${order.restaurantName || 'Ritt Drive-Thru'}`,
+    expirationDays: 2
+  });
 }
 
 /**

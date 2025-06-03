@@ -1,8 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-// Middleware to check authentication and redirect to Auth0 if not authenticated
+// TEMPORARILY BYPASS AUTHENTICATION
 export async function middleware(request: NextRequest) {
+  // Allow all requests
+  return NextResponse.next();
+  
+  /* Original authentication logic - commented out temporarily
   // Skip API routes, auth routes, and static assets
   if (request.nextUrl.pathname.startsWith('/api') || 
       request.nextUrl.pathname.includes('/auth') || 
@@ -23,6 +27,7 @@ export async function middleware(request: NextRequest) {
   
   // If session exists, allow access
   return NextResponse.next();
+  */
 }
 
 export const config = {

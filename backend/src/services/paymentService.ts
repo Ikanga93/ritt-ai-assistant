@@ -95,17 +95,16 @@ export function verifyWebhookSignature(payload: string, signature: string): Stri
 }
 
 /**
- * Interface for payment link request parameters
+ * Interface for payment link request
  */
 export interface PaymentLinkRequest {
   orderId: number;
+  tempOrderId: string;
   amount: number;
-  customerEmail: string;
   customerName?: string;
   description?: string;
   metadata?: Record<string, string>;
   expirationDays?: number;
-  tempOrderId: string;
 }
 
 /**
@@ -126,13 +125,16 @@ export interface PaymentLinkResponse {
 export async function generatePaymentLink(
   params: PaymentLinkRequest
 ): Promise<PaymentLinkResponse> {
+  // Use a default email if none provided
+  const customerEmail = `order-${params.orderId}@temp.com`;
+  
   const correlationId = logger.createCorrelationId(
     String(params.orderId),
-    params.customerEmail
+    customerEmail
   );
 
   console.log('\n=== STARTING PAYMENT LINK GENERATION ===');
-  console.log('Parameters:', JSON.stringify(params, null, 2));
+  console.log('Parameters:', JSON.stringify({...params, customerEmail}, null, 2));
   console.log('Stripe API Key configured:', !!process.env.STRIPE_SECRET_KEY);
 
   logger.info('Generating payment link', {
@@ -166,7 +168,7 @@ export async function generatePaymentLink(
       name: params.description || `Order #${params.orderId}`,
       metadata: {
         orderId: String(params.orderId),
-        customerEmail: params.customerEmail
+        customerEmail: customerEmail
       }
     });
     console.log('Product created:', product.id);
@@ -203,13 +205,10 @@ export async function generatePaymentLink(
       ],
       metadata: {
         orderId: String(params.orderId),
-        orderNumber: params.tempOrderId, // Use tempOrderId as orderNumber
-        customerEmail: params.customerEmail,
+        orderNumber: params.tempOrderId,
+        customerEmail: customerEmail,
         customerName: params.customerName || ''
-      },
-      // Customer email is stored in metadata instead of using customer_email parameter
-      // which is not supported by the Stripe Payment Links API
-      // Removed custom redirect to use Stripe's built-in confirmation page
+      }
     };
 
     console.log('Payment link parameters:', JSON.stringify(paymentLinkParams, null, 2));
@@ -225,8 +224,8 @@ export async function generatePaymentLink(
         expiresAt: Math.floor(Date.now() / 1000) + (paymentLinkExpirationDays * 24 * 60 * 60),
         metadata: {
           orderId: String(params.orderId),
-          tempOrderId: params.tempOrderId, // Use the existing temporary order ID
-          customerEmail: params.customerEmail
+          tempOrderId: params.tempOrderId,
+          customerEmail: customerEmail
         }
       };
     } catch (stripeError: any) {

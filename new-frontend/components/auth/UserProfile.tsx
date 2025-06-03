@@ -25,15 +25,8 @@ export default function UserProfile() {
   if (isLoading) return <div className="text-white text-sm p-2 bg-gray-800 rounded-md">Loading profile...</div>;
   
   if (!user) {
-    // This should not happen with our middleware, but just in case
-    return (
-      <button 
-        onClick={() => login()}
-        className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-      >
-        Sign In
-      </button>
-    );
+    // Return null when no user is present
+    return null;
   }
   
   // Get initials (first letter of name or email)

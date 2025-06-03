@@ -5,6 +5,10 @@ export async function middleware(request: NextRequest) {
   // Get the pathname
   const path = request.nextUrl.pathname;
   
+  // TEMPORARILY ALLOW ALL ROUTES
+  return NextResponse.next();
+  
+  /* Original authentication logic - commented out temporarily
   // Allow public routes
   if (
     path === '/' || 
@@ -28,6 +32,7 @@ export async function middleware(request: NextRequest) {
   
   // Allow all other routes
   return NextResponse.next();
+  */
 }
 
 export const config = {

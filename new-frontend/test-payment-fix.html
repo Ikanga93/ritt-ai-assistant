@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Button Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 20px; margin: 10px 0; }
+        .debug-info { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+        .payment-banner { background: #e8f5e9; border: 2px solid #4caf50; padding: 20px; margin: 10px 0; text-align: center; }
+        .payment-button { background: #2196f3; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .payment-button:hover { background: #1976d2; }
+        .dismiss-button { background: #ff5722; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Payment Button Fix Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Scenario: User-Specific Payment Data</h2>
+        <p>This test simulates the issue where payment buttons were persisting across different users.</p>
+        
+        <div class="debug-info">
+            <h3>Debug Information</h3>
+            <p><strong>Current User:</strong> <span id="currentUser">Not Set</span></p>
+            <p><strong>Payment Data:</strong> <span id="paymentDataStatus">None</span></p>
+            <p><strong>Storage Key:</strong> <span id="storageKey">None</span></p>
+            <p><strong>Payment URL:</strong> <span id="paymentUrl">None</span></p>
+        </div>
+        
+        <div class="payment-banner" id="paymentBanner" style="display: none;">
+            <p>🎉 Your order is ready! Please complete your payment.</p>
+            <button class="payment-button" onclick="openPayment()">Pay Now</button>
+            <button class="dismiss-button" onclick="dismissPayment()">✕ Dismiss</button>
+            <p><small>Order ID: <span id="orderNumber">Loading...</span></small></p>
+        </div>
+        
+        <div>
+            <h3>Test Controls</h3>
+            <button onclick="simulateUser('user1')">Simulate User 1 (Chris)</button>
+            <button onclick="simulateUser('user2')">Simulate User 2 (Alice)</button>
+            <button onclick="simulateUser('anonymous')">Simulate Anonymous User</button>
+            <button onclick="simulateLogout()">Simulate Logout</button>
+            <br><br>
+            <button onclick="simulatePaymentData('user1')">Send Payment Data (User 1)</button>
+            <button onclick="simulatePaymentData('user2')">Send Payment Data (User 2)</button>
+            <button onclick="clearAllData()">Clear All Storage</button>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Expected Behavior</h2>
+        <ul>
+            <li>✅ Payment buttons should be user-specific</li>
+            <li>✅ Payment data should clear when users change</li>
+            <li>✅ Payment data should expire after 24 hours</li>
+            <li>✅ Users should be able to dismiss payment banners</li>
+            <li>✅ Anonymous users should have separate storage</li>
+        </ul>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let paymentData = null;
+        
+        // Simulate the user-specific storage logic from the hook
+        function getStorageKey(key, userId) {
+            const userSuffix = userId ? `_${userId}` : '_anonymous';
+            return `${key}${userSuffix}`;
+        }
+        
+        function storePaymentData(data, userId) {
+            const dataWithContext = {
+                ...data,
+                userId: userId || 'anonymous',
+                sessionId: `session_${Date.now()}`,
+                timestamp: Date.now()
+            };
+            
+            const storageKey = getStorageKey('currentOrder', userId);
+            localStorage.setItem(storageKey, JSON.stringify(dataWithContext));
+            localStorage.setItem(getStorageKey('latestPaymentUrl', userId), data.paymentLink);
+            console.log('💰 Payment data stored with user context:', userId);
+            updateDebugInfo();
+        }
+        
+        function getStoredPaymentData(userId) {
+            const storageKey = getStorageKey('currentOrder', userId);
+            const storedOrder = localStorage.getItem(storageKey);
+            if (storedOrder) {
+                const data = JSON.parse(storedOrder);
+                
+                // Check if data is expired (older than 24 hours)
+                const maxAge = 24 * 60 * 60 * 1000;
+                if (data.timestamp && (Date.now() - data.timestamp) > maxAge) {
+                    console.log('💰 Payment data expired, clearing');
+                    clearPaymentData(userId);
+                    return null;
+                }
+                
+                return data;
+            }
+            return null;
+        }
+        
+        function clearPaymentData(userId) {
+            localStorage.removeItem(getStorageKey('currentOrder', userId));
+            localStorage.removeItem(getStorageKey('latestPaymentUrl', userId));
+            console.log('💰 Payment data cleared for user:', userId);
+        }
+        
+        function simulateUser(userId) {
+            // Simulate user change detection
+            if (currentUser !== userId) {
+                const storedData = getStoredPaymentData(userId);
+                
+                if (storedData && storedData.userId !== userId) {
+                    console.log('💰 User changed, clearing payment data');
+                    clearPaymentData(currentUser);
+                    paymentData = null;
+                } else {
+                    paymentData = storedData;
+                }
+                
+                currentUser = userId;
+                updateUI();
+            }
+        }
+        
+        function simulateLogout() {
+            currentUser = null;
+            paymentData = null;
+            updateUI();
+        }
+        
+        function simulatePaymentData(forUserId) {
+            const testPaymentData = {
+                orderId: `order_${Date.now()}`,
+                orderNumber: `RITT-${new Date().toISOString().slice(0,10)}-${Math.floor(Math.random() * 10000)}`,
+                total: '15.99',
+                paymentLink: `https://buy.stripe.com/test_${Math.random().toString(36).substr(2, 9)}`,
+                items: [{ name: 'Test Item', quantity: 1, price: 15.99 }],
+                subtotal: 15.99,
+                tax: 1.20,
+                processingFee: 0.50
+            };
+            
+            if (currentUser === forUserId) {
+                paymentData = testPaymentData;
+                storePaymentData(testPaymentData, currentUser);
+                updateUI();
+            } else {
+                alert(`Cannot send payment data for ${forUserId} - current user is ${currentUser || 'none'}`);
+            }
+        }
+        
+        function dismissPayment() {
+            console.log('💰 Payment data dismissed by user');
+            clearPaymentData(currentUser);
+            paymentData = null;
+            updateUI();
+        }
+        
+        function openPayment() {
+            if (paymentData && paymentData.paymentLink) {
+                console.log('Opening payment link:', paymentData.paymentLink);
+                alert(`Opening payment link: ${paymentData.paymentLink}`);
+            }
+        }
+        
+        function clearAllData() {
+            localStorage.clear();
+            paymentData = null;
+            updateDebugInfo();
+            updateUI();
+        }
+        
+        function updateUI() {
+            updateDebugInfo();
+            
+            const banner = document.getElementById('paymentBanner');
+            const orderNumber = document.getElementById('orderNumber');
+            
+            if (paymentData && paymentData.paymentLink) {
+                banner.style.display = 'block';
+                orderNumber.textContent = paymentData.orderNumber || 'Unknown';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+        
+        function updateDebugInfo() {
+            document.getElementById('currentUser').textContent = currentUser || 'None';
+            document.getElementById('paymentDataStatus').textContent = paymentData ? '✅ Present' : '❌ Missing';
+            document.getElementById('storageKey').textContent = currentUser ? getStorageKey('currentOrder', currentUser) : 'None';
+            document.getElementById('paymentUrl').textContent = paymentData ? paymentData.paymentLink : 'None';
+        }
+        
+        // Initialize
+        updateUI();
+    </script>
+</body>
+</html>
