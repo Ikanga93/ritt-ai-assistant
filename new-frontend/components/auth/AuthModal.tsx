@@ -23,7 +23,7 @@ export default function AuthModal({ onClose, onLogin, customerName = 'there', or
           Once payment is confirmed, your order will be sent to the kitchen for preparation.
         </p>
         <p className="mb-6 text-blue-600 font-medium">
-          📧 Important: Please check your email for the payment link.
+          💳 Important: Use the payment button in the chat to complete your payment.
         </p>
         <div className="flex flex-col space-y-4">
           <button

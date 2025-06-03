@@ -59,7 +59,7 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({ paymentLink, class
     console.log('Payment button clicked, opening URL:', link);
     if (!link) {
       console.error('No payment link available');
-      alert('Sorry, the payment link is not available. Please check your email for the payment link.');
+      alert('Sorry, the payment link is not available. Please try again or contact support.');
       return;
     }
 

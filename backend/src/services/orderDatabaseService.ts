@@ -194,8 +194,8 @@ export async function saveOrderToDatabase(
       // Use existing tax or calculate it
       let tax = orderDetails.stateTax;
       if (tax === undefined || tax === null) {
-        // Calculate tax (assuming 8% tax rate)
-        tax = parseFloat((orderDetails.subtotal * 0.08).toFixed(2));
+        // Calculate tax (assuming 11.5% tax rate)
+        tax = parseFloat((orderDetails.subtotal * 0.115).toFixed(2));
       }
       newOrder.tax = tax;
       

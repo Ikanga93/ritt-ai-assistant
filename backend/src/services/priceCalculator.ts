@@ -13,7 +13,7 @@ export interface PriceBreakdown {
 
 export class PriceCalculator {
   private static instance: PriceCalculator;
-  private TAX_RATE = 0.10; // 10% tax
+  private TAX_RATE = 0.115; // 11.5% tax
   private PROCESSING_FEE_PERCENTAGE = 0.029; // 2.9%
   private PROCESSING_FEE_FIXED = 0.40; // $0.40 fixed fee
 

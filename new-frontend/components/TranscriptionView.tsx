@@ -288,9 +288,76 @@ export default function TranscriptionView(): JSX.Element {
               <h3 className="text-lg font-semibold text-gray-900 mb-1">
                 Order Ready!
               </h3>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 mb-4">
                 Complete your payment to finalize your order
               </p>
+              
+              {/* Order Details Section */}
+              {(() => {
+                // Try to get order details from paymentData first, then localStorage
+                let orderData = paymentData;
+                if (!orderData && typeof window !== 'undefined') {
+                  try {
+                    const storedOrder = localStorage.getItem('currentOrder');
+                    if (storedOrder) {
+                      orderData = JSON.parse(storedOrder);
+                    }
+                  } catch (error) {
+                    console.error('Error reading order data from localStorage:', error);
+                  }
+                }
+                
+                if (orderData && orderData.items && orderData.items.length > 0) {
+                  // Extract processing fee with proper type checking
+                  const processingFee = typeof orderData.processingFee === 'number' ? orderData.processingFee : 0;
+                  const hasProcessingFee = processingFee > 0;
+                  
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4 text-left">
+                      <h4 className="font-medium text-gray-900 mb-2 text-center">Order Summary</h4>
+                      
+                      {/* Order Items */}
+                      <div className="space-y-1 mb-3">
+                        {orderData.items.map((item, index) => (
+                          <div key={index} className="flex justify-between text-sm">
+                            <span className="text-gray-700">
+                              {item.quantity}x {item.name}
+                            </span>
+                            <span className="text-gray-900 font-medium">
+                              ${(item.price * item.quantity).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Order Totals */}
+                      <div className="border-t border-gray-200 pt-2 space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="text-gray-900">${orderData.subtotal?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Tax:</span>
+                          <span className="text-gray-900">${orderData.tax?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        {hasProcessingFee && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Processing Fee:</span>
+                            <span className="text-gray-900">${processingFee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-base font-semibold border-t border-gray-200 pt-1">
+                          <span className="text-gray-900">Total:</span>
+                          <span className="text-gray-900">
+                            ${typeof orderData.total === 'string' ? orderData.total : orderData.total?.toFixed(2) || '0.00'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <div className="flex justify-center">
               <PaymentButton 

@@ -196,7 +196,7 @@ function extractOrderFromTranscript(transcript: TranscriptMessage[]): OrderData 
   
   // Calculate totals
   const subtotal = menuItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const tax = subtotal * 0.09; // 9% tax rate
+  const tax = subtotal * 0.115; // 11.5% tax rate
   const total = subtotal + tax;
   
   return {
