@@ -267,25 +267,35 @@ export default function TranscriptionView(): JSX.Element {
     <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full relative">
       {/* Payment Banner - shows at the top of chat when order is confirmed */}
       {paymentState.url && (
-        <div className="sticky top-0 z-10 flex justify-center py-2 bg-white/80 backdrop-blur-sm rounded-md shadow-sm">
-          <div className="bg-green-100 p-4 rounded-lg text-center max-w-sm relative">
+        <div className="sticky top-0 z-10 flex justify-center py-3 bg-white/95 backdrop-blur-sm border-b border-gray-200">
+          <div className="bg-white p-6 rounded-xl text-center max-w-md w-full mx-4 shadow-lg border border-gray-100 relative">
             <button
               onClick={() => {
                 clearPaymentData();
                 setPaymentState({ url: '', source: null, timestamp: 0 });
               }}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-sm"
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-lg font-medium transition-colors duration-200"
               title="Clear payment link"
             >
               ✕
             </button>
-            <p className="font-medium text-green-800 mb-2">
-              Your order is ready! Please complete your payment.
-            </p>
+            <div className="mb-4">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                Order Ready!
+              </h3>
+              <p className="text-sm text-gray-600">
+                Complete your payment to finalize your order
+              </p>
+            </div>
             <div className="flex justify-center">
               <PaymentButton 
                 paymentLink={paymentState.url} 
-                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors duration-200 transform hover:scale-105"
+                className="bg-black hover:bg-gray-800 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
               />
             </div>
           </div>

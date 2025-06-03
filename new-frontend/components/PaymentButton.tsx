@@ -104,14 +104,9 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({ paymentLink, class
       console.warn('Payment URL does not contain stripe.com domain:', processedUrl);
     }
     
-    // Try to open the URL in a new tab
-    const newWindow = window.open(processedUrl, '_blank', 'noopener,noreferrer');
-    
-    // If window.open returns null, the popup was likely blocked
-    if (!newWindow) {
-      console.error("Popup blocked or could not open window. URL:", processedUrl);
-      alert("Please allow popups for this site to access the payment page.");
-    }
+    // Navigate to the payment URL in the same tab - no popup blockers!
+    console.log('Navigating to payment URL:', processedUrl);
+    window.location.href = processedUrl;
   };
 
   const defaultClassName = "bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200";
