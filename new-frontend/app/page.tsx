@@ -456,12 +456,16 @@ function SimpleVoiceAssistant(props: { onConnectButtonClicked: () => void; user:
       }
       
       // Show the auth modal if needed
+      // TEMPORARILY DISABLED - Allow usage without authentication
+      /*
       if (!props.user) {
         console.log('User not authenticated, showing auth modal');
         setShowAuthModal(true);
       } else {
         console.log('User already authenticated, no need for auth modal');
       }
+      */
+      console.log('Authentication check disabled - proceeding without login requirement');
       
       // Reset the prompt flag
       setShouldPromptAuth(false);

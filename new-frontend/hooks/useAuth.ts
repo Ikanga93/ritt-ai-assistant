@@ -43,8 +43,11 @@ export function useAuth() {
                 setUser(session.user);
               } else {
                 console.log('Auth0 session expired');
+                // TEMPORARILY DISABLED - Don't redirect to login automatically
                 // Redirect to login if session expired
-                window.location.href = '/api/auth/login?returnTo=' + encodeURIComponent(window.location.pathname);
+                // window.location.href = '/api/auth/login?returnTo=' + encodeURIComponent(window.location.pathname);
+                console.log('Session expired but automatic login redirect disabled');
+                setUser(null);
               }
             } else {
               console.log('Auth0 session exists but no user data');

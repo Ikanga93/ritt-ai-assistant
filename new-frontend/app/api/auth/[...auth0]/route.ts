@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// TEMPORARILY DISABLED - Auth0 authentication routes disabled
 // Create Auth0 handlers for the App Router
 export async function GET(request: NextRequest) {
+  console.log('Auth0 route called but authentication is temporarily disabled');
+  
+  // Always redirect to home page instead of processing authentication
+  const baseUrl = process.env.AUTH0_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return NextResponse.redirect(baseUrl);
+  
+  /* ORIGINAL AUTH0 LOGIC - TEMPORARILY DISABLED
   const url = new URL(request.url);
   const pathname = url.pathname;
 
@@ -114,6 +122,7 @@ export async function GET(request: NextRequest) {
   // Default case - redirect to home
   const baseUrl = process.env.AUTH0_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   return NextResponse.redirect(baseUrl);
+  */
 }
 
 export async function POST(request: NextRequest) {
