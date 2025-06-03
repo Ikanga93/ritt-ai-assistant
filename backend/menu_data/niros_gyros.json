@@ -34,6 +34,90 @@
       "category": "Drinks",
       "items": [
         {
+          "name": "Pepsi",
+          "description": "Pepsi",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_pepsi_0"
+        },
+        {
+          "name": "Diet Pepsi",
+          "description": "Diet Pepsi",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_diet_pepsi_1"
+        },
+        {
+          "name": "Mountain Dew",
+          "description": "Mountain Dew",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_mountain_dew_2"
+        },
+        {
+          "name": "Starry",
+          "description": "Starry",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_starry_3"
+        },
+        {
+          "name": "Lemonade",
+          "description": "Lemonade",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_lemonade_4"
+        },
+        {
+          "name": "Fruit Punch",
+          "description": "Fruit Punch",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_fruit_punch_5"
+        },
+        {
+          "name": "Root Beer",
+          "description": "Root Beer",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_root_beer_6"
+        },
+        {
+          "name": "Crush Orange",
+          "description": "Crush Orange",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_crush_orange_7"
+        },
+        {
+          "name": "Dr. Pepper",
+          "description": "Dr. Pepper",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_dr_pepper_8"
+        },
+        {
+          "name": "Ice Tea Unsweetened",
+          "description": "Ice Tea Unsweetened",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_ice_tea_unsweetened_9"
+        },
+        {
+          "name": "Ice Tea Sweetened",
+          "description": "Ice Tea Sweetened",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_ice_tea_sweetened_10"
+        },
+        {
+          "name": "Iced Tea Raspberry",
+          "description": "Iced Tea Raspberry",
+          "price": 1.99,
+          "calories": null,
+          "id": "niros_gyros_iced_tea_raspberry_11"
+        },
+        {
           "name": "Soft Drinks",
           "description": "Coke, Diet Coke, Sprite, and more.",
           "price": 1.99,
@@ -88,7 +172,7 @@
         {
           "name": "Single Gyro Meal",
           "description": "Combo meal with Single Gyro sandwich, fries and your choice of drink (Soft Drinks, 20 oz, or 32 oz).",
-          "price": 8.99,
+          "price": 10.08,
           "calories": null,
           "id": "niros_gyros_single_gyro_meal_0",
           "isMealCombo": true,
