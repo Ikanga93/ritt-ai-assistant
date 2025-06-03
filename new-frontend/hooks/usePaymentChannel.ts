@@ -17,6 +17,17 @@ export default function usePaymentChannel() {
   const room = useRoomContext();
   const handlersRegistered = useRef(false);
   
+  // Function to manually clear payment data
+  const clearPaymentData = () => {
+    console.log('💰 Manually clearing payment data');
+    setPaymentData(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('latestPaymentUrl');
+      localStorage.removeItem('currentOrder');
+      console.log('💰 Payment data cleared from localStorage');
+    }
+  };
+
   // Listen for text streams from the agent (this is the correct LiveKit approach)
   useEffect(() => {
     if (!room || handlersRegistered.current) return;
@@ -81,6 +92,20 @@ export default function usePaymentChannel() {
             console.error("💰 Error parsing PAYMENT_DATA JSON:", parseError);
           }
         }
+
+        // Check for payment status update
+        try {
+          const parsed = JSON.parse(message);
+          if (parsed.type === 'payment_status' && parsed.status === 'paid') {
+            console.log('💰 Payment confirmed via LiveKit message. Clearing payment data.');
+            setPaymentData(null);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('latestPaymentUrl');
+              localStorage.removeItem('currentOrder');
+            }
+            return;
+          }
+        } catch (e) { /* Not a JSON message, ignore */ }
       } catch (error) {
         console.error("💰 Error reading text stream:", error);
       }
@@ -125,5 +150,5 @@ export default function usePaymentChannel() {
     }
   }, [paymentData]);
 
-  return { paymentData };
+  return { paymentData, clearPaymentData };
 }

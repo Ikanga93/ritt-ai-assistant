@@ -859,6 +859,16 @@ export default defineAgent({
                       console.log('\n=== NO PAYMENT LINK AVAILABLE TO SEND ===');
                     }
                   
+                  // After confirming payment status is PAID for an order
+                  if (order.paymentStatus === 'PAID') {
+                    const paymentStatusMsg = JSON.stringify({
+                      type: 'payment_status',
+                      status: 'paid',
+                      orderId: order.id
+                    });
+                    await ctx.agent.sendText(paymentStatusMsg, { topic: 'lk.chat' });
+                  }
+                  
                   // Then send the confirmation message
                   return `Okay, your order #${orderDetails.orderNumber} is confirmed for a total of $${orderDetails.orderTotal.toFixed(2)}. You'll see a payment button appear in our chat that you can click to complete your payment. You'll also receive a payment link via email as a backup. Once payment is confirmed, your order will be sent to the kitchen and will be ready for pickup shortly after. Thank you for choosing us!`;
                   

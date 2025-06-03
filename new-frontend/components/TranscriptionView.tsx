@@ -91,7 +91,7 @@ export default function TranscriptionView(): JSX.Element {
   const { localParticipant } = useLocalParticipant();
   
   // Use the dedicated payment channel
-  const { paymentData } = usePaymentChannel();
+  const { paymentData, clearPaymentData } = usePaymentChannel();
   
   // Centralized payment state management
   const [paymentState, setPaymentState] = React.useState<{
@@ -268,7 +268,17 @@ export default function TranscriptionView(): JSX.Element {
       {/* Payment Banner - shows at the top of chat when order is confirmed */}
       {paymentState.url && (
         <div className="sticky top-0 z-10 flex justify-center py-2 bg-white/80 backdrop-blur-sm rounded-md shadow-sm">
-          <div className="bg-green-100 p-4 rounded-lg text-center max-w-sm">
+          <div className="bg-green-100 p-4 rounded-lg text-center max-w-sm relative">
+            <button
+              onClick={() => {
+                clearPaymentData();
+                setPaymentState({ url: '', source: null, timestamp: 0 });
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-sm"
+              title="Clear payment link"
+            >
+              ✕
+            </button>
             <p className="font-medium text-green-800 mb-2">
               Your order is ready! Please complete your payment.
             </p>
