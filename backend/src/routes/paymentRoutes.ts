@@ -584,8 +584,41 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
                   }
                 });
                 
-                // Here you could add additional logic for orders that were just paid
-                // For example, sending order confirmation emails, etc.
+                // Send the order to the restaurant's printer email
+              try {
+                // Get the central printer email from environment variables
+                const printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
+                
+                if (!printerEmail) {
+                  throw new Error('No printer email configured in environment variables');
+                }
+                
+                // Import here to avoid circular dependency
+                const { sendOrderToPrinter } = await import('../services/orderEmailService.js');
+                
+                await sendOrderToPrinter(updatedOrder, printerEmail);
+                logger.info('Order sent to printer from payment_intent.succeeded', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber,
+                    printerEmail
+                  }
+                });
+                
+              } catch (printerError) {
+                logger.error('Failed to send order to printer from payment_intent.succeeded', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  error: printerError,
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber
+                  }
+                });
+                // Continue processing even if printer email fails
+              }
               }
             } else {
               logger.warn('Order not found for payment', {

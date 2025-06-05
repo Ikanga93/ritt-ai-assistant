@@ -1,0 +1,28 @@
+{
+  "orderDetails": {
+    "orderNumber": "RITT-20250602-76321",
+    "restaurantId": "NirosGyros",
+    "restaurantName": "Niro's Gyros",
+    "customerName": "Chris",
+    "customerEmail": "",
+    "customerPhone": "",
+    "items": [
+      {
+        "id": "niros_gyros_french_fries_0",
+        "name": "Fries",
+        "price": 2.99,
+        "quantity": 1
+      }
+    ],
+    "subtotal": 2.99,
+    "stateTax": 0.3,
+    "orderTotal": 3.79,
+    "processingFee": 0,
+    "tax": 0.3,
+    "total": 3.79
+  },
+  "correlationId": "corr-1086e6d9-7a26-42d7-84b0-950fdeff7460",
+  "failureReason": "Failed to establish a healthy database connection for order processing",
+  "retryCount": 0,
+  "createdAt": "2025-06-05T02:40:17.816Z"
+}
