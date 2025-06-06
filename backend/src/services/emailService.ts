@@ -37,6 +37,11 @@ const __dirname = path.dirname(__filename);
 // Path to email templates
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates', 'emails');
 
+// Register Handlebars helpers
+Handlebars.registerHelper('multiply', function(price: number, quantity: number) {
+  return (price * quantity).toFixed(2);
+});
+
 // Email options interface
 export interface EmailOptions {
   to: string;
@@ -204,12 +209,24 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       data: {
         to: options.to,
         subject: options.subject,
-        templateName: options.templateName
+        templateName: options.templateName,
+        fromEmail: process.env.FROM_EMAIL,
+        fromName: process.env.SENDGRID_FROM_NAME
       }
     });
     
     // Render the email template
     const { html, text } = await renderEmailTemplate(options.templateName, options.templateData);
+    
+    logger.info('Email template rendered successfully', {
+      correlationId,
+      context: 'emailService.sendEmail',
+      data: {
+        templateName: options.templateName,
+        htmlLength: html.length,
+        textLength: text.length
+      }
+    });
     
     // Prepare the email message
     const msg = {
@@ -230,10 +247,42 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       }
     };
     
+    logger.info('Prepared email message', {
+      correlationId,
+      context: 'emailService.sendEmail',
+      data: {
+        to: msg.to,
+        from: msg.from,
+        subject: msg.subject,
+        hasAttachments: !!msg.attachments?.length
+      }
+    });
+    
     // Send the email with retry logic
     const response = await retry(
       async () => {
+        logger.info('Attempting to send email via SendGrid', {
+          correlationId,
+          context: 'emailService.sendEmail',
+          data: {
+            to: msg.to,
+            from: msg.from,
+            subject: msg.subject
+          }
+        });
+        
         const [response] = await sgMail.send(msg);
+        
+        logger.info('SendGrid response received', {
+          correlationId,
+          context: 'emailService.sendEmail',
+          data: {
+            statusCode: response.statusCode,
+            headers: response.headers,
+            messageId: response.headers['x-message-id']
+          }
+        });
+        
         return response;
       },
       {
@@ -246,7 +295,12 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
             correlationId,
             context: 'emailService.sendEmail',
             error: error.message,
-            data: { to: options.to, subject: options.subject }
+            data: {
+              to: options.to,
+              subject: options.subject,
+              attempt,
+              errorStack: error.stack
+            }
           });
         }
       }
@@ -292,7 +346,9 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       data: {
         to: options.to,
         subject: options.subject,
-        templateName: options.templateName
+        templateName: options.templateName,
+        errorStack: error.stack,
+        sendGridError: error.response?.body
       }
     });
     

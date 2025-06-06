@@ -213,6 +213,8 @@ router.post('/generate-link', async (req: any, res: Response) => {
 router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
   const correlationId = logger.createCorrelationId();
   console.log('>>> Webhook endpoint /webhook hit by a POST request at', new Date().toISOString());
+  console.log('>>> Request headers:', JSON.stringify(req.headers, null, 2));
+  console.log('>>> Request body:', JSON.stringify(req.body, null, 2));
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim(); // Trim any whitespace
   
@@ -297,6 +299,12 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         sig as string,
         webhookSecret
       );
+      
+      console.log('>>> Webhook event constructed successfully:', {
+        type: event.type,
+        id: event.id,
+        created: new Date(event.created * 1000).toISOString()
+      });
     } catch (err: any) {
       logger.error('Webhook signature verification failed', {
         correlationId,
@@ -345,23 +353,36 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
 
   // Handle the event
   try {
+    console.log('>>> Processing webhook event:', event.type);
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        console.log('>>> Processing checkout.session.completed:', {
+          sessionId: session.id,
+          metadata: session.metadata,
+          paymentStatus: session.payment_status,
+          customerEmail: session.customer_email,
+          customerDetails: session.customer_details
+        });
+        
         logger.info('Processing checkout.session.completed', {
           correlationId,
           context: 'payments.webhook',
           data: {
             sessionId: session.id,
             metadata: session.metadata,
-            paymentStatus: session.payment_status
+            paymentStatus: session.payment_status,
+            customerEmail: session.customer_email,
+            customerDetails: session.customer_details
           }
         });
         
-        // Look for order number in metadata (try different possible fields)
-        const orderNumber = session.metadata?.orderNumber || session.metadata?.tempOrderId;
-        if (!orderNumber) {
-          logger.warn('No order number found in session metadata', {
+        // Look for order identifiers in metadata
+        const orderNumber = session.metadata?.orderNumber;
+        const tempOrderId = session.metadata?.tempOrderId;
+        
+        if (!orderNumber && !tempOrderId) {
+          logger.warn('No order identifier found in session metadata', {
             correlationId,
             context: 'payments.webhook',
             data: {
@@ -372,151 +393,127 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           break;
         }
 
+        console.log('>>> Found order identifiers:', { orderNumber, tempOrderId });
+
         // Process the completed checkout session
         try {
-          // Update order payment status to paid
-          const updatedOrder = await updateOrderPaymentStatus(
-            orderNumber,
-            PaymentStatus.PAID,
-            session.id,
-            session.payment_intent as string
-          );
+          // First, try to handle as a temporary order
+          if (tempOrderId) {
+            const tempOrder = temporaryOrderService.getOrder(tempOrderId);
+            if (tempOrder) {
+              console.log('>>> Processing temporary order payment:', tempOrderId);
+              
+              // Update temporary order payment status
+              const updatedTempOrder = temporaryOrderService.updateOrder(tempOrderId, {
+                metadata: {
+                  ...tempOrder.metadata,
+                  paymentStatus: 'paid',
+                  paidAt: Date.now(),
+                  sessionId: session.id,
+                  paymentIntentId: session.payment_intent as string
+                }
+              });
+              
+              if (updatedTempOrder) {
+                console.log('>>> Temporary order payment status updated to PAID:', {
+                  tempOrderId,
+                  orderNumber: updatedTempOrder.orderNumber,
+                  sessionId: session.id
+                });
+                
+                logger.info('Temporary order payment status updated to PAID', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    tempOrderId,
+                    orderNumber: updatedTempOrder.orderNumber,
+                    sessionId: session.id,
+                    paymentIntentId: session.payment_intent,
+                    paidAt: updatedTempOrder.metadata?.paidAt
+                  }
+                });
+                
+                // Move the paid order to the database
+                try {
+                  console.log('>>> Moving paid order to database...');
+                  await temporaryOrderService.saveOrderToDatabase(updatedTempOrder);
+                  
+                  console.log('>>> Order successfully moved to database');
+                  logger.info('Paid temporary order moved to database', {
+                    correlationId,
+                    context: 'payments.webhook',
+                    data: {
+                      tempOrderId,
+                      orderNumber: updatedTempOrder.orderNumber
+                    }
+                  });
+                } catch (dbError) {
+                  console.log('>>> Failed to move order to database:', dbError);
+                  logger.error('Failed to move paid order to database', {
+                    correlationId,
+                    context: 'payments.webhook',
+                    error: dbError,
+                    data: {
+                      tempOrderId,
+                      orderNumber: updatedTempOrder.orderNumber
+                    }
+                  });
+                }
+              }
+            } else {
+              console.log('>>> Temporary order not found:', tempOrderId);
+              logger.warn('Temporary order not found for checkout session', {
+                correlationId,
+                context: 'payments.webhook',
+                data: {
+                  tempOrderId,
+                  sessionId: session.id
+                }
+              });
+            }
+          }
           
-          if (updatedOrder) {
-            logger.info('Order payment status updated to PAID via checkout session', {
-              correlationId,
-              context: 'payments.webhook',
-              data: {
+          // Also try to handle as a database order (for backwards compatibility)
+          if (orderNumber) {
+            const updatedOrder = await updateOrderPaymentStatus(
+              orderNumber,
+              PaymentStatus.PAID,
+              session.id,
+              session.payment_intent as string
+            );
+            
+            if (updatedOrder) {
+              console.log('>>> Database order updated successfully:', {
                 orderId: updatedOrder.id,
-                orderNumber: updatedOrder.orderNumber || orderNumber,
+                orderNumber: updatedOrder.order_number,
                 paymentStatus: 'PAID',
-                sessionId: session.id,
-                paymentIntentId: session.payment_intent,
-                paidAt: updatedOrder.paidAt
-              }
-            });
-            
-            // Send payment receipt email if customer email is available
-            if (updatedOrder.customerEmail) {
-              try {
-                // Import here to avoid circular dependency
-                const { sendPaymentReceiptEmail } = await import('../services/orderEmailService.js');
-                
-                await sendPaymentReceiptEmail(updatedOrder, updatedOrder.customerEmail);
-                logger.info('Payment receipt email sent', {
-                  correlationId,
-                  context: 'payments.webhook',
-                  data: {
-                    orderId: updatedOrder.id,
-                    email: updatedOrder.customerEmail
-                  }
-                });
-              } catch (emailError) {
-                logger.error('Failed to send payment receipt email', {
-                  correlationId,
-                  context: 'payments.webhook',
-                  error: emailError,
-                  data: {
-                    orderId: updatedOrder.id,
-                    email: updatedOrder.customerEmail
-                  }
-                });
-              }
-            }
-            
-            // Send order to printer
-            try {
-              // Get the central printer email from environment variables
-              const printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
+                paidAt: updatedOrder.paid_at
+              });
               
-              if (!printerEmail) {
-                throw new Error('No printer email configured in environment variables');
-              }
-              
-              // Import here to avoid circular dependency
-              const { sendOrderToPrinter } = await import('../services/orderEmailService.js');
-              
-              await sendOrderToPrinter(updatedOrder, printerEmail);
-              logger.info('Order sent to printer', {
+              logger.info('Database order payment status updated to PAID via checkout session', {
                 correlationId,
                 context: 'payments.webhook',
                 data: {
                   orderId: updatedOrder.id,
-                  orderNumber: updatedOrder.orderNumber || orderNumber,
-                  printerEmail
-                }
-              });
-              
-              // Explicitly move the order to the database
-              try {
-                // Import the entire module since movePaidOrderToDatabase is not exported directly
-                const orderPaymentLinkService = await import('../services/orderPaymentLinkService.js');
-                // Call the function to move the order to the database
-                const moved = await orderPaymentLinkService.updateOrderPaymentStatus(
-                  updatedOrder.id,
-                  PaymentStatus.PAID,
-                  session.id,
-                  session.payment_intent as string
-                );
-                
-                if (moved) {
-                  logger.info('Order successfully moved to database from webhook handler', {
-                    correlationId,
-                    context: 'payments.webhook',
-                    data: {
-                      orderId: updatedOrder.id,
-                      orderNumber: updatedOrder.orderNumber || orderNumber
-                    }
-                  });
-                } else {
-                  logger.warn('Failed to move order to database from webhook handler', {
-                    correlationId,
-                    context: 'payments.webhook',
-                    data: {
-                      orderId: updatedOrder.id,
-                      orderNumber: updatedOrder.orderNumber || orderNumber
-                    }
-                  });
-                }
-              } catch (dbError) {
-                logger.error('Error moving order to database from webhook handler', {
-                  correlationId,
-                  context: 'payments.webhook',
-                  error: dbError,
-                  data: {
-                    orderId: updatedOrder.id,
-                    orderNumber: updatedOrder.orderNumber || orderNumber
-                  }
-                });
-              }
-            } catch (printerError) {
-              logger.error('Failed to send order to printer', {
-                correlationId,
-                context: 'payments.webhook',
-                error: printerError,
-                data: {
-                  orderId: updatedOrder.id,
-                  orderNumber: updatedOrder.orderNumber || orderNumber
+                  orderNumber: updatedOrder.order_number,
+                  paymentStatus: 'PAID',
+                  sessionId: session.id,
+                  paymentIntentId: session.payment_intent,
+                  paidAt: updatedOrder.paid_at
                 }
               });
             }
-          } else {
-            logger.warn('Order not found for checkout session', {
-              correlationId,
-              context: 'payments.webhook',
-              data: {
-                orderNumber,
-                sessionId: session.id
-              }
-            });
           }
         } catch (error) {
+          console.log('>>> Failed to process checkout.session.completed:', error);
+          
           logger.error('Failed to process checkout.session.completed', {
             correlationId,
             context: 'payments.webhook',
             error: error instanceof Error ? error.message : 'Unknown error',
             data: {
               orderNumber,
+              tempOrderId,
               sessionId: session.id,
               errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
             }
@@ -525,6 +522,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         break;
       }
       case 'payment_intent.succeeded': {
+        console.log('>>> Processing payment_intent.succeeded event');
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         logger.info('Processing payment_intent.succeeded', {
           correlationId,
@@ -542,107 +540,146 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         const orderId = paymentIntent.metadata?.orderId;
         // Also check for payment link ID (used by payment links)
         const paymentLinkId = paymentIntent.metadata?.payment_link_id;
+        // Check for temporary order ID
+        const tempOrderId = paymentIntent.metadata?.tempOrderId;
         
-        const identifier = orderId || paymentLinkId;
-        const identifierType = orderId ? 'orderId' : 'paymentLinkId';
+        const identifier = orderId || paymentLinkId || tempOrderId;
+        const identifierType = orderId ? 'orderId' : paymentLinkId ? 'paymentLinkId' : 'tempOrderId';
         
         if (identifier) {
           try {
-            // Update order payment status to paid
-            const updatedOrder = await updateOrderPaymentStatus(
-              identifier,
-              PaymentStatus.PAID,
-              undefined, // No session ID for direct payment intents
-              paymentIntent.id
-            );
-            
-            if (updatedOrder) {
-              logger.info('Order payment status updated to PAID', {
-                correlationId,
-                context: 'payments.webhook',
-                data: {
-                  orderId: updatedOrder.id,
-                  orderNumber: updatedOrder.orderNumber,
-                  [identifierType]: identifier,
-                  paymentStatus: 'PAID',
-                  paymentIntentId: paymentIntent.id,
-                  paidAt: updatedOrder.paidAt,
-                  amount: paymentIntent.amount,
-                  currency: paymentIntent.currency
-                }
-              });
-              
-              // Check if this was a new order (not from a payment link)
-              if (orderId) {
-                logger.info('Processing successful payment for order', {
-                  correlationId,
-                  context: 'payments.webhook',
-                  data: {
-                    orderId: updatedOrder.id,
-                    orderNumber: updatedOrder.orderNumber,
+            // Handle temporary orders first
+            if (identifierType === 'tempOrderId') {
+              const tempOrder = temporaryOrderService.getOrder(identifier);
+              if (tempOrder) {
+                console.log('>>> Processing temporary order payment intent:', identifier);
+                
+                // Update temporary order payment status
+                const updatedTempOrder = temporaryOrderService.updateOrder(identifier, {
+                  metadata: {
+                    ...tempOrder.metadata,
+                    paymentStatus: 'paid',
+                    paidAt: Date.now(),
                     paymentIntentId: paymentIntent.id
                   }
                 });
                 
-                // Send the order to the restaurant's printer email
-              try {
-                // Get the central printer email from environment variables
-                const printerEmail = process.env.CENTRAL_ORDER_EMAIL || process.env.DEFAULT_PRINTER_EMAIL;
-                
-                if (!printerEmail) {
-                  throw new Error('No printer email configured in environment variables');
+                if (updatedTempOrder) {
+                  console.log('>>> Temporary order payment status updated via payment intent:', {
+                    tempOrderId: identifier,
+                    orderNumber: updatedTempOrder.orderNumber,
+                    paymentIntentId: paymentIntent.id
+                  });
+                  
+                  logger.info('Temporary order payment status updated to PAID via payment intent', {
+                    correlationId,
+                    context: 'payments.webhook',
+                    data: {
+                      tempOrderId: identifier,
+                      orderNumber: updatedTempOrder.orderNumber,
+                      paymentIntentId: paymentIntent.id,
+                      paidAt: updatedTempOrder.metadata?.paidAt
+                    }
+                  });
+                  
+                  // Move the paid order to the database
+                  try {
+                    console.log('>>> Moving paid order to database...');
+                    await temporaryOrderService.saveOrderToDatabase(updatedTempOrder);
+                    
+                    console.log('>>> Order successfully moved to database');
+                    logger.info('Paid temporary order moved to database via payment intent', {
+                      correlationId,
+                      context: 'payments.webhook',
+                      data: {
+                        tempOrderId: identifier,
+                        orderNumber: updatedTempOrder.orderNumber
+                      }
+                    });
+                  } catch (dbError) {
+                    console.log('>>> Failed to move order to database:', dbError);
+                    logger.error('Failed to move paid order to database via payment intent', {
+                      correlationId,
+                      context: 'payments.webhook',
+                      error: dbError,
+                      data: {
+                        tempOrderId: identifier,
+                        orderNumber: updatedTempOrder.orderNumber
+                      }
+                    });
+                  }
                 }
-                
-                // Import here to avoid circular dependency
-                const { sendOrderToPrinter } = await import('../services/orderEmailService.js');
-                
-                await sendOrderToPrinter(updatedOrder, printerEmail);
-                logger.info('Order sent to printer from payment_intent.succeeded', {
+              } else {
+                console.log('>>> Temporary order not found for payment intent:', identifier);
+                logger.warn('Temporary order not found for payment intent', {
                   correlationId,
                   context: 'payments.webhook',
                   data: {
-                    orderId: updatedOrder.id,
-                    orderNumber: updatedOrder.orderNumber,
-                    printerEmail
+                    tempOrderId: identifier,
+                    paymentIntentId: paymentIntent.id
                   }
                 });
-                
-              } catch (printerError) {
-                logger.error('Failed to send order to printer from payment_intent.succeeded', {
-                  correlationId,
-                  context: 'payments.webhook',
-                  error: printerError,
-                  data: {
-                    orderId: updatedOrder.id,
-                    orderNumber: updatedOrder.orderNumber
-                  }
-                });
-                // Continue processing even if printer email fails
-              }
               }
             } else {
-              logger.warn('Order not found for payment', {
-                correlationId,
-                context: 'payments.webhook',
-                data: {
-                  [identifierType]: identifier,
-                  paymentIntentId: paymentIntent.id
-                }
-              });
+              // Handle database orders (existing logic)
+              const updatedOrder = await updateOrderPaymentStatus(
+                identifier,
+                PaymentStatus.PAID,
+                undefined, // No session ID for direct payment intents
+                paymentIntent.id
+              );
+              
+              if (updatedOrder) {
+                logger.info('Database order payment status updated to PAID', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.order_number,
+                    [identifierType]: identifier,
+                    paymentStatus: 'PAID',
+                    paymentIntentId: paymentIntent.id,
+                    paidAt: updatedOrder.paid_at,
+                    amount: paymentIntent.amount,
+                    currency: paymentIntent.currency
+                  }
+                });
+                
+                // Process all successful payments, whether from direct order or payment link
+                logger.info('Processing successful payment for database order', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.order_number,
+                    paymentIntentId: paymentIntent.id
+                  }
+                });
+              } else {
+                logger.warn('Database order not found for payment', {
+                  correlationId,
+                  context: 'payments.webhook',
+                  data: {
+                    [identifierType]: identifier,
+                    paymentIntentId: paymentIntent.id
+                  }
+                });
+              }
             }
           } catch (error) {
-            logger.error('Failed to update order payment status', {
+            logger.error('Failed to process payment_intent.succeeded', {
               correlationId,
-              error: error instanceof Error ? error.message : 'Unknown error',
+              context: 'payments.webhook',
+              error,
               data: {
                 [identifierType]: identifier,
                 paymentIntentId: paymentIntent.id,
-                errorDetails: error instanceof Error ? error.toString() : 'Unknown error'
+                errorStack: error instanceof Error ? error.stack : undefined
               }
             });
           }
         } else {
-          logger.warn('No order ID or payment link ID found in payment intent metadata', {
+          logger.warn('No order identifier found in payment intent metadata', {
             correlationId,
             context: 'payments.webhook',
             data: {
@@ -784,6 +821,8 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
 
     res.json({ received: true });
   } catch (error) {
+    console.log('>>> Error processing webhook event:', error);
+    
     logger.error('Error processing webhook event', {
       correlationId,
       context: 'payments.webhook',

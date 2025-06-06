@@ -59,11 +59,10 @@ async function generatePaymentLinkForOrder() {
         const updatedOrder = await updateOrderPaymentStatus(paymentLinkId, updateStatus as any);
         
         if (updatedOrder) {
-          console.log(`Payment status updated to: ${updatedOrder.metadata?.paymentStatus}`);
+          console.log(`Payment status updated to: ${updatedOrder.payment_status}`);
           
-          if (updateStatus === 'paid' && updatedOrder.metadata?.movedToDatabase) {
-            console.log('Order was moved to the permanent database');
-            console.log(`Database Order ID: ${updatedOrder.metadata.dbOrderId}`);
+          if (updateStatus === 'paid') {
+            console.log(`Order paid successfully`);
           }
         } else {
           console.error('Failed to update payment status');
@@ -95,11 +94,10 @@ async function generatePaymentLinkForOrder() {
           const updatedOrder = await updateOrderPaymentStatus(paymentLinkId, updateStatus as any);
           
           if (updatedOrder) {
-            console.log(`Payment status updated to: ${updatedOrder.metadata?.paymentStatus}`);
+            console.log(`Payment status updated to: ${updatedOrder.payment_status}`);
             
-            if (updateStatus === 'paid' && updatedOrder.metadata?.movedToDatabase) {
-              console.log('Order was moved to the permanent database');
-              console.log(`Database Order ID: ${updatedOrder.metadata.dbOrderId}`);
+            if (updateStatus === 'paid') {
+              console.log(`Order paid successfully`);
             }
           } else {
             console.error('Failed to update payment status');

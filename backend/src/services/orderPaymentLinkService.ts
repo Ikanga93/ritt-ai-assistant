@@ -4,14 +4,14 @@
  * Integrates payment link generation with order storage
  */
 
-import * as logger from '../utils/logger.js';
+import { Order, PaymentStatus } from '../entities/Order.js';
+import { AppDataSource } from '../database.js';
+import { createCorrelationId, removeCorrelationId, error as logError } from '../utils/logger.js';
+import { saveOrderToDatabase } from './orderDatabaseService.js';
+import { sendPaymentLinkEmail } from './orderEmailService.js';
 import { generatePaymentLink, PaymentLinkRequest, PaymentLinkResponse } from './paymentService.js';
 import { PriceCalculator } from './priceCalculator.js';
-
-// Import the order storage service
 import { temporaryOrderService, TemporaryOrder } from './temporaryOrderService.js';
-import { sendPaymentLinkEmail, sendOrderToPrinter, sendPaymentReceiptEmail } from './orderEmailService.js';
-import { saveOrderToDatabase } from './orderDatabaseService.js';
 import { OrderDetails } from '../orderService.js';
 
 // Helper type for payment metadata structure
@@ -22,14 +22,14 @@ interface PaymentMetadata {
     expiresAt: number;
     createdAt: number;
   };
-  paymentStatus?: 'pending' | 'paid' | 'failed' | 'expired';
+  paymentStatus?: PaymentStatus;
   paidAt?: number;
   movedToDatabase?: boolean;
   dbOrderId?: number;
   printerNotification?: {
     sent: boolean;
-    sentAt: number;
-    messageId?: string;
+    timestamp?: number;
+    error?: string;
   };
 }
 
@@ -81,10 +81,10 @@ export async function generateOrderPaymentLink(
   const { orderId, amount, tempOrderId, customerName, description, expirationDays } = params;
   
   // Create a correlation ID for tracking this operation through logs
-  const correlationId = logger.createCorrelationId(orderId);
+  const correlationId = createCorrelationId(orderId);
   
   try {
-    logger.info('Generating payment link for order', {
+    logError('Generating payment link for order', {
       correlationId,
       context: 'orderPaymentLinkService.generateOrderPaymentLink',
       data: {
@@ -97,7 +97,7 @@ export async function generateOrderPaymentLink(
     
     if (!order) {
       const errorMessage = `Order not found with ID: ${orderId}`;
-      logger.error(errorMessage, {
+      logError(errorMessage, {
         correlationId,
         context: 'orderPaymentLinkService.generateOrderPaymentLink'
       });
@@ -133,7 +133,7 @@ export async function generateOrderPaymentLink(
     // Generate the payment link
     const paymentLink = await generatePaymentLink(paymentLinkRequest);
     
-    logger.info('Payment link generated successfully', {
+    logError('Payment link generated successfully', {
       correlationId,
       context: 'orderPaymentLinkService.generateOrderPaymentLink',
       data: {
@@ -162,7 +162,7 @@ export async function generateOrderPaymentLink(
     
     return updatedOrder as OrderWithPayment;
   } catch (error) {
-    logger.error('Failed to generate payment link for order', {
+    logError('Failed to generate payment link for order', {
       correlationId,
       context: 'orderPaymentLinkService.generateOrderPaymentLink',
       error,
@@ -170,17 +170,10 @@ export async function generateOrderPaymentLink(
     });
     throw error;
   } finally {
-    logger.removeCorrelationId(correlationId);
+    removeCorrelationId(correlationId);
   }
 }
 
-/**
- * Update an order's payment status
- * 
- * @param paymentLinkId The Stripe payment link ID
- * @param newStatus The new payment status
- * @returns Promise<OrderWithPayment | null> The updated order or null if not found
- */
 /**
  * Move a paid temporary order to the permanent database
  * 
@@ -188,10 +181,10 @@ export async function generateOrderPaymentLink(
  * @returns Promise<boolean> True if the order was successfully moved to the database
  */
 async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> {
-  const correlationId = logger.createCorrelationId(order.id);
+  const correlationId = createCorrelationId(order.id);
   
   try {
-    logger.info('Moving paid order to database', {
+    logError('Moving paid order to database', {
       correlationId,
       context: 'orderPaymentLinkService.movePaidOrderToDatabase',
       data: {
@@ -230,7 +223,7 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
     const savedOrder = await saveOrderToDatabase(orderDetails);
     
     if (savedOrder && savedOrder.dbOrderId) {
-      logger.info('Order successfully moved to database', {
+      logError('Order successfully moved to database', {
         correlationId,
         context: 'orderPaymentLinkService.movePaidOrderToDatabase',
         data: {
@@ -252,7 +245,7 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
       
       return true;
     } else {
-      logger.error('Failed to save order to database', {
+      logError('Failed to save order to database', {
         correlationId,
         context: 'orderPaymentLinkService.movePaidOrderToDatabase',
         data: {
@@ -264,7 +257,7 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
       return false;
     }
   } catch (error: any) {
-    logger.error('Error moving paid order to database', {
+    logError('Error moving paid order to database', {
       correlationId,
       context: 'orderPaymentLinkService.movePaidOrderToDatabase',
       error: error.message,
@@ -276,352 +269,47 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
     
     return false;
   } finally {
-    logger.removeCorrelationId(correlationId);
+    removeCorrelationId(correlationId);
   }
 }
 
+/**
+ * Update the payment status of an order
+ */
 export async function updateOrderPaymentStatus(
-  paymentLinkId: string,
-  newStatus: 'pending' | 'paid' | 'failed' | 'expired',
-  stripeSessionId?: string,
-  stripePaymentIntentId?: string
-): Promise<OrderWithPayment | null> {
-  const correlationId = logger.createCorrelationId(paymentLinkId);
+  orderId: string,
+  newStatus: PaymentStatus,
+  sessionId?: string,
+  paymentIntentId?: string
+): Promise<Order | null> {
+  const correlationId = createCorrelationId();
   
   try {
-    logger.info('Updating order payment status', {
-      correlationId,
-      context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-      data: {
-        paymentLinkId,
-        newStatus,
-        stripeSessionId,
-        stripePaymentIntentId
-      }
+    // Update order status
+    const order = await AppDataSource.getRepository(Order).findOne({
+      where: { order_number: orderId }
     });
-    
-    // Find all orders
-    const allOrders = temporaryOrderService.listOrders();
-    
-    // First try to find the order with the matching payment link ID
-    let matchingOrder = allOrders.find(order => {
-      const metadata = getPaymentMetadata(order);
-      return metadata.paymentLink && metadata.paymentLink.id === paymentLinkId;
-    });
-    
-    // If not found by payment link ID, check if paymentLinkId is actually an order ID
-    if (!matchingOrder) {
-      logger.info('Order not found by payment link ID, trying as order ID', {
-        correlationId,
-        context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-        data: { paymentLinkId }
-      });
-      
-      // Try to get the order directly by ID
-      const orderById = temporaryOrderService.getOrder(paymentLinkId);
-      if (orderById) {
-        matchingOrder = orderById;
-      }
-      
-      // If still not found, check if it's a temporary order ID format
-      if (!matchingOrder && paymentLinkId.startsWith('TEMP-')) {
-        logger.info('Order not found in memory, checking disk directly', {
-          correlationId,
-          context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-          data: { paymentLinkId }
-        });
-        
-        // Force reload from disk - this is redundant but kept for clarity
-        const orderFromDisk = temporaryOrderService.getOrder(paymentLinkId);
-        if (orderFromDisk) {
-          matchingOrder = orderFromDisk;
-        }
-      }
+
+    if (!order) {
+      throw new Error('Order not found');
     }
-    
-    if (!matchingOrder) {
-      logger.warn('No order found with ID or payment link ID', {
-        correlationId,
-        context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-        data: { paymentLinkId }
-      });
-      return null;
+
+    order.payment_status = newStatus;
+    if (newStatus === PaymentStatus.PAID) {
+      order.paid_at = new Date();
     }
-    
-    // Update the order's payment status in metadata
-    const currentMetadata = getPaymentMetadata(matchingOrder);
-    let updatedOrder = temporaryOrderService.updateOrder(matchingOrder.id, {
-      metadata: {
-        ...matchingOrder.metadata,
-        paymentLink: currentMetadata.paymentLink,
-        paymentStatus: newStatus,
-        paidAt: newStatus === 'paid' ? Date.now() : currentMetadata.paidAt
-      }
-    });
-    
-    if (!updatedOrder) {
-      throw new Error(`Failed to update order payment status: ${matchingOrder.id}`);
-    }
-    
-    // Get updated payment metadata
-    const updatedMetadata = getPaymentMetadata(updatedOrder);
-    
-    logger.info('Order payment status updated', {
-      correlationId,
-      context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-      data: {
-        orderId: updatedOrder.id,
-        paymentLinkId,
-        newStatus,
-        paidAt: updatedMetadata.paidAt
-      }
-    });
-    
-    // If payment is confirmed, send notification to restaurant printer and move to database
-    if (newStatus === 'paid') {
-      // Step 1: Send order to printer first
-      let printerNotificationSent = false;
-      
-      try {
-        // First try to get the printer email from the restaurant's menu data
-        let restaurantPrinterEmail;
-        
-        // Try to load the restaurant's menu data file
-        let menuData: any = null;
-        try {
-          const fs = await import('fs/promises');
-          const path = await import('path');
-          
-          // Construct the path to the restaurant's menu data file
-          const menuDataPath = path.join(process.cwd(), 'menu_data', `${updatedOrder.restaurantId}.json`);
-          
-          // Read the menu data file
-          const menuDataContent = await fs.readFile(menuDataPath, 'utf-8');
-          menuData = JSON.parse(menuDataContent);
-          
-          // Get the printer email from the menu data
-          restaurantPrinterEmail = menuData.printer_email;
-          
-          logger.info('Found printer email in restaurant menu data', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              restaurantId: updatedOrder.restaurantId,
-              restaurantPrinterEmail
-            }
-          });
-        } catch (menuError) {
-          logger.warn('Failed to load restaurant menu data, falling back to environment variable', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            error: menuError instanceof Error ? menuError.message : 'Unknown error loading menu data',
-            data: {
-              restaurantId: updatedOrder.restaurantId
-            }
-          });
-          
-          // Try to get the email from the menu data first
-          restaurantPrinterEmail = menuData.printer_email || menuData.email;
-          
-          // If still no email, fall back to environment variable
-          if (!restaurantPrinterEmail) {
-            restaurantPrinterEmail = 'pofaraorder@gmail.com';
-          }
-        }
-        
-        if (restaurantPrinterEmail) {
-          logger.info('Sending order to restaurant printer', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              orderId: updatedOrder.id,
-              restaurantPrinterEmail
-            }
-          });
-          
-          // Send order to restaurant printer
-          const printerResult = await sendOrderToPrinter(updatedOrder, restaurantPrinterEmail);
-          
-          if (printerResult.success) {
-            printerNotificationSent = true;
-            
-            logger.info('Order sent to restaurant printer successfully', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id,
-                messageId: printerResult.messageId
-              }
-            });
-            
-            // Update order metadata with printer notification status
-            const orderWithPrinterStatus = temporaryOrderService.updateOrder(updatedOrder.id, {
-              metadata: {
-                ...updatedOrder.metadata,
-                printerNotification: {
-                  sent: true,
-                  sentAt: Date.now(),
-                  messageId: printerResult.messageId
-                }
-              }
-            });
-            
-            // Update our reference to the order
-            if (orderWithPrinterStatus) {
-              updatedOrder = orderWithPrinterStatus;
-            }
-          } else {
-            logger.warn('Failed to send order to restaurant printer', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id,
-                error: printerResult.error?.message
-              }
-            });
-          }
-        } else {
-          logger.warn('No restaurant printer email configured', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              orderId: updatedOrder.id
-            }
-          });
-        }
-      } catch (printerError: any) {
-        // Log printer error but don't fail the overall operation
-        logger.error('Error sending order to restaurant printer', {
-          correlationId,
-          context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-          error: printerError.message,
-          data: {
-            orderId: updatedOrder.id
-          }
-        });
-      }
-      
-      // Step 2: Send payment receipt email to customer
-      try {
-        if (updatedOrder.customerEmail) {
-          logger.info('Sending payment receipt email to customer', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              orderId: updatedOrder.id,
-              customerEmail: updatedOrder.customerEmail
-            }
-          });
-          
-          const paymentId = stripePaymentIntentId || stripeSessionId || `payment-${Date.now()}`;
-          const receiptResult = await sendPaymentReceiptEmail(updatedOrder, paymentId);
-          
-          if (receiptResult.success) {
-            logger.info('Payment receipt email sent successfully', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id,
-                customerEmail: updatedOrder.customerEmail,
-                messageId: receiptResult.messageId
-              }
-            });
-          } else {
-            logger.warn('Failed to send payment receipt email', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id,
-                customerEmail: updatedOrder.customerEmail,
-                error: receiptResult.error?.message
-              }
-            });
-          }
-        }
-      } catch (emailError: any) {
-        // Log email error but don't fail the overall operation
-        logger.error('Error sending payment receipt email', {
-          correlationId,
-          context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-          error: emailError.message,
-          data: {
-            orderId: updatedOrder.id,
-            customerEmail: updatedOrder.customerEmail
-          }
-        });
-      }
-      
-      // Step 3: After notifications are sent, move to database
-      try {
-        // Check if order has already been moved to database
-        const metadata = getPaymentMetadata(updatedOrder);
-        const alreadyInDatabase = metadata.movedToDatabase || updatedOrder.metadata?.movedToDatabase;
-        
-        if (!alreadyInDatabase) {
-          logger.info('Moving paid order to database', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              orderId: updatedOrder.id,
-              orderNumber: updatedOrder.orderNumber,
-              printerNotificationSent
-            }
-          });
-          
-          // Only move to database if printer notification was sent successfully or couldn't be sent
-          const moved = await movePaidOrderToDatabase(updatedOrder);
-          
-          if (moved) {
-            logger.info('Order successfully moved to database', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id
-              }
-            });
-          } else {
-            logger.warn('Failed to move order to database', {
-              correlationId,
-              context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-              data: {
-                orderId: updatedOrder.id
-              }
-            });
-          }
-        } else {
-          logger.info('Order already exists in database, skipping', {
-            correlationId,
-            context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-            data: {
-              orderId: updatedOrder.id,
-              dbOrderId: updatedOrder.metadata?.dbOrderId
-            }
-          });
-        }
-      } catch (dbError: any) {
-        // Log database error but don't fail the overall operation
-        logger.error('Error moving order to database', {
-          correlationId,
-          context: 'orderPaymentLinkService.updateOrderPaymentStatus',
-          error: dbError.message,
-          data: {
-            orderId: updatedOrder.id
-          }
-        });
-      }
-    }
-    
-    return updatedOrder as OrderWithPayment;
+
+    const updatedOrder = await AppDataSource.getRepository(Order).save(order);
+    return updatedOrder;
   } catch (error) {
-    logger.error('Failed to update order payment status', {
+    logError('Failed to update order payment status', {
       correlationId,
-      context: 'orderPaymentLinkService.updateOrderPaymentStatus',
       error,
-      data: { paymentLinkId, newStatus }
+      data: { orderId, newStatus }
     });
-    throw error;
+    return null;
   } finally {
-    logger.removeCorrelationId(correlationId);
+    removeCorrelationId(correlationId);
   }
 }
 
@@ -665,7 +353,7 @@ export function listOrdersWithPayment(): OrderWithPayment[] {
     const allOrders = temporaryOrderService.listOrders();
     return allOrders as OrderWithPayment[];
   } catch (error) {
-    logger.error('Failed to list orders with payment', {
+    logError('Failed to list orders with payment', {
       context: 'orderPaymentLinkService.listOrdersWithPayment',
       error
     });
@@ -680,15 +368,26 @@ export function listOrdersWithPayment(): OrderWithPayment[] {
  * @returns OrderWithPayment | null The order or null if not found
  */
 export function getOrderWithPayment(orderId: string): OrderWithPayment | null {
+  const correlationId = createCorrelationId();
+  
   try {
+    // Get the order
     const order = temporaryOrderService.getOrder(orderId);
-    return order as OrderWithPayment | null;
+
+    if (!order) {
+      return null;
+    }
+
+    // Return the order as OrderWithPayment (it already matches the interface)
+    return order as OrderWithPayment;
   } catch (error) {
-    logger.error('Failed to get order with payment', {
-      context: 'orderPaymentLinkService.getOrderWithPayment',
+    logError('Failed to get order with payment', {
+      correlationId,
       error,
       data: { orderId }
     });
-    throw error;
+    return null;
+  } finally {
+    removeCorrelationId(correlationId);
   }
 }

@@ -1,0 +1,45 @@
+================================================================================
+ORDER CHAT LOG
+================================================================================
+
+ORDER DETAILS:
+Order Number: 429
+Customer Name: Chris
+Customer Email: Not provided
+Restaurant: Niro's Gyros
+Order Total: $3.83
+Payment Status: PENDING
+Order Status: COMPLETED
+Created At: 2025-06-05T03:41:33.770Z
+Completed At: 2025-06-05T03:41:53.811Z
+
+ORDER ITEMS:
+1. French Fries
+   Quantity: 1
+   Price: $2.99
+
+--------------------------------------------------------------------------------
+CHAT CONVERSATION:
+--------------------------------------------------------------------------------
+
+[6/4/2025, 10:41:33 PM] ASSISTANT:
+Welcome to Niro's Gyros! How can I help you today?
+
+[6/4/2025, 10:40:53 PM] CUSTOMER:
+I'd like to order: 1x French Fries
+
+[6/4/2025, 10:41:23 PM] ASSISTANT:
+Great! I've added 1x French Fries to your order. Your total is $3.83.
+
+[6/4/2025, 10:41:33 PM] ASSISTANT:
+Can I get your name for the order?
+
+[6/4/2025, 10:41:43 PM] CUSTOMER:
+Chris
+
+[6/4/2025, 10:41:53 PM] ASSISTANT:
+Your order has been confirmed. Please use the payment button in the chat to complete your payment.
+
+================================================================================
+END OF CHAT LOG
+================================================================================
