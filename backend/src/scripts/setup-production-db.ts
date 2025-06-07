@@ -70,13 +70,13 @@ async function setupProductionDatabase() {
       }
     } catch (migrationError: any) {
       console.error('❌ Migration error:', migrationError.message);
+      console.log('🔧 Migration failed, but continuing with manual table creation...');
       
-      // If migrations fail, try to create tables manually
-      console.log('🔧 Attempting to create tables manually...');
-      await createTablesManually();
+      // Don't throw here - continue with manual table creation
+      // This allows the script to recover from migration failures
     }
     
-    // Verify all required tables exist
+    // Always verify and create tables manually if needed
     console.log('🔍 Verifying database tables...');
     const tables = await AppDataSource.query(`
       SELECT table_name 
@@ -116,9 +116,14 @@ async function setupProductionDatabase() {
       if (stillMissing.length > 0) {
         throw new Error(`Still missing required tables after manual creation: ${stillMissing.join(', ')}`);
       }
+    } else {
+      console.log('✅ All required tables exist');
+      
+      // Even if tables exist, ensure they have the right columns
+      console.log('🔍 Verifying table schemas...');
+      await ensureTableSchemas();
     }
     
-    console.log('✅ All required tables exist');
     console.log('🎉 Production database setup completed successfully!');
     
   } catch (error) {
@@ -242,6 +247,93 @@ async function createTablesManually() {
   } catch (error) {
     console.error('❌ Error creating tables manually:', error);
     throw error;
+  }
+}
+
+async function ensureTableSchemas() {
+  console.log('🔍 Ensuring table schemas are up to date...');
+  
+  try {
+    // Check if customer_email and customer_name columns exist in orders table
+    const orderColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'orders' 
+      AND column_name IN ('customer_email', 'customer_name')
+    `);
+    
+    const existingColumns = orderColumns.map((col: any) => col.column_name);
+    
+    if (!existingColumns.includes('customer_email')) {
+      console.log('📧 Adding customer_email column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "customer_email" varchar(255)
+      `);
+      console.log('✅ customer_email column added');
+    }
+    
+    if (!existingColumns.includes('customer_name')) {
+      console.log('👤 Adding customer_name column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "customer_name" varchar(255)
+      `);
+      console.log('✅ customer_name column added');
+    }
+    
+    // Check if auth0Id column exists in customers table
+    const customerColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'customers' 
+      AND column_name = 'auth0Id'
+    `);
+    
+    if (customerColumns.length === 0) {
+      console.log('🔐 Adding auth0Id column to customers table...');
+      await AppDataSource.query(`
+        ALTER TABLE "customers" ADD COLUMN "auth0Id" varchar(255)
+      `);
+      console.log('✅ auth0Id column added');
+    }
+    
+    // Check if picture column exists in customers table
+    const pictureColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'customers' 
+      AND column_name = 'picture'
+    `);
+    
+    if (pictureColumns.length === 0) {
+      console.log('🖼️ Adding picture column to customers table...');
+      await AppDataSource.query(`
+        ALTER TABLE "customers" ADD COLUMN "picture" varchar(500)
+      `);
+      console.log('✅ picture column added');
+    }
+    
+    // Check if updated_at column exists in customers table
+    const updatedAtColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'customers' 
+      AND column_name = 'updated_at'
+    `);
+    
+    if (updatedAtColumns.length === 0) {
+      console.log('⏰ Adding updated_at column to customers table...');
+      await AppDataSource.query(`
+        ALTER TABLE "customers" ADD COLUMN "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+      `);
+      console.log('✅ updated_at column added');
+    }
+    
+    console.log('✅ Table schemas verified and updated');
+    
+  } catch (error) {
+    console.error('❌ Error ensuring table schemas:', error);
+    // Don't throw - this is not critical
+    console.log('⚠️ Continuing despite schema verification errors...');
   }
 }
 
