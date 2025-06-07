@@ -498,11 +498,11 @@ async function findOrCreateMenuItem(itemName: string, price: number, restaurantI
       return existingMenuItem[0].id;
     }
     
-    // If menu item doesn't exist, create it
+    // If menu item doesn't exist, create it with only required columns
     const result = await AppDataSource.query(
-      `INSERT INTO menu_items (name, price, restaurant_id, category, is_available) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [itemName, price, restaurantId, 'Other', true]
+      `INSERT INTO menu_items (name, price, restaurant_id) 
+       VALUES ($1, $2, $3) RETURNING id`,
+      [itemName, price, restaurantId]
     );
     
     if (result && result.length > 0) {

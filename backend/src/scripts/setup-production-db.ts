@@ -259,12 +259,12 @@ async function ensureTableSchemas() {
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_name = 'orders' 
-      AND column_name IN ('customer_email', 'customer_name')
+      AND column_name IN ('customer_email', 'customer_name', 'processing_fee', 'payment_link_id', 'payment_link_url', 'payment_link_created_at', 'payment_link_expires_at', 'paid_at')
     `);
     
-    const existingColumns = orderColumns.map((col: any) => col.column_name);
+    const existingOrderColumns = orderColumns.map((col: any) => col.column_name);
     
-    if (!existingColumns.includes('customer_email')) {
+    if (!existingOrderColumns.includes('customer_email')) {
       console.log('📧 Adding customer_email column to orders table...');
       await AppDataSource.query(`
         ALTER TABLE "orders" ADD COLUMN "customer_email" varchar(255)
@@ -272,12 +272,86 @@ async function ensureTableSchemas() {
       console.log('✅ customer_email column added');
     }
     
-    if (!existingColumns.includes('customer_name')) {
+    if (!existingOrderColumns.includes('customer_name')) {
       console.log('👤 Adding customer_name column to orders table...');
       await AppDataSource.query(`
         ALTER TABLE "orders" ADD COLUMN "customer_name" varchar(255)
       `);
       console.log('✅ customer_name column added');
+    }
+    
+    if (!existingOrderColumns.includes('processing_fee')) {
+      console.log('💰 Adding processing_fee column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "processing_fee" decimal(10,2)
+      `);
+      console.log('✅ processing_fee column added');
+    }
+    
+    if (!existingOrderColumns.includes('payment_link_id')) {
+      console.log('🔗 Adding payment_link_id column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "payment_link_id" varchar(255)
+      `);
+      console.log('✅ payment_link_id column added');
+    }
+    
+    if (!existingOrderColumns.includes('payment_link_url')) {
+      console.log('🌐 Adding payment_link_url column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "payment_link_url" text
+      `);
+      console.log('✅ payment_link_url column added');
+    }
+    
+    if (!existingOrderColumns.includes('payment_link_created_at')) {
+      console.log('📅 Adding payment_link_created_at column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "payment_link_created_at" timestamp
+      `);
+      console.log('✅ payment_link_created_at column added');
+    }
+    
+    if (!existingOrderColumns.includes('payment_link_expires_at')) {
+      console.log('⏰ Adding payment_link_expires_at column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "payment_link_expires_at" timestamp
+      `);
+      console.log('✅ payment_link_expires_at column added');
+    }
+    
+    if (!existingOrderColumns.includes('paid_at')) {
+      console.log('💳 Adding paid_at column to orders table...');
+      await AppDataSource.query(`
+        ALTER TABLE "orders" ADD COLUMN "paid_at" timestamp
+      `);
+      console.log('✅ paid_at column added');
+    }
+    
+    // Check if category and is_available columns exist in menu_items table
+    const menuItemColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'menu_items' 
+      AND column_name IN ('category', 'is_available')
+    `);
+    
+    const existingMenuItemColumns = menuItemColumns.map((col: any) => col.column_name);
+    
+    if (!existingMenuItemColumns.includes('category')) {
+      console.log('🏷️ Adding category column to menu_items table...');
+      await AppDataSource.query(`
+        ALTER TABLE "menu_items" ADD COLUMN "category" varchar(100)
+      `);
+      console.log('✅ category column added to menu_items');
+    }
+    
+    if (!existingMenuItemColumns.includes('is_available')) {
+      console.log('✅ Adding is_available column to menu_items table...');
+      await AppDataSource.query(`
+        ALTER TABLE "menu_items" ADD COLUMN "is_available" boolean DEFAULT true
+      `);
+      console.log('✅ is_available column added to menu_items');
     }
     
     // Check if phone and email columns exist in restaurants table
@@ -360,6 +434,44 @@ async function ensureTableSchemas() {
         ALTER TABLE "customers" ADD COLUMN "updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
       `);
       console.log('✅ updated_at column added');
+    }
+    
+    // Fix customer email constraint issue - allow nullable emails
+    console.log('🔧 Fixing customer email constraint...');
+    try {
+      // First, check if there are any customers with empty emails
+      const emptyEmailCustomers = await AppDataSource.query(`
+        SELECT COUNT(*) as count FROM customers WHERE email = ''
+      `);
+      
+      if (emptyEmailCustomers[0].count > 0) {
+        console.log(`Found ${emptyEmailCustomers[0].count} customers with empty emails, updating to NULL...`);
+        await AppDataSource.query(`
+          UPDATE customers SET email = NULL WHERE email = ''
+        `);
+        console.log('✅ Updated empty emails to NULL');
+      }
+      
+      // Drop the unique constraint on email if it exists
+      await AppDataSource.query(`
+        ALTER TABLE customers DROP CONSTRAINT IF EXISTS "UQ_8536b8b85c06969f84f0c098b03"
+      `);
+      console.log('✅ Dropped email unique constraint');
+      
+      // Make email column nullable if it isn't already
+      await AppDataSource.query(`
+        ALTER TABLE customers ALTER COLUMN email DROP NOT NULL
+      `);
+      console.log('✅ Made email column nullable');
+      
+      // Add a unique constraint that allows multiple NULL values
+      await AppDataSource.query(`
+        CREATE UNIQUE INDEX customers_email_unique_idx ON customers (email) WHERE email IS NOT NULL
+      `);
+      console.log('✅ Added partial unique constraint on email (allows NULL values)');
+      
+    } catch (error: any) {
+      console.log('⚠️ Customer email constraint fix had some issues, but continuing...', error.message);
     }
     
     console.log('✅ Table schemas verified and updated');
