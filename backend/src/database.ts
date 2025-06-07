@@ -27,7 +27,7 @@ export const AppDataSource = new DataSource({
   logging: process.env.NODE_ENV !== "production", // Only log in development
   entities: [Customer, Restaurant, MenuItem, Order, OrderItem, OrderQueue],
   migrations: ["dist/migrations/*.js"], // Include our migrations
-  migrationsRun: false, // Don't run migrations automatically
+  migrationsRun: process.env.NODE_ENV === "production", // Run migrations automatically in production
   migrationsTableName: "migrations",
   subscribers: ["dist/subscribers/**/*.js"] // Use compiled subscribers
 });
@@ -55,6 +55,27 @@ export async function initializeDatabase() {
         // Initialize the database connection
         await AppDataSource.initialize();
         console.log("Database connection established successfully");
+        
+        // In production, ensure migrations are run
+        if (process.env.NODE_ENV === "production") {
+          console.log("🔄 Running database migrations in production...");
+          try {
+            const migrations = await AppDataSource.runMigrations();
+            if (migrations.length > 0) {
+              console.log(`✅ Successfully ran ${migrations.length} migrations:`);
+              migrations.forEach((migration, index) => {
+                console.log(`  ${index + 1}. ${migration.name}`);
+              });
+            } else {
+              console.log("✅ No pending migrations to run");
+            }
+          } catch (migrationError) {
+            console.error("❌ Failed to run migrations:", migrationError);
+            // Don't throw - allow application to continue
+            console.warn("Application will continue without running migrations");
+          }
+        }
+        
         return;
       } catch (error) {
         retries++;
