@@ -284,7 +284,7 @@ async function movePaidOrderToDatabase(order: TemporaryOrder): Promise<boolean> 
  * Update the payment status of an order
  */
 export async function updateOrderPaymentStatus(
-  orderId: string,
+  orderId: number,
   newStatus: PaymentStatus,
   sessionId?: string,
   paymentIntentId?: string
@@ -292,14 +292,33 @@ export async function updateOrderPaymentStatus(
   const correlationId = createCorrelationId();
   
   try {
-    // Update order status
+    logError('Attempting to update order payment status', {
+      correlationId,
+      data: { orderId, newStatus, sessionId, paymentIntentId }
+    });
+    
+    // Update order status - search by ID, not order_number
     const order = await AppDataSource.getRepository(Order).findOne({
-      where: { order_number: orderId }
+      where: { id: orderId }
     });
 
     if (!order) {
+      logError('Order not found during payment status update', {
+        correlationId,
+        data: { orderId, newStatus }
+      });
       throw new Error('Order not found');
     }
+
+    logError('Order found, updating payment status', {
+      correlationId,
+      data: { 
+        orderId: order.id,
+        orderNumber: order.order_number,
+        currentStatus: order.payment_status,
+        newStatus 
+      }
+    });
 
     order.payment_status = newStatus;
     if (newStatus === PaymentStatus.PAID) {
@@ -307,6 +326,17 @@ export async function updateOrderPaymentStatus(
     }
 
     const updatedOrder = await AppDataSource.getRepository(Order).save(order);
+    
+    logError('Order payment status updated successfully', {
+      correlationId,
+      data: { 
+        orderId: updatedOrder.id,
+        orderNumber: updatedOrder.order_number,
+        paymentStatus: updatedOrder.payment_status,
+        paidAt: updatedOrder.paid_at
+      }
+    });
+    
     return updatedOrder;
   } catch (error) {
     logError('Failed to update order payment status', {

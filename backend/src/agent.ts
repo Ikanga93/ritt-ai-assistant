@@ -1164,7 +1164,7 @@ export default defineAgent({
             
             // Get order information from metadata
             const orderNumber = paymentIntent.metadata?.orderNumber;
-            const dbOrderId = paymentIntent.metadata?.dbOrderId;
+            const dbOrderId = paymentIntent.metadata?.orderId;
             
             if (dbOrderId) {
               console.log('>>> Updating database order payment status:', dbOrderId);
@@ -1174,11 +1174,12 @@ export default defineAgent({
               const { sendRestaurantOrderNotifications } = await import('./services/restaurantNotificationService.js');
               
               try {
+                console.log('>>> 🔄 Attempting to update order payment status to PAID...');
                 // Update order status to PAID
                 const updatedOrder = await updateOrderPaymentStatus(parseInt(dbOrderId), 'PAID');
                 
                 if (updatedOrder) {
-                  console.log('>>> Database order updated successfully:', {
+                  console.log('>>> ✅ Database order updated successfully:', {
                     orderId: updatedOrder.id,
                     orderNumber: updatedOrder.order_number,
                     paymentStatus: 'PAID',
@@ -1186,18 +1187,40 @@ export default defineAgent({
                   });
                   
                   // Send restaurant notification email
+                  console.log('>>> 📧 ATTEMPTING TO SEND RESTAURANT NOTIFICATION...');
+                  console.log('>>> 📧 Order ID for notification:', updatedOrder.id);
+                  console.log('>>> 📧 Order Number:', updatedOrder.order_number);
+                  
                   try {
-                    await sendRestaurantOrderNotifications(updatedOrder.id);
-                    console.log('>>> Restaurant notification sent for order:', updatedOrder.order_number);
+                    console.log('>>> 📧 Calling sendRestaurantOrderNotifications...');
+                    const notificationResult = await sendRestaurantOrderNotifications(updatedOrder.id);
+                    console.log('>>> 📧 Restaurant notification result:', notificationResult);
+                    
+                    if (notificationResult) {
+                      console.log('>>> ✅ Restaurant notification sent successfully for order:', updatedOrder.order_number);
+                    } else {
+                      console.log('>>> ❌ Restaurant notification failed for order:', updatedOrder.order_number);
+                    }
                   } catch (notificationError) {
-                    console.log('>>> Failed to send restaurant notification:', notificationError);
+                    console.log('>>> ❌ EXCEPTION in restaurant notification:', notificationError);
+                    console.log('>>> ❌ Error details:', {
+                      message: notificationError.message,
+                      stack: notificationError.stack
+                    });
                   }
                 } else {
-                  console.log('>>> Order not found for payment update:', dbOrderId);
+                  console.log('>>> ❌ Order not found for payment update:', dbOrderId);
                 }
               } catch (updateError) {
-                console.log('>>> Error updating order payment status:', updateError);
+                console.log('>>> ❌ Error updating order payment status:', updateError);
+                console.log('>>> ❌ Update error details:', {
+                  message: updateError.message,
+                  stack: updateError.stack
+                });
               }
+            } else {
+              console.log('>>> ⚠️ No dbOrderId found in paymentIntent metadata');
+              console.log('>>> ⚠️ Available metadata keys:', Object.keys(paymentIntent.metadata || {}));
             }
           }
           
@@ -1212,7 +1235,7 @@ export default defineAgent({
             
             // Get order information from metadata
             const orderNumber = session.metadata?.orderNumber;
-            const dbOrderId = session.metadata?.dbOrderId;
+            const dbOrderId = session.metadata?.orderId;
             
             if (dbOrderId) {
               console.log('>>> Updating database order payment status via session:', dbOrderId);
@@ -1222,11 +1245,12 @@ export default defineAgent({
               const { sendRestaurantOrderNotifications } = await import('./services/restaurantNotificationService.js');
               
               try {
+                console.log('>>> 🔄 Attempting to update order payment status to PAID...');
                 // Update order status to PAID
                 const updatedOrder = await updateOrderPaymentStatus(parseInt(dbOrderId), 'PAID');
                 
                 if (updatedOrder) {
-                  console.log('>>> Database order updated successfully via session:', {
+                  console.log('>>> ✅ Database order updated successfully via session:', {
                     orderId: updatedOrder.id,
                     orderNumber: updatedOrder.order_number,
                     paymentStatus: 'PAID',
@@ -1234,18 +1258,40 @@ export default defineAgent({
                   });
                   
                   // Send restaurant notification email
+                  console.log('>>> 📧 ATTEMPTING TO SEND RESTAURANT NOTIFICATION...');
+                  console.log('>>> 📧 Order ID for notification:', updatedOrder.id);
+                  console.log('>>> 📧 Order Number:', updatedOrder.order_number);
+                  
                   try {
-                    await sendRestaurantOrderNotifications(updatedOrder.id);
-                    console.log('>>> Restaurant notification sent for order:', updatedOrder.order_number);
+                    console.log('>>> 📧 Calling sendRestaurantOrderNotifications...');
+                    const notificationResult = await sendRestaurantOrderNotifications(updatedOrder.id);
+                    console.log('>>> 📧 Restaurant notification result:', notificationResult);
+                    
+                    if (notificationResult) {
+                      console.log('>>> ✅ Restaurant notification sent successfully for order:', updatedOrder.order_number);
+                    } else {
+                      console.log('>>> ❌ Restaurant notification failed for order:', updatedOrder.order_number);
+                    }
                   } catch (notificationError) {
-                    console.log('>>> Failed to send restaurant notification:', notificationError);
+                    console.log('>>> ❌ EXCEPTION in restaurant notification:', notificationError);
+                    console.log('>>> ❌ Error details:', {
+                      message: notificationError.message,
+                      stack: notificationError.stack
+                    });
                   }
                 } else {
-                  console.log('>>> Order not found for payment update:', dbOrderId);
+                  console.log('>>> ❌ Order not found for payment update:', dbOrderId);
                 }
               } catch (updateError) {
-                console.log('>>> Error updating order payment status:', updateError);
+                console.log('>>> ❌ Error updating order payment status:', updateError);
+                console.log('>>> ❌ Update error details:', {
+                  message: updateError.message,
+                  stack: updateError.stack
+                });
               }
+            } else {
+              console.log('>>> ⚠️ No dbOrderId found in session metadata');
+              console.log('>>> ⚠️ Available metadata keys:', Object.keys(session.metadata || {}));
             }
           }
           

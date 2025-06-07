@@ -1,0 +1,46 @@
+================================================================================
+ORDER CHAT LOG
+================================================================================
+
+ORDER DETAILS:
+Order Number: 266
+Customer Name: Chris
+Customer Email: Not provided
+Restaurant: Niro's Gyros
+Order Total: $9.57
+Payment Status: PENDING
+Order Status: COMPLETED
+Created At: 2025-06-07T04:51:34.012Z
+Completed At: 2025-06-07T04:52:10.509Z
+
+ORDER ITEMS:
+1. Single Gyro
+   Quantity: 1
+   Price: $7.99
+   Special Instructions: Meal combo with Fries and Drink: Pepsi
+
+--------------------------------------------------------------------------------
+CHAT CONVERSATION:
+--------------------------------------------------------------------------------
+
+[6/6/2025, 11:51:34 PM] ASSISTANT:
+Welcome to Niro's Gyros! How can I help you today?
+
+[6/6/2025, 11:51:10 PM] CUSTOMER:
+I'd like to order: 1x Single Gyro
+
+[6/6/2025, 11:51:40 PM] ASSISTANT:
+Great! I've added 1x Single Gyro to your order. Your total is $9.57.
+
+[6/6/2025, 11:51:50 PM] ASSISTANT:
+Can I get your name for the order?
+
+[6/6/2025, 11:52:00 PM] CUSTOMER:
+Chris
+
+[6/6/2025, 11:52:10 PM] ASSISTANT:
+Your order has been confirmed. Please use the payment button in the chat to complete your payment.
+
+================================================================================
+END OF CHAT LOG
+================================================================================

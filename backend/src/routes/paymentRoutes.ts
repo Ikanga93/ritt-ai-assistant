@@ -415,7 +415,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           if (dbOrderId) {
             console.log('>>> Updating database order via session:', dbOrderId);
             const updatedOrder = await updateOrderPaymentStatus(
-              dbOrderId,
+              parseInt(dbOrderId),
               PaymentStatus.PAID,
               session.id,
               session.payment_intent as string
@@ -568,7 +568,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           if (dbOrderId) {
             console.log('>>> Updating database order:', dbOrderId);
             const updatedOrder = await updateOrderPaymentStatus(
-              dbOrderId,
+              parseInt(dbOrderId),
               PaymentStatus.PAID,
               undefined,
               paymentIntent.id
@@ -665,7 +665,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
             if (identifier) {
               console.log('>>> Using legacy identifier:', identifier, 'type:', identifierType);
               const updatedOrder = await updateOrderPaymentStatus(
-                identifier,
+                parseInt(identifier),
                 PaymentStatus.PAID,
                 undefined,
                 paymentIntent.id
@@ -721,7 +721,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
           try {
             // Update order payment status to failed
             const updatedOrder = await updateOrderPaymentStatus(
-              paymentLinkId,
+              parseInt(paymentLinkId),
               PaymentStatus.FAILED
             );
             
