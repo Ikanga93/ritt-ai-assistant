@@ -280,6 +280,40 @@ async function ensureTableSchemas() {
       console.log('✅ customer_name column added');
     }
     
+    // Check if phone and email columns exist in restaurants table
+    const restaurantColumns = await AppDataSource.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'restaurants' 
+      AND column_name IN ('phone', 'email', 'is_active')
+    `);
+    
+    const existingRestaurantColumns = restaurantColumns.map((col: any) => col.column_name);
+    
+    if (!existingRestaurantColumns.includes('phone')) {
+      console.log('📞 Adding phone column to restaurants table...');
+      await AppDataSource.query(`
+        ALTER TABLE "restaurants" ADD COLUMN "phone" varchar(20)
+      `);
+      console.log('✅ phone column added to restaurants');
+    }
+    
+    if (!existingRestaurantColumns.includes('email')) {
+      console.log('📧 Adding email column to restaurants table...');
+      await AppDataSource.query(`
+        ALTER TABLE "restaurants" ADD COLUMN "email" varchar(255)
+      `);
+      console.log('✅ email column added to restaurants');
+    }
+    
+    if (!existingRestaurantColumns.includes('is_active')) {
+      console.log('✅ Adding is_active column to restaurants table...');
+      await AppDataSource.query(`
+        ALTER TABLE "restaurants" ADD COLUMN "is_active" boolean DEFAULT true
+      `);
+      console.log('✅ is_active column added to restaurants');
+    }
+    
     // Check if auth0Id column exists in customers table
     const customerColumns = await AppDataSource.query(`
       SELECT column_name 
