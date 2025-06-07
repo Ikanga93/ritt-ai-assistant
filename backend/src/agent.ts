@@ -1094,11 +1094,11 @@ export default defineAgent({
       
       // Check if this looks like a Stripe webhook
       if (req.headers['stripe-signature']) {
-        monitor.log('WebhookServer', 'Detected Stripe webhook, processing directly');
+        monitor.log('WebhookServer', 'Processing Stripe webhook at root path');
         
         try {
-          // Process the webhook directly using the same logic as the payment routes
-          console.log('>>> Webhook endpoint /webhook hit by a POST request at', new Date().toISOString());
+          // Process the webhook using the same logic as payment routes
+          console.log('>>> Webhook endpoint / hit by a POST request at', new Date().toISOString());
           console.log('>>> Request headers:', JSON.stringify(req.headers, null, 2));
 
           const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
@@ -1151,8 +1151,103 @@ export default defineAgent({
           // Log successful verification
           monitor.log('WebhookServer', `Webhook verified: ${event.type}`);
           
-          // For now, just acknowledge receipt - we can add specific event handling later
+          // Process the webhook event
           console.log('>>> Processing webhook event:', event.type);
+          
+          // Handle payment_intent.succeeded event to update order status and send restaurant email
+          if (event.type === 'payment_intent.succeeded') {
+            const paymentIntent = event.data.object as any;
+            console.log('>>> Processing payment_intent.succeeded:', {
+              paymentIntentId: paymentIntent.id,
+              metadata: paymentIntent.metadata
+            });
+            
+            // Get order information from metadata
+            const orderNumber = paymentIntent.metadata?.orderNumber;
+            const dbOrderId = paymentIntent.metadata?.dbOrderId;
+            
+            if (dbOrderId) {
+              console.log('>>> Updating database order payment status:', dbOrderId);
+              
+              // Import and use the order payment service
+              const { updateOrderPaymentStatus } = await import('./services/orderPaymentLinkService.js');
+              const { sendRestaurantOrderNotifications } = await import('./services/restaurantNotificationService.js');
+              
+              try {
+                // Update order status to PAID
+                const updatedOrder = await updateOrderPaymentStatus(parseInt(dbOrderId), 'PAID');
+                
+                if (updatedOrder) {
+                  console.log('>>> Database order updated successfully:', {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.order_number,
+                    paymentStatus: 'PAID',
+                    paidAt: updatedOrder.paid_at
+                  });
+                  
+                  // Send restaurant notification email
+                  try {
+                    await sendRestaurantOrderNotifications(updatedOrder.id);
+                    console.log('>>> Restaurant notification sent for order:', updatedOrder.order_number);
+                  } catch (notificationError) {
+                    console.log('>>> Failed to send restaurant notification:', notificationError);
+                  }
+                } else {
+                  console.log('>>> Order not found for payment update:', dbOrderId);
+                }
+              } catch (updateError) {
+                console.log('>>> Error updating order payment status:', updateError);
+              }
+            }
+          }
+          
+          // Handle checkout.session.completed event (this has the payment link metadata)
+          if (event.type === 'checkout.session.completed') {
+            const session = event.data.object as any;
+            console.log('>>> Processing checkout.session.completed:', {
+              sessionId: session.id,
+              metadata: session.metadata,
+              paymentStatus: session.payment_status
+            });
+            
+            // Get order information from metadata
+            const orderNumber = session.metadata?.orderNumber;
+            const dbOrderId = session.metadata?.dbOrderId;
+            
+            if (dbOrderId) {
+              console.log('>>> Updating database order payment status via session:', dbOrderId);
+              
+              // Import and use the order payment service
+              const { updateOrderPaymentStatus } = await import('./services/orderPaymentLinkService.js');
+              const { sendRestaurantOrderNotifications } = await import('./services/restaurantNotificationService.js');
+              
+              try {
+                // Update order status to PAID
+                const updatedOrder = await updateOrderPaymentStatus(parseInt(dbOrderId), 'PAID');
+                
+                if (updatedOrder) {
+                  console.log('>>> Database order updated successfully via session:', {
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.order_number,
+                    paymentStatus: 'PAID',
+                    paidAt: updatedOrder.paid_at
+                  });
+                  
+                  // Send restaurant notification email
+                  try {
+                    await sendRestaurantOrderNotifications(updatedOrder.id);
+                    console.log('>>> Restaurant notification sent for order:', updatedOrder.order_number);
+                  } catch (notificationError) {
+                    console.log('>>> Failed to send restaurant notification:', notificationError);
+                  }
+                } else {
+                  console.log('>>> Order not found for payment update:', dbOrderId);
+                }
+              } catch (updateError) {
+                console.log('>>> Error updating order payment status:', updateError);
+              }
+            }
+          }
           
           // Send success response
           res.status(200).json({ received: true, eventType: event.type });

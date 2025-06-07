@@ -28,6 +28,8 @@ interface RestaurantOrderNotification {
     price: number;
     specialInstructions?: string | null;
   }>;
+  subtotal: number;
+  tax: number;
   orderTotal: number;
   orderDate: Date;
   specialInstructions?: string | null;
@@ -127,7 +129,9 @@ export async function sendRestaurantOrderNotifications(orderId: number): Promise
           orderNumber: order.order_number,
           customerName: 'Customer', // For privacy, don't include full customer details
           orderItems: [],
-          orderTotal: 0,
+          subtotal: 0,
+          tax: order.tax || 0, // Get tax from the order data
+          orderTotal: order.total || 0, // Get total from the order data
           orderDate: order.created_at,
           specialInstructions: null
         });
@@ -142,7 +146,7 @@ export async function sendRestaurantOrderNotifications(orderId: number): Promise
         price: item.price_at_time,
         specialInstructions: item.special_instructions
       });
-      restaurantOrder.orderTotal += item.price_at_time * item.quantity;
+      restaurantOrder.subtotal += item.price_at_time * item.quantity;
     }
     
     // Send notifications to each restaurant
@@ -205,7 +209,7 @@ async function sendSingleRestaurantNotification(
     const itemsList = notification.orderItems.map(item => ({
       name: item.name,
       quantity: item.quantity,
-      price: item.price.toFixed(2),
+      price: Number(item.price).toFixed(2),
       specialInstructions: item.specialInstructions
     }));
     
@@ -223,7 +227,9 @@ async function sendSingleRestaurantNotification(
         orderDate: notification.orderDate.toLocaleString(),
         customerName: notification.customerName,
         items: itemsList,
-        orderTotal: notification.orderTotal.toFixed(2),
+        subtotal: notification.subtotal.toFixed(2),
+        tax: Number(notification.tax).toFixed(2),
+        restaurantTotal: (notification.subtotal + Number(notification.tax)).toFixed(2),
         specialInstructions: notification.specialInstructions,
         orderId: notification.orderId
       }

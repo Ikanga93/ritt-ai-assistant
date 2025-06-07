@@ -1,0 +1,34 @@
+🍽️ Pre-paid AI Order
+
+Hello {{restaurantName}}! 👋
+You have received a new PRE-PAID order that is ready to be prepared.
+
+📋 Order Information
+Order #{{orderNumber}}
+
+📋 Items to Prepare
+{{#each items}}
+{{quantity}}x {{name}} - ${{price}}
+{{#if specialInstructions}}
+Special: {{specialInstructions}}
+{{/if}}
+
+{{/each}}
+
+Subtotal: ${{subtotal}}
+Tax: ${{tax}}
+Restaurant Total: ${{restaurantTotal}}
+
+Order Date: {{orderDate}}
+
+🚀 Ready to Prepare!
+This order has been PAID IN FULL and is ready for immediate preparation.
+Please begin preparing this order as soon as possible.
+
+Need Help?
+If you have any questions about this order, please contact our support team at
+gekuke1@ritt.ai
+
+Ritt Drive-Thru
+© 2025 Ritt Drive-Thru. All rights reserved.
+Thank you for partnering with us! 🤝 
