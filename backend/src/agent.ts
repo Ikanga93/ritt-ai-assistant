@@ -1062,59 +1062,23 @@ export default defineAgent({
       next();
     });
 
-    // Handle raw body for webhook endpoint
-    // Handle webhook requests using Stripe's recommended approach
-    app.use('/api/payments/webhook', (req, res, next) => {
-      // Only process POST requests
-      if (req.method !== 'POST') {
-        return next();
+    // Handle raw body for webhook endpoints using express.raw()
+    app.use('/', (req, res, next) => {
+      // Only use raw body parser for POST requests with Stripe signature
+      if (req.method === 'POST' && req.headers['stripe-signature']) {
+        return express.raw({ type: 'application/json' })(req, res, next);
       }
-      
-      let rawBody = '';
-      req.setEncoding('utf8');
-      
-      req.on('data', (chunk) => {
-        rawBody += chunk;
-      });
-      
-      req.on('end', () => {
-        if (rawBody) {
-          // Store the raw body as a string for Stripe webhook verification
-          (req as any).rawBody = rawBody;
-          
-          // Log successful raw body capture
-          monitor.log('WebhookServer', 'Successfully captured raw body', {
-            length: rawBody.length,
-            headers: {
-              'content-type': req.headers['content-type'],
-              'content-length': req.headers['content-length']
-            }
-          });
-          
-          // Parse the body as JSON for easier access in the route handler
-          try {
-            (req as any).body = JSON.parse(rawBody);
-          } catch (err) {
-            // If JSON parsing fails, that's okay - we still have the raw body
-            monitor.error('WebhookServer', 'Error parsing JSON body', err);
-          }
-        }
-        next();
-      });
-      
-      req.on('error', (err) => {
-        monitor.error('WebhookServer', 'Error reading request stream', err);
-        res.status(400).json({
-          error: 'Could not read request body',
-          details: err.message
-        });
-      });
+      next();
     });
-    
+
+    // Handle raw body for the /api/payments/webhook endpoint
+    app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
     // Add JSON parsing for non-webhook routes
     app.use((req, res, next) => {
-      // Skip JSON parsing for webhook endpoint
-      if (req.originalUrl === '/api/payments/webhook') {
+      // Skip JSON parsing for webhook endpoints
+      if (req.originalUrl === '/api/payments/webhook' || 
+          (req.originalUrl === '/' && req.headers['stripe-signature'])) {
         return next();
       }
       express.json()(req, res, next);
@@ -1123,6 +1087,98 @@ export default defineAgent({
     // Mount payment routes
     app.use('/api/payments', paymentRoutes);
     monitor.log('WebhookServer', 'Mounted payment routes at /api/payments');
+
+    // Add direct webhook handler at root path for Stripe webhooks
+    app.post('/', async (req, res) => {
+      monitor.log('WebhookServer', 'Received POST request at root path');
+      
+      // Check if this looks like a Stripe webhook
+      if (req.headers['stripe-signature']) {
+        monitor.log('WebhookServer', 'Detected Stripe webhook, processing directly');
+        
+        try {
+          // Process the webhook directly using the same logic as the payment routes
+          console.log('>>> Webhook endpoint /webhook hit by a POST request at', new Date().toISOString());
+          console.log('>>> Request headers:', JSON.stringify(req.headers, null, 2));
+
+          const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+          
+          if (!webhookSecret) {
+            monitor.error('WebhookServer', 'Webhook secret not configured');
+            return res.status(500).send('Webhook Error: Server configuration error (missing webhook secret).');
+          }
+
+          const sig = req.headers['stripe-signature'];
+          if (!sig) {
+            monitor.error('WebhookServer', 'No Stripe signature found in request headers');
+            return res.status(400).send('Webhook Error: Missing stripe-signature header.');
+          }
+
+          // Get the raw body from the request (express.raw() provides it as req.body Buffer)
+          const rawBody = req.body;
+          
+          if (!rawBody) {
+            monitor.error('WebhookServer', 'Missing request body');
+            return res.status(400).json({ error: 'Missing request body' });
+          }
+
+          monitor.log('WebhookServer', 'Raw body captured', {
+            bodyType: typeof rawBody,
+            isBuffer: Buffer.isBuffer(rawBody),
+            length: rawBody.length
+          });
+
+          // Initialize Stripe
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+            apiVersion: '2025-04-30.basil' as const
+          });
+
+          // Verify the webhook signature
+          let event;
+          try {
+            event = stripe.webhooks.constructEvent(rawBody, sig as string, webhookSecret);
+            console.log('>>> Webhook event constructed successfully:', {
+              type: event.type,
+              id: event.id,
+              created: new Date(event.created * 1000).toISOString()
+            });
+          } catch (err: any) {
+            monitor.error('WebhookServer', 'Webhook signature verification failed', err);
+            return res.status(400).send(`Webhook Error: ${err.message}`);
+          }
+
+          // Log successful verification
+          monitor.log('WebhookServer', `Webhook verified: ${event.type}`);
+          
+          // For now, just acknowledge receipt - we can add specific event handling later
+          console.log('>>> Processing webhook event:', event.type);
+          
+          // Send success response
+          res.status(200).json({ received: true, eventType: event.type });
+          
+        } catch (error: any) {
+          monitor.error('WebhookServer', 'Error processing webhook', {
+            message: error.message,
+            stack: error.stack
+          });
+          return res.status(500).json({ error: 'Internal server error' });
+        }
+      } else {
+        // Not a Stripe webhook, return 404
+        monitor.log('WebhookServer', 'POST to root without stripe-signature header');
+        return res.status(404).send('Cannot POST /');
+      }
+    });
+
+    // Add a simple health check for GET requests to root
+    app.get('/', (req, res) => {
+      res.json({ 
+        status: 'ok', 
+        message: 'Webhook server is running',
+        timestamp: new Date().toISOString()
+      });
+    });
 
     // Start the Express server for webhook handling
     // Use the port provided by Render, falling back to 3000 for local development
