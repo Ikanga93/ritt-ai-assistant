@@ -412,9 +412,6 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
     const normalizedRestaurantId = restaurantId.replace(/-/g, '_');
     console.log(`Normalized restaurant ID: ${normalizedRestaurantId} (from "${restaurantId}")`);
     
-    // First, try to find the restaurant by ID or name
-    const restaurantRepository = AppDataSource.getRepository('restaurants');
-    
     // Get the restaurant data from the JSON file to ensure we have the correct name
     const { getRestaurantById } = await import('../restaurantUtils.js');
     const restaurantData = await getRestaurantById(normalizedRestaurantId);
@@ -427,20 +424,19 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
     
     console.log(`Looking for restaurant with proper name: ${properRestaurantName}`);
     
-    // Try to find the restaurant by name
-    let restaurant = await restaurantRepository.findOne({
-      where: [{ name: properRestaurantName }]
-    });
+    // Try to find the restaurant by name using raw query to avoid entity mapping issues
+    const existingRestaurant = await AppDataSource.query(
+      `SELECT id, name FROM restaurants WHERE name = $1 LIMIT 1`,
+      [properRestaurantName]
+    );
     
-    if (restaurant) {
-      console.log(`Found existing restaurant: ${properRestaurantName} with ID: ${restaurant.id}`);
-      return restaurant.id;
+    if (existingRestaurant && existingRestaurant.length > 0) {
+      console.log(`Found existing restaurant: ${properRestaurantName} with ID: ${existingRestaurant[0].id}`);
+      return existingRestaurant[0].id;
     }
     
     // If restaurant doesn't exist, use the data we already loaded
     console.log(`Restaurant not found in database, creating new record for: ${properRestaurantName}`);
-    
-    // We already have the restaurant data from above
     
     if (!restaurantData) {
       console.error(`Could not find restaurant data for ID: ${normalizedRestaurantId}`);
@@ -491,25 +487,18 @@ async function findOrCreateMenuItem(itemName: string, price: number, restaurantI
       throw new Error('Failed to establish a healthy database connection in findOrCreateMenuItem');
     }
     
-    // First, try to find an existing menu item by name and restaurant ID
-    const menuItemRepository = AppDataSource.getRepository('menu_items');
+    // Try to find an existing menu item by name and restaurant ID using raw query
+    const existingMenuItem = await AppDataSource.query(
+      `SELECT id, name FROM menu_items WHERE name = $1 AND restaurant_id = $2 LIMIT 1`,
+      [itemName, restaurantId]
+    );
     
-    // Try to find the menu item
-    const menuItem = await menuItemRepository.findOne({
-      where: {
-        name: itemName,
-        restaurant_id: restaurantId
-      }
-    });
-    
-    if (menuItem) {
-      console.log(`Found existing menu item: ${itemName} with ID: ${menuItem.id}`);
-      return menuItem.id;
+    if (existingMenuItem && existingMenuItem.length > 0) {
+      console.log(`Found existing menu item: ${itemName} with ID: ${existingMenuItem[0].id}`);
+      return existingMenuItem[0].id;
     }
     
     // If menu item doesn't exist, create it
-    // For now, we'll use a direct query to insert the menu item
-    // This bypasses the entity validation which might be causing issues
     const result = await AppDataSource.query(
       `INSERT INTO menu_items (name, price, restaurant_id, category, is_available) 
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
