@@ -206,10 +206,17 @@ export async function generatePaymentLink(
       metadata: {
         orderId: String(params.orderId),
         orderNumber: params.tempOrderId,
+        tempOrderId: params.tempOrderId,
         customerEmail: customerEmail,
         customerName: params.customerName || ''
       }
     };
+
+    // Add database order ID if available in the metadata
+    if (params.metadata?.dbOrderId) {
+      paymentLinkParams.metadata.dbOrderId = params.metadata.dbOrderId;
+      console.log(`Including database order ID in Stripe metadata: ${params.metadata.dbOrderId}`);
+    }
 
     console.log('Payment link parameters:', JSON.stringify(paymentLinkParams, null, 2));
     

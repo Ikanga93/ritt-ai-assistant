@@ -51,7 +51,7 @@ This repository contains both the frontend and backend components of the Ritt AI
    
    OR
    
-   pnpm install
+`  pnpm install
    pnpm dev
    
    ```

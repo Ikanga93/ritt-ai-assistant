@@ -1,0 +1,45 @@
+================================================================================
+ORDER CHAT LOG
+================================================================================
+
+ORDER DETAILS:
+Order Number: 689
+Customer Name: Chris
+Customer Email: Not provided
+Restaurant: Niro's Gyros
+Order Total: $4.98
+Payment Status: PENDING
+Order Status: COMPLETED
+Created At: 2025-06-06T04:00:53.616Z
+Completed At: 2025-06-06T04:01:38.179Z
+
+ORDER ITEMS:
+1. Chili Cheeseburger
+   Quantity: 1
+   Price: $3.99
+
+--------------------------------------------------------------------------------
+CHAT CONVERSATION:
+--------------------------------------------------------------------------------
+
+[6/5/2025, 11:00:53 PM] ASSISTANT:
+Welcome to Niro's Gyros! How can I help you today?
+
+[6/5/2025, 11:00:38 PM] CUSTOMER:
+I'd like to order: 1x Chili Cheeseburger
+
+[6/5/2025, 11:01:08 PM] ASSISTANT:
+Great! I've added 1x Chili Cheeseburger to your order. Your total is $4.98.
+
+[6/5/2025, 11:01:18 PM] ASSISTANT:
+Can I get your name for the order?
+
+[6/5/2025, 11:01:28 PM] CUSTOMER:
+Chris
+
+[6/5/2025, 11:01:38 PM] ASSISTANT:
+Your order has been confirmed. Please use the payment button in the chat to complete your payment.
+
+================================================================================
+END OF CHAT LOG
+================================================================================

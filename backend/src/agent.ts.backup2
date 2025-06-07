@@ -69,10 +69,7 @@ import type { IncomingMessage } from 'http';
   const envPath = path.join(__dirname, '../.env.local');
   dotenv.config({ path: envPath });
   
-  // Global flag to prevent multiple server starts
-  declare global {
-    var serversInitialized: boolean | undefined;
-  }
+
 
 export default defineAgent({
     entry: async (ctx: JobContext) => {
@@ -1136,30 +1133,6 @@ export default defineAgent({
     // Log the port we're using
     monitor.log('WebhookServer', `Using port from environment: ${port}`);
 
-    const startWebhookServer = () => {
-      return new Promise<void>((resolve, reject) => {
-        // Prevent multiple server starts
-        if (isServerStarting) {
-          monitor.log('WebhookServer', 'Server start already in progress');
-          return resolve();
-        }
-        if (server) {
-          monitor.log('WebhookServer', 'Server already running');
-          return resolve();
-        }
-
-        // Check if we've exceeded max attempts
-        if (serverStartAttempts >= MAX_START_ATTEMPTS) {
-          monitor.log('WebhookServer', 'Max server start attempts reached, using existing server');
-          return resolve();
-        }
-
-        isServerStarting = true;
-        serverStartAttempts++;
-        
-        try {
-          monitor.log('WebhookServer', `Starting webhook server (attempt ${serverStartAttempts}/${MAX_START_ATTEMPTS})`, { port });
-          
           // Configure server with timeouts
           server = app.listen(port, '0.0.0.0');
           server.keepAliveTimeout = 65000; // Slightly higher than 60 seconds
@@ -1194,8 +1167,31 @@ export default defineAgent({
             isServerStarting = false;
             if (error.code === 'EADDRINUSE') {
               monitor.log('WebhookServer', 'Port in use, server may already be running');
-              // If port is in use, assume server is already running and resolve
-              resolve();
+              // Use dynamic import for net module
+              const { default: net } = await import('net');
+              const testServer = net.createServer();
+              testServer.once('error', (err) => {
+                if (err.code === 'EADDRINUSE') {
+                  monitor.log('WebhookServer', 'Confirmed port is in use by another process');
+                  // Instead of resolving with null, we'll try to find the existing server
+                  const existingServer = net.createServer();
+                  existingServer.once('error', () => {
+                    // If we can't connect, the server is already running
+                    monitor.log('WebhookServer', 'Existing server confirmed running');
+                    resolve();
+                  });
+                  existingServer.once('listening', () => {
+                    existingServer.close();
+                    reject(error);
+                  });
+                  existingServer.listen(port);
+                }
+              });
+              testServer.once('listening', () => {
+                testServer.close();
+                reject(error);
+              });
+              testServer.listen(port);
             } else {
               monitor.webhookServer.errorCount++;
               monitor.error('WebhookServer', 'Server error', error);
@@ -1208,12 +1204,6 @@ export default defineAgent({
           monitor.error('WebhookServer', 'Failed to start server', error);
           reject(error);
         }
-      });
-    };
-
-    // Start both servers asynchronously - only once per process
-    (async () => {
-      try {
         // Only start servers if they're not already running
         if (!global.serversInitialized) {
           // Start webhook server

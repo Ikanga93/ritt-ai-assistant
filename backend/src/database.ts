@@ -19,7 +19,7 @@ if (process.env.NODE_ENV !== "production") {
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  url: process.env.DATABASE_URL,
+  url: process.env.DATABASE_URL || process.env.INTERNAL_DATABASE_URL,
   ssl: process.env.NODE_ENV === "production" ? {
     rejectUnauthorized: false
   } : false,

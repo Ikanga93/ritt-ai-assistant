@@ -119,9 +119,16 @@ export async function generateOrderPaymentLink(
       metadata.restaurantName = order.restaurantName;
     }
     
+    // HYBRID APPROACH: Include database order ID if available
+    const orderMetadata = getPaymentMetadata(order);
+    if (orderMetadata.dbOrderId) {
+      metadata.dbOrderId = String(orderMetadata.dbOrderId);
+      console.log(`Including database order ID in payment metadata: ${orderMetadata.dbOrderId}`);
+    }
+    
     // Create the payment link request
     const paymentLinkRequest: PaymentLinkRequest = {
-      orderId: parseInt(order.id.split('-')[1], 10), // Use timestamp part of ID as numeric ID
+      orderId: orderMetadata.dbOrderId || parseInt(order.id.split('-')[1], 10), // Use database ID if available, fallback to timestamp
       tempOrderId: tempOrderId,
       amount: amount,
       customerName: customerName || order.customerName,
