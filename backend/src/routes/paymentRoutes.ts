@@ -261,8 +261,8 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    // Get the raw body from the request (added by our middleware)
-    const rawBody = (req as any).rawBody;
+    // Get the raw body from the request (express.raw() provides it as req.body Buffer)
+    const rawBody = req.body;
     
     if (!rawBody) {
       const errorMessage = 'Missing request body';
@@ -271,6 +271,7 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
         context: 'payments.webhook',
         data: {
           bodyType: typeof rawBody,
+          isBuffer: Buffer.isBuffer(rawBody),
           headers: req.headers,
           url: req.url,
           method: req.method
@@ -285,6 +286,8 @@ router.post('/webhook', async (req: Request, res: Response): Promise<void> => {
       correlationId,
       context: 'payments.webhook',
       data: {
+        bodyType: typeof rawBody,
+        isBuffer: Buffer.isBuffer(rawBody),
         bodyLength: rawBody.length,
         signature: sig,
         headers: {

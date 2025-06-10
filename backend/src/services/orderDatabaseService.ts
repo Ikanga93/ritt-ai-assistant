@@ -23,6 +23,7 @@ import { generateOrderPaymentLink } from './orderPaymentService.js';
 import { PaymentStatus } from '../entities/Order.js';
 import { generateOrderNumber } from '../utils/orderUtils.js';
 import { priceCalculator } from './priceCalculator.js';
+import { Restaurant } from '../entities/Restaurant.js';
 
 // Initialize repository
 const orderRepository = new OrderRepository();
@@ -477,13 +478,16 @@ async function getOrCreateCustomer(
 }
 
 /**
- * Find or create a restaurant in the database
+ * Find or create a restaurant record
  * 
- * @param restaurantId The restaurant ID from the JSON file
- * @param restaurantName The restaurant name
- * @returns The database restaurant ID
+ * @param restaurantId Restaurant ID (will be normalized)
+ * @param restaurantName Restaurant name
+ * @returns Restaurant database ID
  */
-async function findOrCreateRestaurant(restaurantId: string, restaurantName: string): Promise<number> {
+async function findOrCreateRestaurant(
+  restaurantId: string,
+  restaurantName: string
+): Promise<number> {
   try {
     // Ensure database connection is healthy
     console.log('Ensuring database connection is healthy in findOrCreateRestaurant...');
@@ -496,61 +500,68 @@ async function findOrCreateRestaurant(restaurantId: string, restaurantName: stri
     const normalizedRestaurantId = restaurantId.replace(/-/g, '_');
     console.log(`Normalized restaurant ID: ${normalizedRestaurantId} (from "${restaurantId}")`);
     
-    // Get the restaurant data from the JSON file to ensure we have the correct name
+    // Import restaurant utilities to get restaurant data
     const { getRestaurantById } = await import('../restaurantUtils.js');
+    
+    // Get restaurant data from menu files to get email and other details
     const restaurantData = await getRestaurantById(normalizedRestaurantId);
+    console.log('Restaurant data from menu:', {
+      found: !!restaurantData,
+      name: restaurantData?.coffee_shop,
+      email: restaurantData?.email,
+      phone: restaurantData?.location?.phone
+    });
     
-    // Get the proper restaurant name from the data
-    const properRestaurantName = restaurantData?.coffee_shop_name || 
-                               restaurantData?.coffee_shop || 
-                               restaurantName || 
-                               'Unknown Restaurant';
+    const restaurantRepository = AppDataSource.getRepository(Restaurant);
     
-    console.log(`Looking for restaurant with proper name: ${properRestaurantName}`);
+    // Try to find existing restaurant by name (more reliable than ID)
+    console.log(`Looking for restaurant with proper name: ${restaurantName}`);
+    let restaurant = await restaurantRepository.findOne({
+      where: { name: restaurantName }
+    });
     
-    // Try to find the restaurant by name using raw query to avoid entity mapping issues
-    const existingRestaurant = await AppDataSource.query(
-      `SELECT id, name FROM restaurants WHERE name = $1 LIMIT 1`,
-      [properRestaurantName]
-    );
-    
-    if (existingRestaurant && existingRestaurant.length > 0) {
-      console.log(`Found existing restaurant: ${properRestaurantName} with ID: ${existingRestaurant[0].id}`);
-      return existingRestaurant[0].id;
+    if (restaurant) {
+      console.log(`Found existing restaurant: ${restaurant.name} with ID: ${restaurant.id}`);
+      
+      // Update restaurant with email if missing and we have it from menu data
+      if (!restaurant.email && restaurantData?.email) {
+        console.log(`Updating restaurant email: ${restaurantData.email}`);
+        restaurant.email = restaurantData.email;
+        restaurant.phone = restaurantData.location?.phone || restaurant.phone;
+        restaurant.address = restaurantData.location?.address || restaurant.address;
+        await restaurantRepository.save(restaurant);
+        console.log(`Updated restaurant with email: ${restaurant.email}`);
+      }
+      
+      return restaurant.id;
     }
     
-    // If restaurant doesn't exist, use the data we already loaded
-    console.log(`Restaurant not found in database, creating new record for: ${properRestaurantName}`);
-    
-    if (!restaurantData) {
-      console.error(`Could not find restaurant data for ID: ${normalizedRestaurantId}`);
-      throw new Error(`Restaurant data not found for ID: ${normalizedRestaurantId}`);
+    // Create new restaurant with data from menu file
+    console.log(`Creating new restaurant: ${restaurantName}`);
+    const newRestaurant = new Restaurant();
+    newRestaurant.name = restaurantName;
+    if (restaurantData?.email) {
+      newRestaurant.email = restaurantData.email;
     }
-    
-    // Extract the location data
-    const address = restaurantData.location?.address || 'Address not provided';
-    const phone = restaurantData.location?.phone || 'Phone not provided';
-    const email = restaurantData.location?.email || restaurantData.email || null;
-    
-    console.log(`Creating restaurant with data from JSON: ${properRestaurantName}, ${address}, ${phone}, ${email || 'No email'}`);
-    
-    // Create the restaurant with the data from the JSON file
-    const result = await AppDataSource.query(
-      `INSERT INTO restaurants (name, address, phone, email, is_active) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [properRestaurantName, address, phone, email, true]
-    );
-    
-    if (result && result.length > 0) {
-      console.log(`Created new restaurant: ${properRestaurantName} with ID: ${result[0].id}`);
-      return result[0].id;
-    } else {
-      console.error('Failed to create restaurant');
-      throw new Error('Failed to create restaurant');
+    if (restaurantData?.location?.phone) {
+      newRestaurant.phone = restaurantData.location.phone;
     }
+    if (restaurantData?.location?.address) {
+      newRestaurant.address = restaurantData.location.address;
+    }
+    newRestaurant.is_active = true;
+    
+    const savedRestaurant = await restaurantRepository.save(newRestaurant);
+    console.log(`Created new restaurant with ID: ${savedRestaurant.id}`, {
+      name: savedRestaurant.name,
+      email: savedRestaurant.email,
+      phone: savedRestaurant.phone
+    });
+    
+    return savedRestaurant.id;
   } catch (error) {
-    console.error(`Error finding or creating restaurant: ${restaurantName}`, error);
-    throw error; // Re-throw the error to be handled by the caller
+    console.error('Error in findOrCreateRestaurant:', error);
+    throw error;
   }
 }
 

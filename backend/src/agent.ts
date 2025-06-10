@@ -1063,6 +1063,9 @@ export default defineAgent({
     });
 
     // Handle raw body for webhook endpoints using express.raw()
+    app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
+    // Handle raw body for the root path webhook endpoint
     app.use('/', (req, res, next) => {
       // Only use raw body parser for POST requests with Stripe signature
       if (req.method === 'POST' && req.headers['stripe-signature']) {
@@ -1070,9 +1073,6 @@ export default defineAgent({
       }
       next();
     });
-
-    // Handle raw body for the /api/payments/webhook endpoint
-    app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
     // Add JSON parsing for non-webhook routes
     app.use((req, res, next) => {
