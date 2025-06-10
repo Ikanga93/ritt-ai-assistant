@@ -1062,26 +1062,33 @@ export default defineAgent({
       next();
     });
 
-    // Handle raw body for webhook endpoints using express.raw()
-    app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+    // CRITICAL: Handle raw body for Stripe webhooks BEFORE any other body parsing
+    // This must be the first body parsing middleware
+    app.use('/api/payments/webhook', express.raw({ 
+      type: 'application/json',
+      limit: '1mb'
+    }));
 
-    // Handle raw body for the root path webhook endpoint
+    // Handle raw body for the root path webhook endpoint (Stripe sends webhooks here too)
     app.use('/', (req, res, next) => {
       // Only use raw body parser for POST requests with Stripe signature
       if (req.method === 'POST' && req.headers['stripe-signature']) {
-        return express.raw({ type: 'application/json' })(req, res, next);
+        return express.raw({ 
+          type: 'application/json',
+          limit: '1mb'
+        })(req, res, next);
       }
       next();
     });
 
-    // Add JSON parsing for non-webhook routes
+    // Add JSON parsing for non-webhook routes (AFTER webhook raw body parsing)
     app.use((req, res, next) => {
-      // Skip JSON parsing for webhook endpoints
+      // Skip JSON parsing for webhook endpoints that need raw body
       if (req.originalUrl === '/api/payments/webhook' || 
           (req.originalUrl === '/' && req.headers['stripe-signature'])) {
         return next();
       }
-      express.json()(req, res, next);
+      express.json({ limit: '1mb' })(req, res, next);
     });
 
     // Mount payment routes
@@ -1092,6 +1099,16 @@ export default defineAgent({
     app.post('/', async (req, res) => {
       monitor.log('WebhookServer', 'Received POST request at root path');
       
+      // Add detailed debugging for webhook body issues
+      console.log('>>> WEBHOOK DEBUG INFO <<<');
+      console.log('>>> Headers:', JSON.stringify(req.headers, null, 2));
+      console.log('>>> Body type:', typeof req.body);
+      console.log('>>> Body is Buffer:', Buffer.isBuffer(req.body));
+      console.log('>>> Body length:', req.body ? req.body.length : 'undefined');
+      console.log('>>> Content-Type:', req.headers['content-type']);
+      console.log('>>> Content-Length:', req.headers['content-length']);
+      console.log('>>> Stripe-Signature present:', !!req.headers['stripe-signature']);
+      
       // Check if this looks like a Stripe webhook
       if (req.headers['stripe-signature']) {
         monitor.log('WebhookServer', 'Processing Stripe webhook at root path');
@@ -1099,7 +1116,6 @@ export default defineAgent({
         try {
           // Process the webhook using the same logic as payment routes
           console.log('>>> Webhook endpoint / hit by a POST request at', new Date().toISOString());
-          console.log('>>> Request headers:', JSON.stringify(req.headers, null, 2));
 
           const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
           
@@ -1117,12 +1133,39 @@ export default defineAgent({
           // Get the raw body from the request (express.raw() provides it as req.body Buffer)
           const rawBody = req.body;
           
+          // Enhanced body validation with detailed logging
           if (!rawBody) {
-            monitor.error('WebhookServer', 'Missing request body');
-            return res.status(400).json({ error: 'Missing request body' });
+            const errorDetails = {
+              bodyType: typeof rawBody,
+              isBuffer: Buffer.isBuffer(rawBody),
+              bodyValue: rawBody,
+              headers: req.headers,
+              url: req.url,
+              method: req.method,
+              contentLength: req.headers['content-length'],
+              contentType: req.headers['content-type']
+            };
+            
+            console.log('>>> MISSING BODY ERROR DETAILS:', JSON.stringify(errorDetails, null, 2));
+            monitor.error('WebhookServer', 'Missing request body', errorDetails);
+            
+            return res.status(400).json({ 
+              error: 'Missing request body',
+              debug: errorDetails
+            });
           }
 
-          monitor.log('WebhookServer', 'Raw body captured', {
+          // Additional validation for empty or invalid body
+          if (Buffer.isBuffer(rawBody) && rawBody.length === 0) {
+            console.log('>>> EMPTY BUFFER ERROR');
+            monitor.error('WebhookServer', 'Empty request body buffer');
+            return res.status(400).json({ 
+              error: 'Empty request body',
+              debug: { bodyLength: rawBody.length }
+            });
+          }
+
+          monitor.log('WebhookServer', 'Raw body captured successfully', {
             bodyType: typeof rawBody,
             isBuffer: Buffer.isBuffer(rawBody),
             length: rawBody.length
@@ -1144,7 +1187,13 @@ export default defineAgent({
               created: new Date(event.created * 1000).toISOString()
             });
           } catch (err: any) {
-            monitor.error('WebhookServer', 'Webhook signature verification failed', err);
+            console.log('>>> WEBHOOK SIGNATURE VERIFICATION FAILED:', err.message);
+            monitor.error('WebhookServer', 'Webhook signature verification failed', {
+              error: err.message,
+              bodyLength: rawBody.length,
+              signature: sig,
+              webhookSecretConfigured: !!webhookSecret
+            });
             return res.status(400).send(`Webhook Error: ${err.message}`);
           }
 

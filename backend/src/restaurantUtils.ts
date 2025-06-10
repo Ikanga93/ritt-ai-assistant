@@ -162,78 +162,81 @@ export async function getRestaurantById(id: string): Promise<CoffeeShop | null> 
 
   console.log(`Looking up restaurant with original ID: "${id}"`);
   
-  // First check if this is a known mispronunciation
+  // First check if this is a known mispronunciation or variation
   const lowerCaseId = id.toLowerCase().trim();
   const mappedId = coffeeShopNameMappings[lowerCaseId] || lowerCaseId;
   
-  // Then normalize: convert to lowercase and replace spaces with underscores
-  const normalizedId = mappedId.replace(/\s+/g, '_');
+  // Comprehensive normalization: convert to lowercase, replace spaces with underscores, 
+  // replace hyphens with underscores, and handle common variations
+  let normalizedId = mappedId
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_')
+    .replace(/'/g, '')
+    .replace(/\./g, '');
+  
+  // Handle specific restaurant ID variations
+  const restaurantIdMappings: { [key: string]: string } = {
+    'nirosgyros': 'niros_gyros',
+    'niros-gyros': 'niros_gyros',
+    'niros gyros': 'niros_gyros',
+    'niro_gyros': 'niros_gyros',
+    'niro-gyros': 'niros_gyros',
+    'niro gyros': 'niros_gyros'
+  };
+  
+  // Apply restaurant-specific mappings
+  if (restaurantIdMappings[normalizedId]) {
+    normalizedId = restaurantIdMappings[normalizedId];
+    console.log(`Applied restaurant ID mapping: "${id}" -> "${normalizedId}"`);
+  }
   
   console.log(`Normalized restaurant ID: "${normalizedId}" (from "${id}")`);
   
-  // Validate that we're looking for a known restaurant
+  // Get the list of valid restaurant IDs for comparison
   const availableRestaurants = await getRestaurants();
   const validIds = availableRestaurants.map(r => r.id);
   const restaurantNames = availableRestaurants.map(r => r.name);
   
   // Try exact match first
   if (validIds.includes(normalizedId)) {
+    console.log(`Exact match found for normalized ID: ${normalizedId}`);
     return cacheManager.getOrSet(`restaurant_${normalizedId}`, () => loadRestaurantFromDisk(normalizedId));
   }
   
-  // If no exact match, try fuzzy matching
-  console.warn(`Warning: Restaurant ID "${normalizedId}" is not in the list of known restaurants: ${validIds.join(', ')}`);
-  
-  // Try to find a close match by ID substring with more flexible matching
-  const substringMatch = validIds.find(validId => {
-    // Check if either string contains the other
-    if (validId.includes(normalizedId) || normalizedId.includes(validId)) {
-      return true;
-    }
-    
-    // Check if any word in the normalized ID is in the valid ID or vice versa
-    const normalizedWords = normalizedId.split('_');
-    const validIdWords = validId.split('_');
-    
-    return normalizedWords.some(word => 
-      validIdWords.some(validWord => validWord.includes(word) || word.includes(validWord))
-    );
-  });
+  // Try substring matching if exact match fails
+  const substringMatch = validIds.find(validId => 
+    validId.includes(normalizedId) || normalizedId.includes(validId)
+  );
   
   if (substringMatch) {
     console.log(`Found substring match by ID: "${substringMatch}" for "${normalizedId}", using it instead`);
     return cacheManager.getOrSet(`restaurant_${substringMatch}`, () => loadRestaurantFromDisk(substringMatch));
   }
   
-  // Try fuzzy matching with restaurant names
-  // Normalize the input for better matching
-  const normalizedInput = fuzzyMatchUtils.normalizeString(id);
+  // Try fuzzy matching on restaurant names
+  const inputNormalized = normalizedId.replace(/[^a-z0-9]/g, '');
+  const nameMatch = availableRestaurants.find(restaurant => {
+    const restaurantNormalized = restaurant.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return restaurantNormalized.includes(inputNormalized) || 
+           inputNormalized.includes(restaurantNormalized);
+  });
   
-  // Try to find the best match among restaurant names
-  const bestNameMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, restaurantNames);
-  
-  // Use a lower threshold (0.4) for better recognition
-  if (bestNameMatch && bestNameMatch.similarity >= 0.4) {
-    // Find the restaurant ID that corresponds to the matched name
-    const matchedRestaurant = availableRestaurants.find(r => r.name === bestNameMatch.match);
-    
-    if (matchedRestaurant) {
-      console.log(`Fuzzy match found: "${id}" -> "${matchedRestaurant.name}" (similarity: ${bestNameMatch.similarity.toFixed(2)})`);
-      console.log(`Using restaurant ID: ${matchedRestaurant.id}`);
-      return cacheManager.getOrSet(`restaurant_${matchedRestaurant.id}`, () => loadRestaurantFromDisk(matchedRestaurant.id));
-    }
+  if (nameMatch) {
+    console.log(`Found name match: "${nameMatch.name}" (ID: ${nameMatch.id}) for input "${id}"`);
+    return cacheManager.getOrSet(`restaurant_${nameMatch.id}`, () => loadRestaurantFromDisk(nameMatch.id));
   }
   
-  // If still no match, try fuzzy matching with IDs as a last resort
-  const bestIdMatch = fuzzyMatchUtils.findBestMatch(normalizedInput, validIds);
+  // If no match found, log warning but don't return null immediately
+  console.warn(`Warning: Restaurant ID "${normalizedId}" is not in the list of known restaurants: ${validIds.join(', ')}`);
   
-  if (bestIdMatch && bestIdMatch.similarity >= 0.4) {
-    console.log(`Fuzzy ID match found: "${id}" -> "${bestIdMatch.match}" (similarity: ${bestIdMatch.similarity.toFixed(2)})`);
-    return cacheManager.getOrSet(`restaurant_${bestIdMatch.match}`, () => loadRestaurantFromDisk(bestIdMatch.match));
+  // As a last resort, try the original ID without normalization
+  if (validIds.includes(id)) {
+    console.log(`Found match using original ID: ${id}`);
+    return cacheManager.getOrSet(`restaurant_${id}`, () => loadRestaurantFromDisk(id));
   }
   
-  // No match found
-  console.error(`No matching restaurant found for: "${id}"`);
+  console.error(`No restaurant found for ID: "${id}" (normalized: "${normalizedId}")`);
   return null;
 }
 
