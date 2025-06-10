@@ -6,7 +6,30 @@ export class FixCustomerEmailConstraint1747801142451 implements MigrationInterfa
     public async up(queryRunner: QueryRunner): Promise<void> {
         console.log('🔧 Fixing customer email constraint issue...');
         
-        // First, update any empty string emails to NULL
+        // FIRST: Make email column nullable (remove NOT NULL constraint)
+        console.log('Making email column nullable...');
+        await queryRunner.query(`
+            ALTER TABLE customers ALTER COLUMN email DROP NOT NULL
+        `);
+        
+        // SECOND: Drop the existing unique constraint on email if it exists
+        // This constraint is causing the duplicate key error
+        const emailConstraints = await queryRunner.query(`
+            SELECT constraint_name 
+            FROM information_schema.table_constraints 
+            WHERE table_name = 'customers' 
+            AND constraint_type = 'UNIQUE' 
+            AND (constraint_name LIKE '%email%' OR constraint_name = 'UQ_8536b8b85c06969f84f0c098b03')
+        `);
+        
+        for (const constraint of emailConstraints) {
+            console.log(`Dropping email constraint: ${constraint.constraint_name}`);
+            await queryRunner.query(`
+                ALTER TABLE customers DROP CONSTRAINT IF EXISTS "${constraint.constraint_name}"
+            `);
+        }
+        
+        // THIRD: Now update any empty string emails to NULL (now that column is nullable)
         const emptyEmailCustomers = await queryRunner.query(`
             SELECT COUNT(*) as count FROM customers WHERE email = ''
         `);
@@ -18,29 +41,7 @@ export class FixCustomerEmailConstraint1747801142451 implements MigrationInterfa
             `);
         }
         
-        // Drop the existing unique constraint on email if it exists
-        // This constraint is causing the duplicate key error
-        const emailConstraints = await queryRunner.query(`
-            SELECT constraint_name 
-            FROM information_schema.table_constraints 
-            WHERE table_name = 'customers' 
-            AND constraint_type = 'UNIQUE' 
-            AND constraint_name LIKE '%email%' OR constraint_name = 'UQ_8536b8b85c06969f84f0c098b03'
-        `);
-        
-        for (const constraint of emailConstraints) {
-            console.log(`Dropping email constraint: ${constraint.constraint_name}`);
-            await queryRunner.query(`
-                ALTER TABLE customers DROP CONSTRAINT IF EXISTS "${constraint.constraint_name}"
-            `);
-        }
-        
-        // Make email column nullable if it isn't already
-        await queryRunner.query(`
-            ALTER TABLE customers ALTER COLUMN email DROP NOT NULL
-        `);
-        
-        // Create a partial unique index that allows multiple NULL values
+        // FOURTH: Create a partial unique index that allows multiple NULL values
         // This allows customers without emails while preventing duplicate emails
         await queryRunner.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS customers_email_unique_idx 
