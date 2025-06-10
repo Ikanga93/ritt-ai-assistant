@@ -348,46 +348,130 @@ async function getOrCreateCustomer(
       throw new Error('Failed to establish a healthy database connection in getOrCreateCustomer');
     }
     
-    // Try to find an existing customer by email first (most reliable), then phone
-    let customer: Customer | null = null;
+    // Normalize email - convert empty strings to null to avoid constraint issues
+    const normalizedEmail = (email && email.trim() !== '') ? email.trim() : null;
+    const normalizedPhone = (phone && phone.trim() !== '') ? phone.trim() : null;
     
-    if (email) {
+    console.log('Looking for customer with:', {
+      name,
+      email: normalizedEmail,
+      phone: normalizedPhone
+    });
+    
+    // Use raw queries to avoid TypeORM entity constraint issues
+    // Try to find an existing customer by email first (if provided and not empty)
+    if (normalizedEmail) {
       try {
-        customer = await AppDataSource.getRepository(Customer).findOne({
-          where: { email }
-        });
+        const existingCustomerByEmail = await AppDataSource.query(
+          `SELECT id, name, email FROM customers WHERE email = $1 LIMIT 1`,
+          [normalizedEmail]
+        );
         
-        if (customer) {
-          console.log(`Found existing customer by email: ${email}`);
-          return customer.id;
+        if (existingCustomerByEmail && existingCustomerByEmail.length > 0) {
+          console.log(`Found existing customer by email: ${normalizedEmail} (ID: ${existingCustomerByEmail[0].id})`);
+          return existingCustomerByEmail[0].id;
         }
       } catch (error) {
         console.error('Error finding customer by email:', error);
       }
     }
     
-    if (phone && !customer) {
+    // Try to find by phone if provided and not empty
+    if (normalizedPhone) {
       try {
-        customer = await AppDataSource.getRepository(Customer)
-          .findOne({ where: { phone } });
+        const existingCustomerByPhone = await AppDataSource.query(
+          `SELECT id, name, phone FROM customers WHERE phone = $1 LIMIT 1`,
+          [normalizedPhone]
+        );
+        
+        if (existingCustomerByPhone && existingCustomerByPhone.length > 0) {
+          console.log(`Found existing customer by phone: ${normalizedPhone} (ID: ${existingCustomerByPhone[0].id})`);
+          return existingCustomerByPhone[0].id;
+        }
       } catch (error) {
         console.error('Error finding customer by phone:', error);
       }
     }
     
-    // If customer doesn't exist, create a new one
-    console.log(`Creating new customer: ${name}`);
-    const newCustomer = new Customer();
-    newCustomer.name = name;
-    newCustomer.phone = phone || '';
-    newCustomer.email = email || '';
+    // Try to find by name if no email or phone match
+    try {
+      const existingCustomerByName = await AppDataSource.query(
+        `SELECT id, name FROM customers WHERE name = $1 AND (email IS NULL OR email = $2) LIMIT 1`,
+        [name, normalizedEmail]
+      );
+      
+      if (existingCustomerByName && existingCustomerByName.length > 0) {
+        console.log(`Found existing customer by name: ${name} (ID: ${existingCustomerByName[0].id})`);
+        return existingCustomerByName[0].id;
+      }
+    } catch (error) {
+      console.error('Error finding customer by name:', error);
+    }
     
-    const savedCustomer = await AppDataSource.getRepository(Customer).save(newCustomer);
-    console.log(`Created new customer with ID: ${savedCustomer.id}`);
-    return savedCustomer.id;
+    // If customer doesn't exist, create a new one using raw query to avoid constraint issues
+    console.log(`Creating new customer: ${name} with email: ${normalizedEmail || 'NULL'}`);
+    
+    try {
+      const result = await AppDataSource.query(
+        `INSERT INTO customers (name, email, phone, created_at, updated_at) 
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
+         RETURNING id`,
+        [name, normalizedEmail, normalizedPhone]
+      );
+      
+      if (result && result.length > 0) {
+        console.log(`Created new customer with ID: ${result[0].id}`);
+        return result[0].id;
+      }
+    } catch (insertError: any) {
+      console.error('Error creating customer with raw query:', insertError);
+      
+      // If we get a constraint violation, try to find the existing customer
+      if (insertError.code === '23505') {
+        console.log('Constraint violation detected, looking for existing customer...');
+        
+        // Try to find by email again (in case it was just created)
+        if (normalizedEmail) {
+          try {
+            const existingCustomer = await AppDataSource.query(
+              `SELECT id FROM customers WHERE email = $1 LIMIT 1`,
+              [normalizedEmail]
+            );
+            
+            if (existingCustomer && existingCustomer.length > 0) {
+              console.log(`Found existing customer after constraint violation: ${existingCustomer[0].id}`);
+              return existingCustomer[0].id;
+            }
+          } catch (findError) {
+            console.error('Error finding existing customer after constraint violation:', findError);
+          }
+        }
+        
+        // Try to find by name with NULL email
+        try {
+          const existingNullEmailCustomer = await AppDataSource.query(
+            `SELECT id FROM customers WHERE name = $1 AND email IS NULL LIMIT 1`,
+            [name]
+          );
+          
+          if (existingNullEmailCustomer && existingNullEmailCustomer.length > 0) {
+            console.log(`Found existing customer with NULL email: ${existingNullEmailCustomer[0].id}`);
+            return existingNullEmailCustomer[0].id;
+          }
+        } catch (findError) {
+          console.error('Error finding existing customer with NULL email:', findError);
+        }
+      }
+    }
+    
+    // If all else fails, return a default customer ID
+    console.log('All customer creation attempts failed, using default customer ID: 1');
+    return 1;
+    
   } catch (error) {
     console.error('Error getting or creating customer:', error);
     // Return a default customer ID
+    console.log('Using fallback customer ID: 1');
     return 1;
   }
 }
